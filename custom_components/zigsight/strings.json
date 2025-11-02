@@ -73,9 +73,11 @@
   },
   "selector": {
     "scan_mode": {
-      "manual": "Manual",
-      "router_api": "Router API",
-      "host_scan": "Host Scan"
+      "options": {
+        "manual": "Manual",
+        "router_api": "Router API",
+        "host_scan": "Host Scan"
+      }
     }
   }
 }

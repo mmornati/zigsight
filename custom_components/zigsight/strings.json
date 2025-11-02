@@ -39,7 +39,8 @@
     },
     "abort": {
       "already_configured": "ZigSight is already configured",
-      "single_instance_allowed": "Only a single instance of ZigSight is allowed"
+      "single_instance_allowed": "Only a single instance of ZigSight is allowed",
+      "mqtt_not_available": "MQTT is not available. Please configure MQTT integration first."
     }
   },
   "options": {
@@ -70,7 +71,7 @@
       }
     }
   },
-  "options": {
+  "selector": {
     "scan_mode": {
       "state": {
         "manual": "Manual",

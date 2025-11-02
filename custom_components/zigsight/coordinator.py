@@ -135,7 +135,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "last_seen": now.isoformat(),
             "last_message": data,
         }
-        
+
         # Initialize device entry if not exists
         if device_id not in self._devices:
             self._devices[device_id] = {
@@ -177,7 +177,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "metrics": metrics.copy(),
             }
         )
-        
+
         # Keep only last 1000 entries per device
         if len(self._device_history[device_id]) > 1000:
             self._device_history[device_id] = self._device_history[device_id][-1000:]

@@ -39,7 +39,6 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._mqtt_prefix = mqtt_prefix
         self._devices: dict[str, dict[str, Any]] = {}
         self._device_history: dict[str, list[dict[str, Any]]] = {}
-        self._mqtt_subscriptions: list[asyncio.Future[None] | None] = []
         self._unsub_mqtt: list[Any] = []
 
     async def async_start(self) -> None:
@@ -96,7 +95,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             topic_parts = msg.topic.split("/")
             if len(topic_parts) < 2:
                 return
-            
+
             # Topic format: <prefix>/<device_id> or <prefix>/<device_id>/set
             device_id = topic_parts[1]
 
@@ -107,15 +106,15 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             payload = msg.payload
             if isinstance(payload, bytes):
                 payload = payload.decode("utf-8")
-            
+
             device_data = json.loads(payload) if isinstance(payload, str) else payload
-            
+
             # Process device update
             self._process_device_update(device_id, device_data, msg.topic)
             
             # Notify listeners about the update
             self.async_update_listeners()
-            
+
         except Exception as err:
             self.logger.error("Error processing device message: %s", err)
 
@@ -143,7 +142,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "reconnect_count": 0,
                 "last_reconnect": None,
             }
-        
+
         # Check for reconnections
         device = self._devices[device_id]
         last_seen_str = device.get("metrics", {}).get("last_seen")
@@ -157,7 +156,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     device["last_reconnect"] = now.isoformat()
             except (ValueError, TypeError):
                 pass
-        
+
         # Update device metrics
         device["metrics"] = metrics
         device["last_update"] = now.isoformat()
@@ -188,7 +187,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "metrics": metrics,
             },
         )
-        
+
         self.logger.debug("Updated device %s: %s", device_id, metrics)
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -230,7 +229,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if unsub:
                 unsub()
         self._unsub_mqtt.clear()
-        
+
         # Cancel any pending tasks
         if hasattr(self, "_tasks"):
             for task in self._tasks:

@@ -1,0 +1,4 @@
+# Core dependencies for ZigSight
+# Most dependencies are optional and defined in manifest.json
+# This file exists to satisfy CI workflow requirements
+

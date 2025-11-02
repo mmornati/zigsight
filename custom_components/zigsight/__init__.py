@@ -24,7 +24,7 @@ from .const import (
 )
 from .coordinator import ZigSightCoordinator
 
-PLATFORMS: list[str] = ["sensor", "binary_sensor"]
+PLATFORMS: list[str] = ["sensor", "binary_sensor", "diagnostics"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

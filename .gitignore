@@ -49,3 +49,6 @@ Thumbs.db
 *.log
 .env
 bandit-report.json
+
+# Frontend assets (should be distributed via HACS)
+www/

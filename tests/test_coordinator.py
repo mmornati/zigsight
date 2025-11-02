@@ -6,24 +6,19 @@ import pytest
 from custom_components.zigsight.coordinator import ZigSightCoordinator
 
 
-@pytest.fixture
-def mock_hass() -> MagicMock:
-    """Create a mock Home Assistant instance."""
-    hass = MagicMock()
-    return hass
-
-
 @pytest.mark.asyncio
-async def test_coordinator_construction(mock_hass: MagicMock) -> None:
+async def test_coordinator_construction() -> None:
     """Test that coordinator can be constructed."""
+    mock_hass = MagicMock()
     coordinator = ZigSightCoordinator(mock_hass)
     assert coordinator is not None
     assert coordinator.name == "zigsight"
 
 
 @pytest.mark.asyncio
-async def test_coordinator_async_start(mock_hass: MagicMock) -> None:
+async def test_coordinator_async_start() -> None:
     """Test that coordinator async_start() schedules its tasks."""
+    mock_hass = MagicMock()
     coordinator = ZigSightCoordinator(mock_hass)
     await coordinator.async_start()
 
@@ -32,8 +27,9 @@ async def test_coordinator_async_start(mock_hass: MagicMock) -> None:
 
 
 @pytest.mark.asyncio
-async def test_coordinator_async_update_data(mock_hass: MagicMock) -> None:
+async def test_coordinator_async_update_data() -> None:
     """Test that coordinator _async_update_data returns data."""
+    mock_hass = MagicMock()
     coordinator = ZigSightCoordinator(mock_hass)
     data = await coordinator._async_update_data()
 
@@ -42,8 +38,9 @@ async def test_coordinator_async_update_data(mock_hass: MagicMock) -> None:
 
 
 @pytest.mark.asyncio
-async def test_coordinator_async_shutdown(mock_hass: MagicMock) -> None:
+async def test_coordinator_async_shutdown() -> None:
     """Test that coordinator async_shutdown cancels tasks."""
+    mock_hass = MagicMock()
     coordinator = ZigSightCoordinator(mock_hass)
 
     # Create a mock task

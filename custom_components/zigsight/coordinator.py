@@ -205,13 +205,6 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self.logger.debug("Subscribed to MQTT topic: %s", topic)
         except Exception as err:
             self.logger.error("Failed to subscribe to MQTT topic %s: %s", topic, err)
-
-        except Exception as err:
-            self.logger.error(
-                "Failed to subscribe to MQTT topic %s with direct connection: %s",
-                topic,
-                err,
-            )
             raise
 
     @callback
@@ -234,7 +227,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.logger.error("Error processing bridge state: %s", err)
 
     @callback
-    def _on_device_message(self, msg: Any) -> None:
+    def _on_device_message(self, msg: Any) -> None:  # type: ignore[type-arg]
         """Handle device update messages."""
         try:
             topic_parts = msg.topic.split("/")

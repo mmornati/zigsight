@@ -37,7 +37,7 @@ jobs:
 
     - name: Run unit tests
       run: |
-        pytest tests/ -v --cov=custom_components/zigsight --cov-report=xml --cov-report=html --cov-report=term
+        pytest tests/ -v --cov=custom_components/zigsight --cov-report=xml --cov-report=html
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

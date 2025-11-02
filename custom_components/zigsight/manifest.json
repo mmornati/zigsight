@@ -5,7 +5,7 @@
   "documentation": "https://github.com/mmornati/zigsight",
   "issue_tracker": "https://github.com/mmornati/zigsight/issues",
   "codeowners": ["@mmornati"],
-  "requirements": ["homeassistant>=2025.5.0"],
+  "requirements": ["homeassistant>=2025.10.0"],
   "dependencies": [],
   "config_flow": true,
   "iot_class": "local_polling"

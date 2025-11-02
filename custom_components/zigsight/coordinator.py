@@ -79,12 +79,15 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             payload = msg.payload
             if isinstance(payload, bytes):
                 payload = payload.decode("utf-8")
-            
+
             state_data = json.loads(payload) if isinstance(payload, str) else payload
             self.logger.debug("Bridge state update: %s", state_data)
-            
+
             # Store bridge state for future use
-            self._devices["bridge"] = {"state": state_data, "last_update": datetime.now().isoformat()}
+            self._devices["bridge"] = {
+                "state": state_data,
+                "last_update": datetime.now().isoformat(),
+            }
         except Exception as err:
             self.logger.error("Error processing bridge state: %s", err)
 
@@ -111,7 +114,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             # Process device update
             self._process_device_update(device_id, device_data, msg.topic)
-            
+
             # Notify listeners about the update
             self.async_update_listeners()
 

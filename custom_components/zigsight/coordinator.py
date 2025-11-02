@@ -77,10 +77,6 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "Starting ZigSight coordinator with MQTT prefix: %s", self._mqtt_prefix
         )
 
-        if self._use_direct_mqtt:
-            # Start direct MQTT client connection
-            await self._start_direct_mqtt()
-
         # Subscribe to Zigbee2MQTT bridge state
         bridge_topic = f"{self._mqtt_prefix}/bridge/state"
         await self._subscribe_mqtt(bridge_topic, self._on_bridge_state)
@@ -88,6 +84,10 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Subscribe to all device updates
         devices_topic = f"{self._mqtt_prefix}/#"
         await self._subscribe_mqtt(devices_topic, self._on_device_message)
+
+        if self._use_direct_mqtt:
+            # Start direct MQTT client connection after topics are registered
+            await self._start_direct_mqtt()
 
     async def _start_direct_mqtt(self) -> None:
         """Start direct MQTT client connection."""

@@ -1,0 +1,21 @@
+{
+  "name": "ZigSight",
+  "content_in_root": false,
+  "filename": "zigsight",
+  "country": [
+    "US",
+    "FR",
+    "DE",
+    "GB",
+    "IT",
+    "ES",
+    "NL",
+    "BE",
+    "CH",
+    "AT"
+  ],
+  "homeassistant": "2025.1.0",
+  "render_readme": true,
+  "iot_class": "Local Polling"
+}
+

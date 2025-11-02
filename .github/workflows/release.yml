@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v
+
+      - name: Create HACS package
+        run: |
+          mkdir -p dist
+          cd custom_components
+          zip -r ../dist/zigsight.zip zigsight/
+          cd ..
+
+      - name: Extract version
+        id: get_version
+        run: |
+          VERSION=$(echo ${{ github.ref }} | sed 's/refs\/tags\/v//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/zigsight.zip
+          generate_release_notes: true
+          body: |
+            ## Changes in v${{ steps.get_version.outputs.version }}
+            
+            See [CHANGELOG.md](CHANGELOG.md) for details.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

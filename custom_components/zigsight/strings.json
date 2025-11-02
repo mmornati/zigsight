@@ -1,0 +1,58 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ZigSight Setup",
+        "description": "Configure ZigSight to monitor your Zigbee network",
+        "data": {
+          "mqtt_topic_prefix": "MQTT Topic Prefix",
+          "integration_type": "Integration Type"
+        }
+      },
+      "zigbee2mqtt": {
+        "title": "Zigbee2MQTT Configuration",
+        "description": "Configure Zigbee2MQTT connection",
+        "data": {
+          "mqtt_topic_prefix": "MQTT Topic Prefix",
+          "reconnect_threshold": "Reconnect Threshold"
+        }
+      },
+      "zha": {
+        "title": "ZHA Configuration",
+        "description": "Configure ZHA integration",
+        "data": {}
+      },
+      "deconz": {
+        "title": "deCONZ Configuration",
+        "description": "Configure deCONZ connection",
+        "data": {
+          "host": "deCONZ Host",
+          "port": "deCONZ Port",
+          "api_key": "API Key"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "ZigSight is already configured",
+      "single_instance_allowed": "Only a single instance of ZigSight is allowed"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update Configuration",
+        "description": "Update ZigSight settings",
+        "data": {
+          "retention_days": "Data Retention (days)",
+          "reconnect_threshold": "Reconnect Threshold"
+        }
+      }
+    }
+  }
+}
+

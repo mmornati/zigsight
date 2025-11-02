@@ -5,70 +5,24 @@ on:
     branches: [main, 'feature/**', 'bugfix/**']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
-  lint:
-    name: Lint with ruff
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff
-      - name: Run ruff
-        run: |
-          ruff check custom_components/ tests/
-          ruff format --check custom_components/ tests/
+  # CI workflow that triggers other workflows
+  # Individual checks are in separate workflow files:
+  # - lint.yml: Linting, type checking, security
+  # - test.yml: Unit tests
+  # - pre-commit.yml: Pre-commit hooks
 
-  type-check:
-    name: Type check with mypy
+  hacs:
+    name: HACS Action
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: HACS Action
+        uses: hacs/action@main
         with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-      - name: Run mypy
-        run: |
-          mypy custom_components/
-        continue-on-error: true
-
-  test:
-    name: Test with pytest
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.11']
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-          pip install pytest pytest-asyncio pytest-cov pytest-timeout
-      - name: Run tests with coverage
-        run: |
-          pytest --cov=custom_components --cov-report=xml --cov-report=term-missing tests/
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./coverage.xml
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: false
-        continue-on-error: true
+          CATEGORY: integration
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

@@ -1,0 +1,36 @@
+# Disabled: Documentation not yet available
+# This workflow will be enabled when documentation is added to the project
+
+name: Deploy Documentation to GitHub Pages
+
+"on":
+  workflow_dispatch:
+    # Disabled until documentation exists
+    # push:
+    #   branches:
+    #     - main
+    #   paths:
+    #     - 'docs/**'
+    #     - 'mkdocs.yml'
+    #     - '.github/workflows/deploy-docs.yaml'
+    # pull_request:
+    #   paths:
+    #     - 'docs/**'
+    #     - 'mkdocs.yml'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: false  # Disabled until documentation exists
+    steps:
+      - name: Note
+        run: echo "Documentation deployment disabled - documentation not yet available"

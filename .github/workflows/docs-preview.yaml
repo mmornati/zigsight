@@ -1,0 +1,33 @@
+# Disabled: Documentation not yet available
+# This workflow will be enabled when documentation is added to the project
+
+name: Documentation Preview
+
+"on":
+  workflow_dispatch:
+    # Disabled until documentation exists
+    # pull_request:
+    #   types: [opened, synchronize, reopened, ready_for_review]
+    #   paths:
+    #     - 'docs/**'
+    #     - 'mkdocs.yml'
+    #     - 'docs/requirements.txt'
+    #     - '.github/workflows/docs-preview.yaml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build-docs-preview:
+    name: Build Documentation Preview
+    if: false  # Disabled until documentation exists
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Note
+        run: echo "Documentation preview disabled - documentation not yet available"

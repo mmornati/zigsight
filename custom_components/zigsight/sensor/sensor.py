@@ -139,14 +139,51 @@ class ZigSightReconnectRateSensor(ZigbeeDeviceSensor):
     ) -> None:
         """Initialize the reconnect rate sensor."""
         super().__init__(coordinator, device_id, "reconnect_rate")
-        self._attr_native_unit_of_measurement = "reconnects"
+        self._attr_native_unit_of_measurement = "events/hour"
         self._attr_icon = "mdi:connection"
-        self._attr_state_class = SensorStateClass.TOTAL
+        self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
-    def native_value(self) -> int | None:
-        """Return the reconnect count."""
-        device = self.coordinator.get_device(self._device_id)
-        if device:
-            return device.get("reconnect_count", 0)
-        return None
+    def native_value(self) -> float | None:
+        """Return the reconnect rate."""
+        return self.coordinator.get_device_reconnect_rate(self._device_id)
+
+
+class ZigSightBatteryTrendSensor(ZigbeeDeviceSensor):
+    """Sensor for device battery trend."""
+
+    def __init__(
+        self,
+        coordinator: ZigSightCoordinator,
+        device_id: str,
+    ) -> None:
+        """Initialize the battery trend sensor."""
+        super().__init__(coordinator, device_id, "battery_trend")
+        self._attr_native_unit_of_measurement = "%/hour"
+        self._attr_icon = "mdi:trending-down"
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the battery trend."""
+        return self.coordinator.get_device_battery_trend(self._device_id)
+
+
+class ZigSightHealthScoreSensor(ZigbeeDeviceSensor):
+    """Sensor for device health score."""
+
+    def __init__(
+        self,
+        coordinator: ZigSightCoordinator,
+        device_id: str,
+    ) -> None:
+        """Initialize the health score sensor."""
+        super().__init__(coordinator, device_id, "health_score")
+        self._attr_native_unit_of_measurement = None
+        self._attr_icon = "mdi:heart-pulse"
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the health score."""
+        return self.coordinator.get_device_health_score(self._device_id)

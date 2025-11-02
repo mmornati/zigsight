@@ -5,16 +5,42 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_MQTT_TOPIC_PREFIX, DEFAULT_MQTT_TOPIC_PREFIX, DOMAIN
+from .const import (
+    CONF_BATTERY_DRAIN_THRESHOLD,
+    CONF_MQTT_TOPIC_PREFIX,
+    CONF_RECONNECT_RATE_THRESHOLD,
+    CONF_RECONNECT_RATE_WINDOW_HOURS,
+    DEFAULT_BATTERY_DRAIN_THRESHOLD,
+    DEFAULT_MQTT_TOPIC_PREFIX,
+    DEFAULT_RECONNECT_RATE_THRESHOLD,
+    DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
+    DOMAIN,
+)
 from .coordinator import ZigSightCoordinator
 
-PLATFORMS: list[str] = ["sensor"]
+PLATFORMS: list[str] = ["sensor", "binary_sensor"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up ZigSight from a config entry."""
     mqtt_prefix = entry.data.get(CONF_MQTT_TOPIC_PREFIX, DEFAULT_MQTT_TOPIC_PREFIX)
-    coordinator = ZigSightCoordinator(hass, mqtt_prefix=mqtt_prefix)
+    battery_drain_threshold = entry.data.get(
+        CONF_BATTERY_DRAIN_THRESHOLD, DEFAULT_BATTERY_DRAIN_THRESHOLD
+    )
+    reconnect_rate_threshold = entry.data.get(
+        CONF_RECONNECT_RATE_THRESHOLD, DEFAULT_RECONNECT_RATE_THRESHOLD
+    )
+    reconnect_rate_window_hours = entry.data.get(
+        CONF_RECONNECT_RATE_WINDOW_HOURS, DEFAULT_RECONNECT_RATE_WINDOW_HOURS
+    )
+
+    coordinator = ZigSightCoordinator(
+        hass,
+        mqtt_prefix=mqtt_prefix,
+        battery_drain_threshold=battery_drain_threshold,
+        reconnect_rate_threshold=reconnect_rate_threshold,
+        reconnect_rate_window_hours=reconnect_rate_window_hours,
+    )
 
     # Start coordinator (sets up MQTT subscriptions)
     await coordinator.async_start()

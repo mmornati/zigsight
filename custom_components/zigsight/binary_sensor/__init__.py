@@ -1,4 +1,4 @@
-"""Sensor platform for ZigSight."""
+"""Binary sensor platform for ZigSight."""
 
 from __future__ import annotations
 
@@ -8,13 +8,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from ..const import DOMAIN
 from ..coordinator import ZigSightCoordinator
-from .sensor import (
-    ZigSightBatterySensor,
-    ZigSightBatteryTrendSensor,
-    ZigSightHealthScoreSensor,
-    ZigSightLinkQualitySensor,
-    ZigSightReconnectRateSensor,
-    ZigSightVoltageSensor,
+from .binary_sensor import (
+    ZigSightBatteryDrainWarningBinarySensor,
+    ZigSightConnectivityWarningBinarySensor,
 )
 
 
@@ -23,7 +19,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up ZigSight sensor platform."""
+    """Set up ZigSight binary sensor platform."""
     coordinator: ZigSightCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     # Get devices from coordinator data
@@ -36,15 +32,11 @@ async def async_setup_entry(
         if device_id == "bridge":
             continue
 
-        # Create sensors for each device
-        entities.append(ZigSightLinkQualitySensor(coordinator, device_id))
-        entities.append(ZigSightBatterySensor(coordinator, device_id))
-        entities.append(ZigSightVoltageSensor(coordinator, device_id))
-        entities.append(ZigSightReconnectRateSensor(coordinator, device_id))
-        entities.append(ZigSightBatteryTrendSensor(coordinator, device_id))
-        entities.append(ZigSightHealthScoreSensor(coordinator, device_id))
+        # Create binary sensors for each device
+        entities.append(ZigSightBatteryDrainWarningBinarySensor(coordinator, device_id))
+        entities.append(ZigSightConnectivityWarningBinarySensor(coordinator, device_id))
 
     async_add_entities(entities)
 
-    # Note: Dynamic sensor creation will be handled via platform discovery
+    # Note: Dynamic binary sensor creation will be handled via platform discovery
     # when new devices are detected through MQTT messages

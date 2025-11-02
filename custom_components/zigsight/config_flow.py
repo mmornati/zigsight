@@ -10,10 +10,16 @@ from homeassistant.data_entry_flow import FlowResult
 import voluptuous as vol
 
 from .const import (
+    CONF_BATTERY_DRAIN_THRESHOLD,
     CONF_MQTT_TOPIC_PREFIX,
+    CONF_RECONNECT_RATE_THRESHOLD,
+    CONF_RECONNECT_RATE_WINDOW_HOURS,
     CONF_RECONNECT_THRESHOLD,
     CONF_RETENTION_DAYS,
+    DEFAULT_BATTERY_DRAIN_THRESHOLD,
     DEFAULT_MQTT_TOPIC_PREFIX,
+    DEFAULT_RECONNECT_RATE_THRESHOLD,
+    DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
     DEFAULT_RECONNECT_THRESHOLD,
     DEFAULT_RETENTION_DAYS,
     DOMAIN,
@@ -33,6 +39,18 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
             CONF_RETENTION_DAYS,
             default=DEFAULT_RETENTION_DAYS,
         ): vol.All(vol.Coerce(int), vol.Range(min=1, max=365)),
+        vol.Optional(
+            CONF_BATTERY_DRAIN_THRESHOLD,
+            default=DEFAULT_BATTERY_DRAIN_THRESHOLD,
+        ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100.0)),
+        vol.Optional(
+            CONF_RECONNECT_RATE_THRESHOLD,
+            default=DEFAULT_RECONNECT_RATE_THRESHOLD,
+        ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100.0)),
+        vol.Optional(
+            CONF_RECONNECT_RATE_WINDOW_HOURS,
+            default=DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
+        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=168)),
     }
 )
 
@@ -68,6 +86,16 @@ class ZigSightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
                 ),
                 CONF_RETENTION_DAYS: user_input.get(
                     CONF_RETENTION_DAYS, DEFAULT_RETENTION_DAYS
+                ),
+                CONF_BATTERY_DRAIN_THRESHOLD: user_input.get(
+                    CONF_BATTERY_DRAIN_THRESHOLD, DEFAULT_BATTERY_DRAIN_THRESHOLD
+                ),
+                CONF_RECONNECT_RATE_THRESHOLD: user_input.get(
+                    CONF_RECONNECT_RATE_THRESHOLD, DEFAULT_RECONNECT_RATE_THRESHOLD
+                ),
+                CONF_RECONNECT_RATE_WINDOW_HOURS: user_input.get(
+                    CONF_RECONNECT_RATE_WINDOW_HOURS,
+                    DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
                 ),
             },
         )

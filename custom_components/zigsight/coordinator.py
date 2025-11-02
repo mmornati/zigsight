@@ -12,9 +12,13 @@ from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .analytics import DeviceAnalytics
 from .const import (
     CONF_MQTT_TOPIC_PREFIX,
+    DEFAULT_BATTERY_DRAIN_THRESHOLD,
     DEFAULT_MQTT_TOPIC_PREFIX,
+    DEFAULT_RECONNECT_RATE_THRESHOLD,
+    DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
     DOMAIN,
     EVENT_DEVICE_UPDATE,
 )
@@ -29,6 +33,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         hass: HomeAssistant,
         mqtt_prefix: str = DEFAULT_MQTT_TOPIC_PREFIX,
+        battery_drain_threshold: float = DEFAULT_BATTERY_DRAIN_THRESHOLD,
+        reconnect_rate_threshold: float = DEFAULT_RECONNECT_RATE_THRESHOLD,
+        reconnect_rate_window_hours: int = DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
     ) -> None:
         """Initialize coordinator."""
         super().__init__(
@@ -41,6 +48,11 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._devices: dict[str, dict[str, Any]] = {}
         self._device_history: dict[str, list[dict[str, Any]]] = {}
         self._unsub_mqtt: list[Any] = []
+        self._analytics = DeviceAnalytics(
+            reconnect_rate_window_hours=reconnect_rate_window_hours,
+            battery_drain_threshold=battery_drain_threshold,
+        )
+        self._reconnect_rate_threshold = reconnect_rate_threshold
 
     async def async_start(self) -> None:
         """Start the coordinator and subscribe to MQTT topics."""
@@ -221,6 +233,47 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def get_device_history(self, device_id: str) -> list[dict[str, Any]]:
         """Get history for a device."""
         return self._device_history.get(device_id, [])
+
+    def get_device_reconnect_rate(self, device_id: str) -> float | None:
+        """Get reconnect rate for a device."""
+        device_history = self.get_device_history(device_id)
+        if not device_history:
+            return None
+        return self._analytics.compute_reconnect_rate(device_history)
+
+    def get_device_battery_trend(self, device_id: str) -> float | None:
+        """Get battery trend for a device."""
+        device_history = self.get_device_history(device_id)
+        if not device_history:
+            return None
+        return self._analytics.compute_battery_trend(device_history)
+
+    def get_device_health_score(self, device_id: str) -> float | None:
+        """Get health score for a device."""
+        device = self.get_device(device_id)
+        if not device:
+            return None
+        device_history = self.get_device_history(device_id)
+        return self._analytics.compute_health_score(device, device_history)
+
+    def get_device_battery_drain_warning(self, device_id: str) -> bool:
+        """Get battery drain warning status for a device."""
+        device_history = self.get_device_history(device_id)
+        if not device_history:
+            return False
+        return self._analytics.check_battery_drain_warning(device_history)
+
+    def get_device_connectivity_warning(self, device_id: str) -> bool:
+        """Get connectivity warning status for a device."""
+        device = self.get_device(device_id)
+        if not device:
+            return False
+        # Add history to device data for analytics
+        device_with_history = device.copy()
+        device_with_history["history"] = self.get_device_history(device_id)
+        return self._analytics.check_connectivity_warning(
+            device_with_history, self._reconnect_rate_threshold
+        )
 
     async def async_shutdown(self) -> None:
         """Cancel any background tasks and unsubscribe from MQTT."""

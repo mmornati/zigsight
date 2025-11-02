@@ -23,3 +23,16 @@ ATTR_BATTERY = "battery"
 ATTR_VOLTAGE = "voltage"
 ATTR_LAST_SEEN = "last_seen"
 ATTR_RECONNECT_RATE = "reconnect_rate"
+ATTR_BATTERY_TREND = "battery_trend"
+ATTR_HEALTH_SCORE = "health_score"
+ATTR_BATTERY_DRAIN_WARNING = "battery_drain_warning"
+ATTR_CONNECTIVITY_WARNING = "connectivity_warning"
+
+# Analytics thresholds
+CONF_BATTERY_DRAIN_THRESHOLD = "battery_drain_threshold"
+CONF_RECONNECT_RATE_THRESHOLD = "reconnect_rate_threshold"
+CONF_RECONNECT_RATE_WINDOW_HOURS = "reconnect_rate_window_hours"
+
+DEFAULT_BATTERY_DRAIN_THRESHOLD = 10.0  # percentage per hour
+DEFAULT_RECONNECT_RATE_THRESHOLD = 5.0  # events per hour
+DEFAULT_RECONNECT_RATE_WINDOW_HOURS = 24  # hours

@@ -53,5 +53,30 @@
         }
       }
     }
+  },
+  "services": {
+    "recommend_channel": {
+      "name": "Recommend Zigbee channel",
+      "description": "Analyzes Wi-Fi interference and recommends the best Zigbee channel",
+      "fields": {
+        "wifi_scan_data": {
+          "name": "Wi-Fi Scan Data",
+          "description": "JSON data from Wi-Fi scan (optional if using router API mode)"
+        },
+        "mode": {
+          "name": "Scan Mode",
+          "description": "How to obtain Wi-Fi scan data"
+        }
+      }
+    }
+  },
+  "options": {
+    "scan_mode": {
+      "state": {
+        "manual": "Manual",
+        "router_api": "Router API",
+        "host_scan": "Host Scan"
+      }
+    }
   }
 }

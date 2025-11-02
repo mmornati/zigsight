@@ -14,10 +14,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up ZigSight from a config entry."""
     mqtt_prefix = entry.data.get(CONF_MQTT_TOPIC_PREFIX, DEFAULT_MQTT_TOPIC_PREFIX)
     coordinator = ZigSightCoordinator(hass, mqtt_prefix=mqtt_prefix)
-    
+
     # Start coordinator (sets up MQTT subscriptions)
     await coordinator.async_start()
-    
+
     # Request first data update
     await coordinator.async_config_entry_first_refresh()
 

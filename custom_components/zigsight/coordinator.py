@@ -44,12 +44,14 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_start(self) -> None:
         """Start the coordinator and subscribe to MQTT topics."""
-        self.logger.info("Starting ZigSight coordinator with MQTT prefix: %s", self._mqtt_prefix)
-        
+        self.logger.info(
+            "Starting ZigSight coordinator with MQTT prefix: %s", self._mqtt_prefix
+        )
+
         # Subscribe to Zigbee2MQTT bridge state
         bridge_topic = f"{self._mqtt_prefix}/bridge/state"
         await self._subscribe_mqtt(bridge_topic, self._on_bridge_state)
-        
+
         # Subscribe to all device updates
         devices_topic = f"{self._mqtt_prefix}/#"
         await self._subscribe_mqtt(devices_topic, self._on_device_message)
@@ -67,7 +69,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._unsub_mqtt.append(unsub)
                 self.logger.debug("Subscribed to MQTT topic: %s", topic)
         except Exception as err:
-            self.logger.error("Failed to subscribe to MQTT topic %s: %s", topic, err)
+            self.logger.error(
+                "Failed to subscribe to MQTT topic %s: %s", topic, err
+            )
 
     @callback
     def _on_bridge_state(self, msg: mqtt.ReceiveMessage) -> None:
@@ -95,11 +99,11 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             
             # Topic format: <prefix>/<device_id> or <prefix>/<device_id>/set
             device_id = topic_parts[1]
-            
+
             # Skip bridge messages (already handled)
             if device_id == "bridge":
                 return
-            
+
             payload = msg.payload
             if isinstance(payload, bytes):
                 payload = payload.decode("utf-8")
@@ -115,10 +119,12 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as err:
             self.logger.error("Error processing device message: %s", err)
 
-    def _process_device_update(self, device_id: str, data: dict[str, Any], topic: str) -> None:
+    def _process_device_update(
+        self, device_id: str, data: dict[str, Any], topic: str
+    ) -> None:
         """Process a device update and store metrics."""
         now = datetime.now()
-        
+
         # Extract device metrics
         metrics = {
             "link_quality": data.get("linkquality", data.get("link_quality")),
@@ -155,21 +161,25 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Update device metrics
         device["metrics"] = metrics
         device["last_update"] = now.isoformat()
-        device["friendly_name"] = data.get("friendly_name", device.get("friendly_name", device_id))
-        
+        device["friendly_name"] = data.get(
+            "friendly_name", device.get("friendly_name", device_id)
+        )
+
         # Store in history
         if device_id not in self._device_history:
             self._device_history[device_id] = []
-        
-        self._device_history[device_id].append({
-            "timestamp": now.isoformat(),
-            "metrics": metrics.copy(),
-        })
+
+        self._device_history[device_id].append(
+            {
+                "timestamp": now.isoformat(),
+                "metrics": metrics.copy(),
+            }
+        )
         
         # Keep only last 1000 entries per device
         if len(self._device_history[device_id]) > 1000:
             self._device_history[device_id] = self._device_history[device_id][-1000:]
-        
+
         # Fire event for device update
         self.hass.bus.async_fire(
             EVENT_DEVICE_UPDATE,
@@ -214,7 +224,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_shutdown(self) -> None:
         """Cancel any background tasks and unsubscribe from MQTT."""
         self.logger.info("Shutting down ZigSight coordinator")
-        
+
         # Unsubscribe from MQTT
         for unsub in self._unsub_mqtt:
             if unsub:

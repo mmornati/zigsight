@@ -11,7 +11,7 @@ bandit>=1.7.0
 pre-commit>=3.0.0
 
 # Home Assistant development
-homeassistant>=2025.1.0
+homeassistant>=2025.10.0
 
 # Type stubs
 types-python-dateutil

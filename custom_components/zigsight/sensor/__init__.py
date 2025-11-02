@@ -10,6 +10,8 @@ from ..coordinator import ZigSightCoordinator
 from .sensor import (
     ZigSightBatterySensor,
     ZigSightLinkQualitySensor,
+    ZigSightReconnectRateSensor,
+    ZigSightVoltageSensor,
 )
 
 
@@ -19,13 +21,25 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up ZigSight sensor platform."""
-    # coordinator: ZigSightCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: ZigSightCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    # Placeholder: will create actual sensors when coordinator has device data
-    # For now, creating example sensors to satisfy the base structure
-    entities: list = []
-    # coordinator will be used when creating actual sensors
-    # entities.append(ZigSightLinkQualitySensor(coordinator, "example_device"))
-    # entities.append(ZigSightBatterySensor(coordinator, "example_device"))
+    # Get devices from coordinator data
+    data = coordinator.data
+    devices = data.get("devices", {}) if data else {}
+
+    entities = []
+    for device_id, device_data in devices.items():
+        # Skip bridge device
+        if device_id == "bridge":
+            continue
+        
+        # Create sensors for each device
+        entities.append(ZigSightLinkQualitySensor(coordinator, device_id))
+        entities.append(ZigSightBatterySensor(coordinator, device_id))
+        entities.append(ZigSightVoltageSensor(coordinator, device_id))
+        entities.append(ZigSightReconnectRateSensor(coordinator, device_id))
 
     async_add_entities(entities)
+
+    # Note: Dynamic sensor creation will be handled via platform discovery
+    # when new devices are detected through MQTT messages

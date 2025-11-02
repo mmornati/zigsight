@@ -4,9 +4,6 @@ recommend_channel:
   target:
     entity:
       domain: input_select
-      filter:
-        attributes:
-          device_class: "zigsight_channel"
   fields:
     wifi_scan_data:
       name: Wi-Fi Scan Data

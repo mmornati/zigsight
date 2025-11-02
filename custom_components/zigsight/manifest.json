@@ -1,12 +1,12 @@
 {
   "domain": "zigsight",
   "name": "ZigSight",
-  "version": "0.1.0",
-  "documentation": "https://github.com/mmornati/zigsight",
-  "issue_tracker": "https://github.com/mmornati/zigsight/issues",
   "codeowners": ["@mmornati"],
-  "requirements": ["homeassistant>=2025.1.0"],
-  "dependencies": [],
   "config_flow": true,
-  "iot_class": "local_polling"
+  "dependencies": [],
+  "documentation": "https://github.com/mmornati/zigsight",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/mmornati/zigsight/issues",
+  "requirements": ["homeassistant>=2025.1.0"],
+  "version": "0.1.0"
 }

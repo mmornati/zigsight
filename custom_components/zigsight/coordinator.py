@@ -317,6 +317,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if len(self._device_history[device_id]) > 1000:
             self._device_history[device_id] = self._device_history[device_id][-1000:]
 
+        # Compute and store analytics metrics
+        self._update_analytics_metrics(device_id)
+
         # Fire event for device update
         self.hass.bus.async_fire(
             EVENT_DEVICE_UPDATE,
@@ -328,12 +331,56 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self.logger.debug("Updated device %s: %s", device_id, metrics)
 
+    def _update_analytics_metrics(self, device_id: str) -> None:
+        """Update computed analytics metrics for a device."""
+        device = self.get_device(device_id)
+        if not device:
+            return
+
+        device_history = self.get_device_history(device_id)
+
+        # Compute and store analytics metrics
+        analytics_metrics = device.setdefault("analytics_metrics", {})
+
+        # Reconnect rate
+        reconnect_rate = self._analytics.compute_reconnect_rate(device_history)
+        analytics_metrics["reconnect_rate"] = reconnect_rate
+
+        # Battery trend
+        battery_trend = self._analytics.compute_battery_trend(device_history)
+        analytics_metrics["battery_trend"] = battery_trend
+
+        # Health score
+        health_score = self._analytics.compute_health_score(device, device_history)
+        analytics_metrics["health_score"] = health_score
+
+        # Warnings
+        analytics_metrics["battery_drain_warning"] = (
+            self._analytics.check_battery_drain_warning(device_history)
+        )
+        device_with_history = device.copy()
+        device_with_history["history"] = device_history
+        analytics_metrics["connectivity_warning"] = (
+            self._analytics.check_connectivity_warning(
+                device_with_history, self._reconnect_rate_threshold
+            )
+        )
+
+        self.logger.debug(
+            "Updated analytics metrics for %s: %s", device_id, analytics_metrics
+        )
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from ZigSight.
 
         Returns a dictionary of device_id -> device_data for quick lookup.
         """
         try:
+            # Update analytics metrics for all devices
+            for device_id in self._devices:
+                if device_id != "bridge":
+                    self._update_analytics_metrics(device_id)
+
             # Data is updated via MQTT callbacks, so we just return current state
             return {
                 "devices": self._devices.copy(),
@@ -360,6 +407,13 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def get_device_reconnect_rate(self, device_id: str) -> float | None:
         """Get reconnect rate for a device."""
+        device = self.get_device(device_id)
+        if device and "analytics_metrics" in device:
+            rate = device["analytics_metrics"].get("reconnect_rate")
+            if rate is not None:
+                return rate
+
+        # Fallback to computing on-demand if not cached
         device_history = self.get_device_history(device_id)
         if not device_history:
             return None
@@ -367,6 +421,13 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def get_device_battery_trend(self, device_id: str) -> float | None:
         """Get battery trend for a device."""
+        device = self.get_device(device_id)
+        if device and "analytics_metrics" in device:
+            trend = device["analytics_metrics"].get("battery_trend")
+            if trend is not None:
+                return trend
+
+        # Fallback to computing on-demand if not cached
         device_history = self.get_device_history(device_id)
         if not device_history:
             return None
@@ -375,6 +436,12 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def get_device_health_score(self, device_id: str) -> float | None:
         """Get health score for a device."""
         device = self.get_device(device_id)
+        if device and "analytics_metrics" in device:
+            score = device["analytics_metrics"].get("health_score")
+            if score is not None:
+                return score
+
+        # Fallback to computing on-demand if not cached
         if not device:
             return None
         device_history = self.get_device_history(device_id)
@@ -382,6 +449,13 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def get_device_battery_drain_warning(self, device_id: str) -> bool:
         """Get battery drain warning status for a device."""
+        device = self.get_device(device_id)
+        if device and "analytics_metrics" in device:
+            warning = device["analytics_metrics"].get("battery_drain_warning")
+            if warning is not None:
+                return warning
+
+        # Fallback to computing on-demand if not cached
         device_history = self.get_device_history(device_id)
         if not device_history:
             return False
@@ -390,6 +464,12 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def get_device_connectivity_warning(self, device_id: str) -> bool:
         """Get connectivity warning status for a device."""
         device = self.get_device(device_id)
+        if device and "analytics_metrics" in device:
+            warning = device["analytics_metrics"].get("connectivity_warning")
+            if warning is not None:
+                return warning
+
+        # Fallback to computing on-demand if not cached
         if not device:
             return False
         # Add history to device data for analytics

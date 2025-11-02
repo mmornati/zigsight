@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -41,6 +43,27 @@ class ZigSightBinarySensor(CoordinatorEntity[ZigSightCoordinator], BinarySensorE
         """Return if entity is available."""
         device = self.coordinator.get_device(self._device_id)
         return device is not None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes."""
+        attrs: dict[str, Any] = {}
+        device = self.coordinator.get_device(self._device_id)
+        if device:
+            attrs["device_id"] = self._device_id
+            attrs["friendly_name"] = device.get("friendly_name", self._device_id)
+            attrs["last_update"] = device.get("last_update")
+            # Include analytics metrics in attributes
+            analytics = device.get("analytics_metrics", {})
+            if analytics:
+                attrs.update(
+                    {
+                        "reconnect_rate": analytics.get("reconnect_rate"),
+                        "battery_trend": analytics.get("battery_trend"),
+                        "health_score": analytics.get("health_score"),
+                    }
+                )
+        return attrs
 
 
 class ZigSightBatteryDrainWarningBinarySensor(ZigSightBinarySensor):

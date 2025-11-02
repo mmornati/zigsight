@@ -24,10 +24,10 @@ class ZigbeeDeviceSensor(CoordinatorEntity[ZigSightCoordinator], SensorEntity):
         self._sensor_type = sensor_type
         self._attr_name = f"{device_id} {sensor_type}"
         self._attr_unique_id = f"{DOMAIN}_{device_id}_{sensor_type}"
-        
+
         device_data = coordinator.get_device(device_id) or {}
         friendly_name = device_data.get("friendly_name", device_id)
-        
+
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device_id)},
             name=friendly_name,

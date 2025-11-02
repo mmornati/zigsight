@@ -73,7 +73,7 @@
   },
   "selector": {
     "scan_mode": {
-      "state": {
+      "options": {
         "manual": "Manual",
         "router_api": "Router API",
         "host_scan": "Host Scan"

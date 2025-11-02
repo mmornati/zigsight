@@ -1,4 +1,5 @@
 """Test sensor entities."""
+
 from unittest.mock import MagicMock
 
 import pytest

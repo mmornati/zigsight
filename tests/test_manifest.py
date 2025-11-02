@@ -1,4 +1,5 @@
 """Test manifest.json."""
+
 import json
 from pathlib import Path
 

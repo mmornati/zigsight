@@ -1,4 +1,5 @@
 """Options flow for ZigSight."""
+
 from __future__ import annotations
 
 from typing import Any

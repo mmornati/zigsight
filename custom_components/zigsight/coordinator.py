@@ -1,4 +1,5 @@
 """DataUpdateCoordinator for ZigSight."""
+
 from __future__ import annotations
 
 import asyncio
@@ -68,9 +69,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._unsub_mqtt.append(unsub)
                 self.logger.debug("Subscribed to MQTT topic: %s", topic)
         except Exception as err:
-            self.logger.error(
-                "Failed to subscribe to MQTT topic %s: %s", topic, err
-            )
+            self.logger.error("Failed to subscribe to MQTT topic %s: %s", topic, err)
 
     @callback
     def _on_bridge_state(self, msg: mqtt.ReceiveMessage) -> None:

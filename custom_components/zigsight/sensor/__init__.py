@@ -1,4 +1,5 @@
 """Sensor platform for ZigSight."""
+
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
@@ -32,7 +33,7 @@ async def async_setup_entry(
         # Skip bridge device
         if device_id == "bridge":
             continue
-        
+
         # Create sensors for each device
         entities.append(ZigSightLinkQualitySensor(coordinator, device_id))
         entities.append(ZigSightBatterySensor(coordinator, device_id))

@@ -208,7 +208,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise
 
     @callback
-    def _on_bridge_state(self, msg: mqtt.ReceiveMessage) -> None:
+    def _on_bridge_state(self, msg: Any) -> None:  # type: ignore[type-arg]
         """Handle bridge state messages."""
         try:
             payload = msg.payload

@@ -77,4 +77,3 @@ pytest tests/
 ```
 
 For more information, see the [Developer README](../docs/DEVELOPER_README.md).
-

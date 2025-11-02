@@ -1,10 +1,7 @@
 """Sensor entities for ZigSight."""
 from __future__ import annotations
 
-from typing import Any
-
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -79,4 +76,3 @@ class ZigSightBatterySensor(ZigbeeDeviceSensor):
         """Return the battery level."""
         # Placeholder: will be implemented when coordinator has data
         return None
-

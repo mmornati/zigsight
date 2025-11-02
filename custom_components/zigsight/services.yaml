@@ -26,4 +26,3 @@ recommend_channel:
             - "router_api"
             - "host_scan"
           translation_key: scan_mode
-

@@ -105,4 +105,3 @@ version:
 	@python -c "import json; print('Version:', json.load(open('custom_components/zigsight/manifest.json'))['version'])"
 	@echo "Python: $$(python3 --version)"
 	@echo "Pytest: $$(pytest --version 2>/dev/null || echo 'Not installed')"
-

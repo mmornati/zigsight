@@ -48,4 +48,4 @@ Thumbs.db
 # Project specific
 *.log
 .env
-
+bandit-report.json

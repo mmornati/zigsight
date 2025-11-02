@@ -1,6 +1,7 @@
 """Test sensor entities."""
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from custom_components.zigsight.coordinator import ZigSightCoordinator
 from custom_components.zigsight.sensor.sensor import (
@@ -49,4 +50,3 @@ def test_battery_sensor_device_class(mock_coordinator: MagicMock) -> None:
     """Test that battery sensor has correct device class."""
     sensor = ZigSightBatterySensor(mock_coordinator, "test_device")
     assert sensor.device_class == "battery"
-

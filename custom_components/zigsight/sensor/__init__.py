@@ -19,11 +19,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up ZigSight sensor platform."""
-    coordinator: ZigSightCoordinator = hass.data[DOMAIN][entry.entry_id]
+    # coordinator: ZigSightCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     # Placeholder: will create actual sensors when coordinator has device data
     # For now, creating example sensors to satisfy the base structure
     entities: list = []
+    # coordinator will be used when creating actual sensors
     # entities.append(ZigSightLinkQualitySensor(coordinator, "example_device"))
     # entities.append(ZigSightBatterySensor(coordinator, "example_device"))
 

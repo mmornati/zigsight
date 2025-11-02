@@ -85,4 +85,3 @@ def sample_coordinator_data() -> dict[str, Any]:
             "available": True,
         }
     }
-

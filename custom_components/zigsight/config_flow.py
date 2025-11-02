@@ -4,13 +4,12 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import DOMAIN
 
 
-class ZigSightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class ZigSightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for ZigSight."""
 
     VERSION = 1
@@ -26,4 +25,3 @@ class ZigSightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_show_form(step_id="user", data_schema=None)
 
         return self.async_create_entry(title="ZigSight", data={})
-

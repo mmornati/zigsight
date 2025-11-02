@@ -4,10 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
-
-from .const import DOMAIN
 
 
 class ZigSightOptionsFlowHandler(config_entries.OptionsFlow):
@@ -23,4 +20,3 @@ class ZigSightOptionsFlowHandler(config_entries.OptionsFlow):
         """Manage the options."""
         # Placeholder for future options configuration
         return self.async_create_entry(title="", data={})
-

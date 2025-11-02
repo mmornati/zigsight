@@ -10,4 +10,3 @@
   "config_flow": true,
   "iot_class": "local_polling"
 }
-

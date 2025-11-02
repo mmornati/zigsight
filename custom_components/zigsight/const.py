@@ -23,4 +23,3 @@ ATTR_BATTERY = "battery"
 ATTR_VOLTAGE = "voltage"
 ATTR_LAST_SEEN = "last_seen"
 ATTR_RECONNECT_RATE = "reconnect_rate"
-

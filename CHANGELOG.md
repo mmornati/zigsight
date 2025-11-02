@@ -30,4 +30,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic coordinator and sensor structure
 - Development documentation
 - User documentation
-

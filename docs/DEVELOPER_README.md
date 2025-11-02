@@ -157,4 +157,3 @@ The CI workflow will automatically use this token if present.
 - [Home Assistant Integration Architecture](https://developers.home-assistant.io/docs/creating_integration_architecture/)
 - [Pytest Documentation](https://docs.pytest.org/)
 - [Ruff Documentation](https://docs.astral.sh/ruff/)
-

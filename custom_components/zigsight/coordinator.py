@@ -55,4 +55,3 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 task.cancel()
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
-

@@ -14,8 +14,13 @@ repos:
     rev: 1.7.6
     hooks:
       - id: bandit
-        args: [--quiet, --format=json, --output=bandit-report.json]
+        args:
+          - --quiet
+          - --format=json
+          - --output=bandit-report.json
+          - --configfile=tests/bandit.yaml
         additional_dependencies: ["bandit[toml]"]
+        files: ^(custom_components|tests)/.+\.py$
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
@@ -33,4 +38,3 @@ repos:
     hooks:
       - id: yamllint
         args: [-d, relaxed]
-

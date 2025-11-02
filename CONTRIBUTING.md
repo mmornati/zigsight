@@ -199,4 +199,3 @@ docs: update installation instructions
 By contributing, you agree that your contributions will be licensed under the same license as the project (Apache-2.0).
 
 Thank you for contributing to ZigSight! 🎉
-

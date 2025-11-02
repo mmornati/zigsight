@@ -2,69 +2,35 @@ name: Lint
 
 on:
   push:
-    branches: [main, 'feature/**', 'bugfix/**']
+    branches: [ main, develop ]
   pull_request:
-    branches: [main]
+    branches: [ main, develop ]
 
 jobs:
   lint:
-    name: Lint with ruff
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff
-      - name: Run ruff check
-        run: ruff check custom_components/ tests/
-      - name: Run ruff format check
-        run: ruff format --check custom_components/ tests/
+    - uses: actions/checkout@v4
 
-  type-check:
-    name: Type check with mypy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-      - name: Run mypy
-        run: mypy custom_components/zigsight/
-        continue-on-error: true
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
 
-  security:
-    name: Security check with bandit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install bandit
-      - name: Run bandit
-        run: bandit -r custom_components/zigsight/ -ll || true
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
 
-  yaml-lint:
-    name: Lint YAML files
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install yamllint
-        run: pip install yamllint
-      - name: Run yamllint
-        run: yamllint . -d relaxed || true
+    - name: Lint with ruff
+      run: |
+        ruff check custom_components/ tests/
+        ruff format --check custom_components/ tests/
 
+    - name: Type check with mypy
+      run: |
+        mypy custom_components/zigsight/ --ignore-missing-imports || true
+
+    - name: Security check with bandit
+      run: |
+        bandit -r custom_components/zigsight/ -ll || true

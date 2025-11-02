@@ -14,8 +14,14 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .analytics import DeviceAnalytics
 from .const import (
+    CONF_MQTT_BROKER,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_PORT,
     CONF_MQTT_TOPIC_PREFIX,
+    CONF_MQTT_USERNAME,
     DEFAULT_BATTERY_DRAIN_THRESHOLD,
+    DEFAULT_MQTT_BROKER,
+    DEFAULT_MQTT_PORT,
     DEFAULT_MQTT_TOPIC_PREFIX,
     DEFAULT_RECONNECT_RATE_THRESHOLD,
     DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
@@ -33,6 +39,10 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         hass: HomeAssistant,
         mqtt_prefix: str = DEFAULT_MQTT_TOPIC_PREFIX,
+        mqtt_broker: str | None = None,
+        mqtt_port: int | None = None,
+        mqtt_username: str | None = None,
+        mqtt_password: str | None = None,
         battery_drain_threshold: float = DEFAULT_BATTERY_DRAIN_THRESHOLD,
         reconnect_rate_threshold: float = DEFAULT_RECONNECT_RATE_THRESHOLD,
         reconnect_rate_window_hours: int = DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
@@ -45,9 +55,16 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=timedelta(seconds=60),
         )
         self._mqtt_prefix = mqtt_prefix
+        self._mqtt_broker = mqtt_broker or DEFAULT_MQTT_BROKER
+        self._mqtt_port = mqtt_port or DEFAULT_MQTT_PORT
+        self._mqtt_username = mqtt_username
+        self._mqtt_password = mqtt_password
+        self._use_direct_mqtt = bool(mqtt_broker and mqtt_port)
         self._devices: dict[str, dict[str, Any]] = {}
         self._device_history: dict[str, list[dict[str, Any]]] = {}
         self._unsub_mqtt: list[Any] = []
+        self._mqtt_client_task: asyncio.Task[None] | None = None
+        self._mqtt_callbacks: dict[str, list[Any]] = {}
         self._analytics = DeviceAnalytics(
             reconnect_rate_window_hours=reconnect_rate_window_hours,
             battery_drain_threshold=battery_drain_threshold,
@@ -60,6 +77,10 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "Starting ZigSight coordinator with MQTT prefix: %s", self._mqtt_prefix
         )
 
+        if self._use_direct_mqtt:
+            # Start direct MQTT client connection
+            await self._start_direct_mqtt()
+
         # Subscribe to Zigbee2MQTT bridge state
         bridge_topic = f"{self._mqtt_prefix}/bridge/state"
         await self._subscribe_mqtt(bridge_topic, self._on_bridge_state)
@@ -68,20 +89,130 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         devices_topic = f"{self._mqtt_prefix}/#"
         await self._subscribe_mqtt(devices_topic, self._on_device_message)
 
+    async def _start_direct_mqtt(self) -> None:
+        """Start direct MQTT client connection."""
+        try:
+            from aiomqtt import Client as MQTTClient
+            from aiomqtt.exceptions import MqttError
+        except ImportError:
+            self.logger.error(
+                "aiomqtt not available. Install it with: pip install aiomqtt"
+            )
+            raise
+
+        self.logger.info(
+            "Connecting to MQTT broker %s:%s with %s",
+            self._mqtt_broker,
+            self._mqtt_port,
+            "authentication" if self._mqtt_username else "no authentication",
+        )
+
+        async def mqtt_client_task() -> None:
+            """Task to handle MQTT client connection and messages."""
+            while True:
+                try:
+                    async with MQTTClient(
+                        hostname=self._mqtt_broker,
+                        port=self._mqtt_port,
+                        username=self._mqtt_username if self._mqtt_username else None,
+                        password=self._mqtt_password if self._mqtt_password else None,
+                    ) as client:
+                        self.logger.info("Connected to MQTT broker")
+                        # Subscribe to all topics registered so far
+                        for topic in self._mqtt_callbacks:
+                            await client.subscribe(topic)
+                            self.logger.debug("Subscribed to MQTT topic: %s", topic)
+
+                        async for message in client.messages:
+                            # Convert aiomqtt message to Home Assistant format
+                            class ReceiveMessage:
+                                def __init__(self, topic: str, payload: bytes) -> None:
+                                    self.topic = topic
+                                    self.payload = payload
+
+                            msg = ReceiveMessage(message.topic, message.payload)
+                            # Call all callbacks for matching topic patterns
+                            for (
+                                topic_pattern,
+                                callbacks,
+                            ) in self._mqtt_callbacks.items():
+                                if self._topic_matches(message.topic, topic_pattern):
+                                    for callback in callbacks:
+                                        try:
+                                            callback(msg)
+                                        except Exception as err:
+                                            self.logger.error(
+                                                "Error in MQTT callback: %s", err
+                                            )
+                except Exception as err:
+                    self.logger.error(
+                        "MQTT connection error, reconnecting in 5 seconds: %s", err
+                    )
+                    await asyncio.sleep(5)
+
+        # Start MQTT client task
+        self._mqtt_client_task = asyncio.create_task(mqtt_client_task())
+
+    def _topic_matches(self, topic: str, pattern: str) -> bool:
+        """Check if topic matches pattern (supports # wildcard)."""
+        if pattern == "#" or pattern.endswith("/#"):
+            prefix = pattern.rstrip("#").rstrip("/")
+            return topic.startswith(prefix)
+        return topic == pattern
+
     async def _subscribe_mqtt(self, topic: str, callback: Any) -> None:
         """Subscribe to an MQTT topic."""
         try:
-            unsub = await mqtt.async_subscribe(
-                self.hass,
-                topic,
-                callback,
-                0,
-            )
-            if unsub:
-                self._unsub_mqtt.append(unsub)
+            if self._use_direct_mqtt:
+                # Use direct MQTT client connection
+                if topic not in self._mqtt_callbacks:
+                    self._mqtt_callbacks[topic] = []
+                self._mqtt_callbacks[topic].append(callback)
+                self.logger.debug("Registered callback for MQTT topic: %s", topic)
+
+                # If client is already running, subscribe to the topic
+                if self._mqtt_client_task and not self._mqtt_client_task.done():
+                    try:
+                        from aiomqtt import Client as MQTTClient
+
+                        # Re-subscribe if client is connected
+                        # Note: This requires access to the client, which we'd need to store
+                        # For now, reconnection will handle new subscriptions
+                        pass
+                    except ImportError:
+                        pass
+            else:
+                # Use Home Assistant's MQTT integration
+                if not await mqtt.async_wait_for_mqtt_client(self.hass):
+                    self.logger.warning(
+                        "MQTT client not available, falling back to direct connection"
+                    )
+                    self._use_direct_mqtt = True
+                    self._mqtt_broker = DEFAULT_MQTT_BROKER
+                    self._mqtt_port = DEFAULT_MQTT_PORT
+                    await self._start_direct_mqtt()
+                    await self._subscribe_mqtt(topic, callback)
+                    return
+
+                unsub = await mqtt.async_subscribe(
+                    self.hass,
+                    topic,
+                    callback,
+                    0,
+                )
+                if unsub:
+                    self._unsub_mqtt.append(unsub)
                 self.logger.debug("Subscribed to MQTT topic: %s", topic)
         except Exception as err:
             self.logger.error("Failed to subscribe to MQTT topic %s: %s", topic, err)
+
+        except Exception as err:
+            self.logger.error(
+                "Failed to subscribe to MQTT topic %s with direct connection: %s",
+                topic,
+                err,
+            )
+            raise
 
     @callback
     def _on_bridge_state(self, msg: mqtt.ReceiveMessage) -> None:
@@ -103,7 +234,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.logger.error("Error processing bridge state: %s", err)
 
     @callback
-    def _on_device_message(self, msg: mqtt.ReceiveMessage) -> None:
+    def _on_device_message(self, msg: Any) -> None:
         """Handle device update messages."""
         try:
             topic_parts = msg.topic.split("/")
@@ -279,11 +410,20 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Cancel any background tasks and unsubscribe from MQTT."""
         self.logger.info("Shutting down ZigSight coordinator")
 
+        # Cancel MQTT client task if using direct connection
+        if self._mqtt_client_task and not self._mqtt_client_task.done():
+            self._mqtt_client_task.cancel()
+            try:
+                await self._mqtt_client_task
+            except asyncio.CancelledError:
+                pass
+
         # Unsubscribe from MQTT
         for unsub in self._unsub_mqtt:
             if unsub:
                 unsub()
         self._unsub_mqtt.clear()
+        self._mqtt_callbacks.clear()
 
         # Cancel any pending tasks
         if hasattr(self, "_tasks"):

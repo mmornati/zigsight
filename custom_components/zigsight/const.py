@@ -4,11 +4,17 @@ DOMAIN = "zigsight"
 
 # Configuration keys
 CONF_MQTT_TOPIC_PREFIX = "mqtt_topic_prefix"
+CONF_MQTT_BROKER = "mqtt_broker"
+CONF_MQTT_PORT = "mqtt_port"
+CONF_MQTT_USERNAME = "mqtt_username"
+CONF_MQTT_PASSWORD = "mqtt_password"
 CONF_RECONNECT_THRESHOLD = "reconnect_threshold"
 CONF_RETENTION_DAYS = "retention_days"
 
 # Default values
 DEFAULT_MQTT_TOPIC_PREFIX = "zigbee2mqtt"
+DEFAULT_MQTT_BROKER = "localhost"
+DEFAULT_MQTT_PORT = 1883
 DEFAULT_RECONNECT_THRESHOLD = 5
 DEFAULT_RETENTION_DAYS = 30
 

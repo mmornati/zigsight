@@ -7,10 +7,16 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
+    CONF_MQTT_BROKER,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_PORT,
     CONF_MQTT_TOPIC_PREFIX,
+    CONF_MQTT_USERNAME,
     CONF_RECONNECT_RATE_THRESHOLD,
     CONF_RECONNECT_RATE_WINDOW_HOURS,
     DEFAULT_BATTERY_DRAIN_THRESHOLD,
+    DEFAULT_MQTT_BROKER,
+    DEFAULT_MQTT_PORT,
     DEFAULT_MQTT_TOPIC_PREFIX,
     DEFAULT_RECONNECT_RATE_THRESHOLD,
     DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
@@ -24,6 +30,10 @@ PLATFORMS: list[str] = ["sensor", "binary_sensor"]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up ZigSight from a config entry."""
     mqtt_prefix = entry.data.get(CONF_MQTT_TOPIC_PREFIX, DEFAULT_MQTT_TOPIC_PREFIX)
+    mqtt_broker = entry.data.get(CONF_MQTT_BROKER, DEFAULT_MQTT_BROKER)
+    mqtt_port = entry.data.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT)
+    mqtt_username = entry.data.get(CONF_MQTT_USERNAME, "")
+    mqtt_password = entry.data.get(CONF_MQTT_PASSWORD, "")
     battery_drain_threshold = entry.data.get(
         CONF_BATTERY_DRAIN_THRESHOLD, DEFAULT_BATTERY_DRAIN_THRESHOLD
     )
@@ -37,6 +47,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = ZigSightCoordinator(
         hass,
         mqtt_prefix=mqtt_prefix,
+        mqtt_broker=mqtt_broker if mqtt_broker != DEFAULT_MQTT_BROKER else None,
+        mqtt_port=mqtt_port if mqtt_port != DEFAULT_MQTT_PORT else None,
+        mqtt_username=mqtt_username if mqtt_username else None,
+        mqtt_password=mqtt_password if mqtt_password else None,
         battery_drain_threshold=battery_drain_threshold,
         reconnect_rate_threshold=reconnect_rate_threshold,
         reconnect_rate_window_hours=reconnect_rate_window_hours,

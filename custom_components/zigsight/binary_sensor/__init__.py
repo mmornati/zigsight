@@ -27,7 +27,7 @@ async def async_setup_entry(
     devices = data.get("devices", {}) if data else {}
 
     entities = []
-    for device_id, device_data in devices.items():
+    for device_id in devices:
         # Skip bridge device
         if device_id == "bridge":
             continue

@@ -14,11 +14,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .analytics import DeviceAnalytics
 from .const import (
-    CONF_MQTT_BROKER,
-    CONF_MQTT_PASSWORD,
-    CONF_MQTT_PORT,
-    CONF_MQTT_TOPIC_PREFIX,
-    CONF_MQTT_USERNAME,
     DEFAULT_BATTERY_DRAIN_THRESHOLD,
     DEFAULT_MQTT_BROKER,
     DEFAULT_MQTT_PORT,
@@ -93,7 +88,6 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Start direct MQTT client connection."""
         try:
             from aiomqtt import Client as MQTTClient
-            from aiomqtt.exceptions import MqttError
         except ImportError:
             self.logger.error(
                 "aiomqtt not available. Install it with: pip install aiomqtt"
@@ -171,16 +165,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self.logger.debug("Registered callback for MQTT topic: %s", topic)
 
                 # If client is already running, subscribe to the topic
-                if self._mqtt_client_task and not self._mqtt_client_task.done():
-                    try:
-                        from aiomqtt import Client as MQTTClient
-
-                        # Re-subscribe if client is connected
-                        # Note: This requires access to the client, which we'd need to store
-                        # For now, reconnection will handle new subscriptions
-                        pass
-                    except ImportError:
-                        pass
+                # New topics will be picked up automatically on next reconnect
             else:
                 # Use Home Assistant's MQTT integration
                 if not await mqtt.async_wait_for_mqtt_client(self.hass):
@@ -208,7 +193,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise
 
     @callback
-    def _on_bridge_state(self, msg: Any) -> None:  # type: ignore[type-arg]
+    def _on_bridge_state(self, msg: Any) -> None:
         """Handle bridge state messages."""
         try:
             payload = msg.payload
@@ -227,7 +212,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.logger.error("Error processing bridge state: %s", err)
 
     @callback
-    def _on_device_message(self, msg: Any) -> None:  # type: ignore[type-arg]
+    def _on_device_message(self, msg: Any) -> None:
         """Handle device update messages."""
         try:
             topic_parts = msg.topic.split("/")
@@ -355,15 +340,15 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         analytics_metrics["health_score"] = health_score
 
         # Warnings
-        analytics_metrics["battery_drain_warning"] = (
-            self._analytics.check_battery_drain_warning(device_history)
-        )
+        analytics_metrics[
+            "battery_drain_warning"
+        ] = self._analytics.check_battery_drain_warning(device_history)
         device_with_history = device.copy()
         device_with_history["history"] = device_history
-        analytics_metrics["connectivity_warning"] = (
-            self._analytics.check_connectivity_warning(
-                device_with_history, self._reconnect_rate_threshold
-            )
+        analytics_metrics[
+            "connectivity_warning"
+        ] = self._analytics.check_connectivity_warning(
+            device_with_history, self._reconnect_rate_threshold
         )
 
         self.logger.debug(

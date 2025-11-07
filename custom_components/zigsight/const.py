@@ -7,7 +7,7 @@ CONF_MQTT_TOPIC_PREFIX = "mqtt_topic_prefix"
 CONF_MQTT_BROKER = "mqtt_broker"
 CONF_MQTT_PORT = "mqtt_port"
 CONF_MQTT_USERNAME = "mqtt_username"
-CONF_MQTT_PASSWORD = "mqtt_password"
+CONF_MQTT_PASSWORD = "mqtt_password"  # nosec B105 - configuration key label
 CONF_RECONNECT_THRESHOLD = "reconnect_threshold"
 CONF_RETENTION_DAYS = "retention_days"
 

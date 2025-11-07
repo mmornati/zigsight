@@ -16,11 +16,11 @@ The analytics engine processes device metrics over time to compute derived insig
 
 ### Reconnect Rate
 
-**Sensor**: `sensor.<device>_reconnect_rate`  
-**Unit**: events/hour  
+**Sensor**: `sensor.<device>_reconnect_rate`
+**Unit**: events/hour
 **Description**: Measures how often a device reconnects to the network over a sliding time window.
 
-**Default Window**: 24 hours  
+**Default Window**: 24 hours
 **Calculation**: Counts reconnection events (gaps > 5 minutes between updates) within the window and divides by window duration.
 
 **Example**:
@@ -29,11 +29,11 @@ The analytics engine processes device metrics over time to compute derived insig
 
 ### Battery Trend
 
-**Sensor**: `sensor.<device>_battery_trend`  
-**Unit**: %/hour  
+**Sensor**: `sensor.<device>_battery_trend`
+**Unit**: %/hour
 **Description**: Rate of battery drain computed using linear regression over the last 24 hours.
 
-**Algorithm**: 
+**Algorithm**:
 - Extracts battery readings from device history
 - Filters readings with battery ≥ 20% (below threshold, readings may be unreliable)
 - Computes linear regression slope to determine trend
@@ -46,8 +46,8 @@ The analytics engine processes device metrics over time to compute derived insig
 
 ### Health Score
 
-**Sensor**: `sensor.<device>_health_score`  
-**Unit**: None (0-100 scale)  
+**Sensor**: `sensor.<device>_health_score`
+**Unit**: None (0-100 scale)
 **Description**: Aggregated health metric combining multiple device factors.
 
 **Components** (default weights):
@@ -77,11 +77,11 @@ Health Score = (78.4 × 0.3) + (80 × 0.2) + (95 × 0.3) + (100 × 0.2) = 86.6
 
 ### Battery Drain Warning
 
-**Binary Sensor**: `binary_sensor.<device>_battery_drain_warning`  
-**Device Class**: `problem`  
+**Binary Sensor**: `binary_sensor.<device>_battery_drain_warning`
+**Device Class**: `problem`
 **Description**: Triggers when battery drain rate exceeds configured threshold.
 
-**Default Threshold**: 10%/hour  
+**Default Threshold**: 10%/hour
 **Configuration**: Set via `battery_drain_threshold` in integration options
 
 **When It Triggers**:
@@ -96,11 +96,11 @@ Health Score = (78.4 × 0.3) + (80 × 0.2) + (95 × 0.3) + (100 × 0.2) = 86.6
 
 ### Connectivity Warning
 
-**Binary Sensor**: `binary_sensor.<device>_connectivity_warning`  
-**Device Class**: `connectivity`  
+**Binary Sensor**: `binary_sensor.<device>_connectivity_warning`
+**Device Class**: `connectivity`
 **Description**: Triggers when connectivity issues are detected.
 
-**Default Threshold**: 5 events/hour  
+**Default Threshold**: 5 events/hour
 **Configuration**: Set via `reconnect_rate_threshold` in integration options
 
 **When It Triggers**:
@@ -197,7 +197,7 @@ reconnect_rate_window_hours: 24
 
 **Cause**: Insufficient historical data.
 
-**Solution**: 
+**Solution**:
 - Wait for more device updates (analytics needs at least 2-3 data points)
 - Verify MQTT connection is working
 - Check device is sending regular updates
@@ -249,4 +249,3 @@ Potential future improvements:
 - Anomaly detection for unusual patterns
 - Historical trend visualization
 - Integration with Home Assistant automations for proactive alerts
-

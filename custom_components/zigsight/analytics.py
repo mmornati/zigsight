@@ -62,7 +62,7 @@ class DeviceAnalytics:
         window_start = now - timedelta(hours=window_hours)
 
         reconnect_events = 0
-        previous_timestamp = None
+        previous_timestamp: datetime | None = None
 
         # Sort history by timestamp
         sorted_history = sorted(

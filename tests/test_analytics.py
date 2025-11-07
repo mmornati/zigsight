@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
-
-import pytest
+from typing import Any
 
 from custom_components.zigsight.analytics import DeviceAnalytics
 
@@ -107,8 +105,8 @@ def test_compute_battery_trend_with_data() -> None:
 def test_compute_health_score_no_device() -> None:
     """Test health score with no device data."""
     analytics = DeviceAnalytics()
-    device_data = {}
-    history = []
+    device_data: dict[str, Any] = {}
+    history: list[dict[str, Any]] = []
     score = analytics.compute_health_score(device_data, history)
     assert 0 <= score <= 100
 
@@ -118,7 +116,7 @@ def test_compute_health_score_with_metrics() -> None:
     analytics = DeviceAnalytics()
     now = datetime.now()
 
-    device_data = {
+    device_data: dict[str, Any] = {
         "metrics": {
             "link_quality": 255,  # Excellent
             "battery": 80,  # Good
@@ -126,7 +124,7 @@ def test_compute_health_score_with_metrics() -> None:
         }
     }
 
-    history = [
+    history: list[dict[str, Any]] = [
         {
             "timestamp": (now - timedelta(hours=1)).isoformat(),
             "metrics": {"battery": 85},

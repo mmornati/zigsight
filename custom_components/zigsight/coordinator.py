@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -57,9 +58,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._use_direct_mqtt = bool(mqtt_broker and mqtt_port)
         self._devices: dict[str, dict[str, Any]] = {}
         self._device_history: dict[str, list[dict[str, Any]]] = {}
-        self._unsub_mqtt: list[Any] = []
+        self._unsub_mqtt: list[Callable[[], None]] = []
         self._mqtt_client_task: asyncio.Task[None] | None = None
-        self._mqtt_callbacks: dict[str, list[Any]] = {}
+        self._mqtt_callbacks: dict[str, list[Callable[[Any], None]]] = {}
         self._analytics = DeviceAnalytics(
             reconnect_rate_window_hours=reconnect_rate_window_hours,
             battery_drain_threshold=battery_drain_threshold,
@@ -185,7 +186,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     callback,
                     0,
                 )
-                if unsub:
+                if unsub is not None:
                     self._unsub_mqtt.append(unsub)
                 self.logger.debug("Subscribed to MQTT topic: %s", topic)
         except Exception as err:
@@ -478,8 +479,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Unsubscribe from MQTT
         for unsub in self._unsub_mqtt:
-            if unsub:
-                unsub()
+            unsub()
         self._unsub_mqtt.clear()
         self._mqtt_callbacks.clear()
 

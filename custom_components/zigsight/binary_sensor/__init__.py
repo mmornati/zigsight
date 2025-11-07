@@ -10,6 +10,7 @@ from ..const import DOMAIN
 from ..coordinator import ZigSightCoordinator
 from .binary_sensor import (
     ZigSightBatteryDrainWarningBinarySensor,
+    ZigSightBinarySensor,
     ZigSightConnectivityWarningBinarySensor,
 )
 
@@ -26,7 +27,7 @@ async def async_setup_entry(
     data = coordinator.data
     devices = data.get("devices", {}) if data else {}
 
-    entities = []
+    entities: list[ZigSightBinarySensor] = []
     for device_id in devices:
         # Skip bridge device
         if device_id == "bridge":

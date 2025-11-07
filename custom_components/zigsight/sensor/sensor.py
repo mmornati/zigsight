@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -107,7 +111,7 @@ class ZigSightBatterySensor(ZigbeeDeviceSensor):
         """Initialize the battery sensor."""
         super().__init__(coordinator, device_id, "battery")
         self._attr_native_unit_of_measurement = "%"
-        self._attr_device_class = "battery"
+        self._attr_device_class = SensorDeviceClass.BATTERY
         self._attr_icon = "mdi:battery"
         self._attr_state_class = SensorStateClass.MEASUREMENT
 
@@ -136,7 +140,7 @@ class ZigSightVoltageSensor(ZigbeeDeviceSensor):
         """Initialize the voltage sensor."""
         super().__init__(coordinator, device_id, "voltage")
         self._attr_native_unit_of_measurement = "V"
-        self._attr_device_class = "voltage"
+        self._attr_device_class = SensorDeviceClass.VOLTAGE
         self._attr_icon = "mdi:lightning-bolt"
         self._attr_state_class = SensorStateClass.MEASUREMENT
 

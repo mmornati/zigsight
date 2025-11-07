@@ -9,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from ..const import DOMAIN
 from ..coordinator import ZigSightCoordinator
 from .sensor import (
+    ZigbeeDeviceSensor,
     ZigSightBatterySensor,
     ZigSightBatteryTrendSensor,
     ZigSightHealthScoreSensor,
@@ -30,7 +31,7 @@ async def async_setup_entry(
     data = coordinator.data
     devices = data.get("devices", {}) if data else {}
 
-    entities = []
+    entities: list[ZigbeeDeviceSensor] = []
     for device_id in devices:
         # Skip bridge device
         if device_id == "bridge":

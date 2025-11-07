@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+)
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -77,7 +80,7 @@ class ZigSightBatteryDrainWarningBinarySensor(ZigSightBinarySensor):
         """Initialize the battery drain warning binary sensor."""
         super().__init__(coordinator, device_id, "battery_drain_warning")
         self._attr_icon = "mdi:battery-alert"
-        self._attr_device_class = "problem"
+        self._attr_device_class = BinarySensorDeviceClass.PROBLEM
 
     @property
     def is_on(self) -> bool:
@@ -96,7 +99,7 @@ class ZigSightConnectivityWarningBinarySensor(ZigSightBinarySensor):
         """Initialize the connectivity warning binary sensor."""
         super().__init__(coordinator, device_id, "connectivity_warning")
         self._attr_icon = "mdi:connection"
-        self._attr_device_class = "connectivity"
+        self._attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
 
     @property
     def is_on(self) -> bool:

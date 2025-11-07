@@ -6,7 +6,6 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResult
 
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
@@ -77,7 +76,7 @@ class ZigSightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Handle the initial step."""
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")

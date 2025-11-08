@@ -57,12 +57,12 @@ source .venv/bin/activate
 
 | Command            | What it does                                                                 |
 |--------------------|------------------------------------------------------------------------------|
-| `make lint`        | `ruff check` + `mypy` (mirrors the GitHub CI lint job)                       |
+| `make lint`        | `ruff check .` + `mypy` (mirrors the GitHub CI lint job)                     |
 | `make security`    | Runs Bandit with the project configuration                                   |
 | `make test`        | Unit tests with coverage HTML + terminal summary                            |
 | `make test-quick`  | Unit tests without coverage                                                  |
-| `make format`      | `ruff format` and auto-fix lint warnings                                     |
-| `make check-format`| Verify formatting without modifying files                                    |
+| `make format`      | `ruff format .` plus `ruff check --fix .`                                    |
+| `make check-format`| Verify formatting (`ruff format --check .`, `ruff check .`)                  |
 | `make clean`       | Remove cached artifacts (`.mypy_cache`, `.ruff_cache`, `.pytest_cache`, …)   |
 
 All commands assume the virtualenv created by `make setup-dev` is active.
@@ -82,8 +82,8 @@ pre-commit install
 Run the individual tools exactly as the make targets do:
 
 ```bash
-ruff check custom_components/ tests/
-ruff format --check custom_components/ tests/
+ruff check .
+ruff format --check .
 mypy custom_components/zigsight/
 pytest tests/
 bandit -r custom_components/zigsight -c tests/bandit.yaml

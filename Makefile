@@ -13,9 +13,9 @@ help:
 	@echo "  test-coverage  - Run tests with HTML coverage report"
 	@echo ""
 	@echo "Code Quality:"
-	@echo "  lint           - Run all linters (ruff, mypy, bandit)"
-	@echo "  format         - Format code with ruff"
-	@echo "  check-format   - Check code formatting"
+	@echo "  lint           - Run Ruff (lint) + mypy"
+	@echo "  format         - Format code with Ruff (entire repo)"
+	@echo "  check-format   - Check code formatting (no changes)"
 	@echo ""
 	@echo "Development:"
 	@echo "  install        - Install dependencies"
@@ -59,7 +59,7 @@ test-coverage:
 
 # Run linting
 lint:
-	ruff check custom_components/ tests/
+	ruff check .
 	mypy custom_components/zigsight/
 
 # Security checks
@@ -68,13 +68,13 @@ security:
 
 # Format code
 format:
-	ruff format custom_components/ tests/
-	ruff check --fix custom_components/ tests/
+	ruff format .
+	ruff check --fix .
 
 # Check formatting
 check-format:
-	ruff format --check custom_components/ tests/
-	ruff check custom_components/ tests/
+	ruff format --check .
+	ruff check .
 
 # Clean build artifacts
 clean:

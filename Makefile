@@ -1,6 +1,6 @@
 # Makefile for ZigSight integration
 
-.PHONY: help install test lint format clean build docs
+.PHONY: help install test lint format clean build docs setup-dev security
 
 # Default target
 help:
@@ -20,18 +20,26 @@ help:
 	@echo "Development:"
 	@echo "  install        - Install dependencies"
 	@echo "  install-dev    - Install development dependencies"
+	@echo "  setup-dev      - Create venv, install dev tools, and install pre-commit hooks"
 	@echo "  clean          - Clean build artifacts"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  docs           - Serve MkDocs documentation (when ready)"
 
-# Install dependencies
-install:
-	pip install -r requirements-dev.txt
+# Install dependencies (deprecated, use setup-dev)
+install: install-dev
 
-# Install development dependencies
+# Install development dependencies (deprecated, use setup-dev)
 install-dev:
 	pip install -r requirements-dev.txt
+
+# Bootstrap local development environment
+setup-dev:
+	@echo "Creating virtual environment and installing development tools..."
+	@test -d .venv || python3 -m venv .venv
+	. .venv/bin/activate && python3 -m pip install --upgrade pip
+	. .venv/bin/activate && python3 -m pip install -r requirements-dev.txt
+	. .venv/bin/activate && pre-commit install
 
 # Run unit tests
 test:
@@ -53,7 +61,10 @@ test-coverage:
 lint:
 	ruff check custom_components/ tests/
 	mypy custom_components/zigsight/
-	bandit -r custom_components/zigsight/ -ll || true
+
+# Security checks
+security:
+	bandit -r custom_components/zigsight -c tests/bandit.yaml
 
 # Format code
 format:

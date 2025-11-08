@@ -38,6 +38,6 @@ def test_manifest_has_required_fields() -> None:
         assert field in manifest, f"manifest.json missing required field: {field}"
 
     assert manifest["domain"] == "zigsight", "manifest.json domain should be 'zigsight'"
-    assert isinstance(
-        manifest["version"], str
-    ), "manifest.json version should be a string"
+    assert isinstance(manifest["version"], str), (
+        "manifest.json version should be a string"
+    )

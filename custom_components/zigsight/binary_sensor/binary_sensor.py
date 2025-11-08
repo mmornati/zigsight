@@ -15,7 +15,7 @@ from ..const import DOMAIN
 from ..coordinator import ZigSightCoordinator
 
 
-class ZigSightBinarySensor(CoordinatorEntity[ZigSightCoordinator], BinarySensorEntity):
+class ZigSightBinarySensor(CoordinatorEntity, BinarySensorEntity):
     """Base class for ZigSight binary sensor entities."""
 
     def __init__(
@@ -26,6 +26,7 @@ class ZigSightBinarySensor(CoordinatorEntity[ZigSightCoordinator], BinarySensorE
     ) -> None:
         """Initialize the binary sensor."""
         super().__init__(coordinator)
+        self._coordinator: ZigSightCoordinator = coordinator
         self._device_id = device_id
         self._sensor_type = sensor_type
         self._attr_name = f"{device_id} {sensor_type}"
@@ -44,14 +45,14 @@ class ZigSightBinarySensor(CoordinatorEntity[ZigSightCoordinator], BinarySensorE
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        device = self.coordinator.get_device(self._device_id)
+        device = self._coordinator.get_device(self._device_id)
         return device is not None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
         attrs: dict[str, Any] = {}
-        device = self.coordinator.get_device(self._device_id)
+        device = self._coordinator.get_device(self._device_id)
         if device:
             attrs["device_id"] = self._device_id
             attrs["friendly_name"] = device.get("friendly_name", self._device_id)
@@ -85,7 +86,7 @@ class ZigSightBatteryDrainWarningBinarySensor(ZigSightBinarySensor):
     @property
     def is_on(self) -> bool:
         """Return if battery drain warning is active."""
-        return self.coordinator.get_device_battery_drain_warning(self._device_id)
+        return self._coordinator.get_device_battery_drain_warning(self._device_id)
 
 
 class ZigSightConnectivityWarningBinarySensor(ZigSightBinarySensor):
@@ -104,4 +105,4 @@ class ZigSightConnectivityWarningBinarySensor(ZigSightBinarySensor):
     @property
     def is_on(self) -> bool:
         """Return if connectivity warning is active."""
-        return self.coordinator.get_device_connectivity_warning(self._device_id)
+        return self._coordinator.get_device_connectivity_warning(self._device_id)

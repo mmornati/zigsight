@@ -16,7 +16,7 @@ from ..const import DOMAIN
 from ..coordinator import ZigSightCoordinator
 
 
-class ZigbeeDeviceSensor(CoordinatorEntity[ZigSightCoordinator], SensorEntity):
+class ZigbeeDeviceSensor(CoordinatorEntity, SensorEntity):
     """Base class for ZigSight sensor entities."""
 
     def __init__(
@@ -27,6 +27,7 @@ class ZigbeeDeviceSensor(CoordinatorEntity[ZigSightCoordinator], SensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
+        self._coordinator: ZigSightCoordinator = coordinator
         self._device_id = device_id
         self._sensor_type = sensor_type
         self._attr_name = f"{device_id} {sensor_type}"
@@ -45,14 +46,14 @@ class ZigbeeDeviceSensor(CoordinatorEntity[ZigSightCoordinator], SensorEntity):
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        device = self.coordinator.get_device(self._device_id)
+        device = self._coordinator.get_device(self._device_id)
         return device is not None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
         attrs: dict[str, Any] = {}
-        device = self.coordinator.get_device(self._device_id)
+        device = self._coordinator.get_device(self._device_id)
         if device:
             attrs["device_id"] = self._device_id
             attrs["friendly_name"] = device.get("friendly_name", self._device_id)
@@ -89,7 +90,7 @@ class ZigSightLinkQualitySensor(ZigbeeDeviceSensor):
     @property
     def native_value(self) -> int | None:
         """Return the link quality value."""
-        metrics = self.coordinator.get_device_metrics(self._device_id)
+        metrics = self._coordinator.get_device_metrics(self._device_id)
         if metrics:
             link_quality = metrics.get("link_quality")
             if link_quality is not None:
@@ -118,7 +119,7 @@ class ZigSightBatterySensor(ZigbeeDeviceSensor):
     @property
     def native_value(self) -> int | None:
         """Return the battery level."""
-        metrics = self.coordinator.get_device_metrics(self._device_id)
+        metrics = self._coordinator.get_device_metrics(self._device_id)
         if metrics:
             battery = metrics.get("battery")
             if battery is not None:
@@ -147,7 +148,7 @@ class ZigSightVoltageSensor(ZigbeeDeviceSensor):
     @property
     def native_value(self) -> float | None:
         """Return the voltage value."""
-        metrics = self.coordinator.get_device_metrics(self._device_id)
+        metrics = self._coordinator.get_device_metrics(self._device_id)
         if metrics:
             voltage = metrics.get("voltage")
             if voltage is not None:
@@ -175,7 +176,7 @@ class ZigSightReconnectRateSensor(ZigbeeDeviceSensor):
     @property
     def native_value(self) -> float | None:
         """Return the reconnect rate."""
-        return self.coordinator.get_device_reconnect_rate(self._device_id)
+        return self._coordinator.get_device_reconnect_rate(self._device_id)
 
 
 class ZigSightBatteryTrendSensor(ZigbeeDeviceSensor):
@@ -195,7 +196,7 @@ class ZigSightBatteryTrendSensor(ZigbeeDeviceSensor):
     @property
     def native_value(self) -> float | None:
         """Return the battery trend."""
-        return self.coordinator.get_device_battery_trend(self._device_id)
+        return self._coordinator.get_device_battery_trend(self._device_id)
 
 
 class ZigSightHealthScoreSensor(ZigbeeDeviceSensor):
@@ -215,4 +216,4 @@ class ZigSightHealthScoreSensor(ZigbeeDeviceSensor):
     @property
     def native_value(self) -> float | None:
         """Return the health score."""
-        return self.coordinator.get_device_health_score(self._device_id)
+        return self._coordinator.get_device_health_score(self._device_id)

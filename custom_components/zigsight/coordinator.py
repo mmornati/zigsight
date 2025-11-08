@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -12,9 +13,14 @@ from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .analytics import DeviceAnalytics
 from .const import (
-    CONF_MQTT_TOPIC_PREFIX,
+    DEFAULT_BATTERY_DRAIN_THRESHOLD,
+    DEFAULT_MQTT_BROKER,
+    DEFAULT_MQTT_PORT,
     DEFAULT_MQTT_TOPIC_PREFIX,
+    DEFAULT_RECONNECT_RATE_THRESHOLD,
+    DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
     DOMAIN,
     EVENT_DEVICE_UPDATE,
 )
@@ -29,6 +35,13 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         hass: HomeAssistant,
         mqtt_prefix: str = DEFAULT_MQTT_TOPIC_PREFIX,
+        mqtt_broker: str | None = None,
+        mqtt_port: int | None = None,
+        mqtt_username: str | None = None,
+        mqtt_password: str | None = None,
+        battery_drain_threshold: float = DEFAULT_BATTERY_DRAIN_THRESHOLD,
+        reconnect_rate_threshold: float = DEFAULT_RECONNECT_RATE_THRESHOLD,
+        reconnect_rate_window_hours: int = DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
     ) -> None:
         """Initialize coordinator."""
         super().__init__(
@@ -38,9 +51,21 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=timedelta(seconds=60),
         )
         self._mqtt_prefix = mqtt_prefix
+        self._mqtt_broker = mqtt_broker or DEFAULT_MQTT_BROKER
+        self._mqtt_port = mqtt_port or DEFAULT_MQTT_PORT
+        self._mqtt_username = mqtt_username
+        self._mqtt_password = mqtt_password
+        self._use_direct_mqtt = bool(mqtt_broker and mqtt_port)
         self._devices: dict[str, dict[str, Any]] = {}
         self._device_history: dict[str, list[dict[str, Any]]] = {}
-        self._unsub_mqtt: list[Any] = []
+        self._unsub_mqtt: list[Callable[[], None]] = []
+        self._mqtt_client_task: asyncio.Task[None] | None = None
+        self._mqtt_callbacks: dict[str, list[Callable[[Any], None]]] = {}
+        self._analytics = DeviceAnalytics(
+            reconnect_rate_window_hours=reconnect_rate_window_hours,
+            battery_drain_threshold=battery_drain_threshold,
+        )
+        self._reconnect_rate_threshold = reconnect_rate_threshold
 
     async def async_start(self) -> None:
         """Start the coordinator and subscribe to MQTT topics."""
@@ -56,23 +81,120 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         devices_topic = f"{self._mqtt_prefix}/#"
         await self._subscribe_mqtt(devices_topic, self._on_device_message)
 
+        if self._use_direct_mqtt:
+            # Start direct MQTT client connection after topics are registered
+            await self._start_direct_mqtt()
+
+    async def _start_direct_mqtt(self) -> None:
+        """Start direct MQTT client connection."""
+        try:
+            from aiomqtt import Client as MQTTClient
+        except ImportError:
+            self.logger.error(
+                "aiomqtt not available. Install it with: pip install aiomqtt"
+            )
+            raise
+
+        self.logger.info(
+            "Connecting to MQTT broker %s:%s with %s",
+            self._mqtt_broker,
+            self._mqtt_port,
+            "authentication" if self._mqtt_username else "no authentication",
+        )
+
+        async def mqtt_client_task() -> None:
+            """Task to handle MQTT client connection and messages."""
+            while True:
+                try:
+                    async with MQTTClient(
+                        hostname=self._mqtt_broker,
+                        port=self._mqtt_port,
+                        username=self._mqtt_username if self._mqtt_username else None,
+                        password=self._mqtt_password if self._mqtt_password else None,
+                    ) as client:
+                        self.logger.info("Connected to MQTT broker")
+                        # Subscribe to all topics registered so far
+                        for topic in self._mqtt_callbacks:
+                            await client.subscribe(topic)
+                            self.logger.debug("Subscribed to MQTT topic: %s", topic)
+
+                        async for message in client.messages:
+                            # Convert aiomqtt message to Home Assistant format
+                            class ReceiveMessage:
+                                def __init__(self, topic: str, payload: bytes) -> None:
+                                    self.topic = topic
+                                    self.payload = payload
+
+                            msg = ReceiveMessage(message.topic, message.payload)
+                            # Call all callbacks for matching topic patterns
+                            for (
+                                topic_pattern,
+                                callbacks,
+                            ) in self._mqtt_callbacks.items():
+                                if self._topic_matches(message.topic, topic_pattern):
+                                    for callback in callbacks:
+                                        try:
+                                            callback(msg)
+                                        except Exception as err:
+                                            self.logger.error(
+                                                "Error in MQTT callback: %s", err
+                                            )
+                except Exception as err:
+                    self.logger.error(
+                        "MQTT connection error, reconnecting in 5 seconds: %s", err
+                    )
+                    await asyncio.sleep(5)
+
+        # Start MQTT client task
+        self._mqtt_client_task = asyncio.create_task(mqtt_client_task())
+
+    def _topic_matches(self, topic: str, pattern: str) -> bool:
+        """Check if topic matches pattern (supports # wildcard)."""
+        if pattern == "#" or pattern.endswith("/#"):
+            prefix = pattern.rstrip("#").rstrip("/")
+            return topic.startswith(prefix)
+        return topic == pattern
+
     async def _subscribe_mqtt(self, topic: str, callback: Any) -> None:
         """Subscribe to an MQTT topic."""
         try:
-            unsub = await mqtt.async_subscribe(
-                self.hass,
-                topic,
-                callback,
-                0,
-            )
-            if unsub:
-                self._unsub_mqtt.append(unsub)
+            if self._use_direct_mqtt:
+                # Use direct MQTT client connection
+                if topic not in self._mqtt_callbacks:
+                    self._mqtt_callbacks[topic] = []
+                self._mqtt_callbacks[topic].append(callback)
+                self.logger.debug("Registered callback for MQTT topic: %s", topic)
+
+                # If client is already running, subscribe to the topic
+                # New topics will be picked up automatically on next reconnect
+            else:
+                # Use Home Assistant's MQTT integration
+                if not await mqtt.async_wait_for_mqtt_client(self.hass):
+                    self.logger.warning(
+                        "MQTT client not available, falling back to direct connection"
+                    )
+                    self._use_direct_mqtt = True
+                    self._mqtt_broker = DEFAULT_MQTT_BROKER
+                    self._mqtt_port = DEFAULT_MQTT_PORT
+                    await self._start_direct_mqtt()
+                    await self._subscribe_mqtt(topic, callback)
+                    return
+
+                unsub = await mqtt.async_subscribe(
+                    self.hass,
+                    topic,
+                    callback,
+                    0,
+                )
+                if unsub is not None:
+                    self._unsub_mqtt.append(unsub)
                 self.logger.debug("Subscribed to MQTT topic: %s", topic)
         except Exception as err:
             self.logger.error("Failed to subscribe to MQTT topic %s: %s", topic, err)
+            raise
 
     @callback
-    def _on_bridge_state(self, msg: mqtt.ReceiveMessage) -> None:
+    def _on_bridge_state(self, msg: Any) -> None:
         """Handle bridge state messages."""
         try:
             payload = msg.payload
@@ -91,7 +213,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.logger.error("Error processing bridge state: %s", err)
 
     @callback
-    def _on_device_message(self, msg: mqtt.ReceiveMessage) -> None:
+    def _on_device_message(self, msg: Any) -> None:
         """Handle device update messages."""
         try:
             topic_parts = msg.topic.split("/")
@@ -181,6 +303,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if len(self._device_history[device_id]) > 1000:
             self._device_history[device_id] = self._device_history[device_id][-1000:]
 
+        # Compute and store analytics metrics
+        self._update_analytics_metrics(device_id)
+
         # Fire event for device update
         self.hass.bus.async_fire(
             EVENT_DEVICE_UPDATE,
@@ -192,12 +317,56 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self.logger.debug("Updated device %s: %s", device_id, metrics)
 
+    def _update_analytics_metrics(self, device_id: str) -> None:
+        """Update computed analytics metrics for a device."""
+        device = self.get_device(device_id)
+        if not device:
+            return
+
+        device_history = self.get_device_history(device_id)
+
+        # Compute and store analytics metrics
+        analytics_metrics = device.setdefault("analytics_metrics", {})
+
+        # Reconnect rate
+        reconnect_rate = self._analytics.compute_reconnect_rate(device_history)
+        analytics_metrics["reconnect_rate"] = reconnect_rate
+
+        # Battery trend
+        battery_trend = self._analytics.compute_battery_trend(device_history)
+        analytics_metrics["battery_trend"] = battery_trend
+
+        # Health score
+        health_score = self._analytics.compute_health_score(device, device_history)
+        analytics_metrics["health_score"] = health_score
+
+        # Warnings
+        analytics_metrics[
+            "battery_drain_warning"
+        ] = self._analytics.check_battery_drain_warning(device_history)
+        device_with_history = device.copy()
+        device_with_history["history"] = device_history
+        analytics_metrics[
+            "connectivity_warning"
+        ] = self._analytics.check_connectivity_warning(
+            device_with_history, self._reconnect_rate_threshold
+        )
+
+        self.logger.debug(
+            "Updated analytics metrics for %s: %s", device_id, analytics_metrics
+        )
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from ZigSight.
 
         Returns a dictionary of device_id -> device_data for quick lookup.
         """
         try:
+            # Update analytics metrics for all devices
+            for device_id in self._devices:
+                if device_id != "bridge":
+                    self._update_analytics_metrics(device_id)
+
             # Data is updated via MQTT callbacks, so we just return current state
             return {
                 "devices": self._devices.copy(),
@@ -222,15 +391,97 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Get history for a device."""
         return self._device_history.get(device_id, [])
 
+    def get_device_reconnect_rate(self, device_id: str) -> float | None:
+        """Get reconnect rate for a device."""
+        device = self.get_device(device_id)
+        if device and "analytics_metrics" in device:
+            rate = device["analytics_metrics"].get("reconnect_rate")
+            if rate is not None:
+                return rate
+
+        # Fallback to computing on-demand if not cached
+        device_history = self.get_device_history(device_id)
+        if not device_history:
+            return None
+        return self._analytics.compute_reconnect_rate(device_history)
+
+    def get_device_battery_trend(self, device_id: str) -> float | None:
+        """Get battery trend for a device."""
+        device = self.get_device(device_id)
+        if device and "analytics_metrics" in device:
+            trend = device["analytics_metrics"].get("battery_trend")
+            if trend is not None:
+                return trend
+
+        # Fallback to computing on-demand if not cached
+        device_history = self.get_device_history(device_id)
+        if not device_history:
+            return None
+        return self._analytics.compute_battery_trend(device_history)
+
+    def get_device_health_score(self, device_id: str) -> float | None:
+        """Get health score for a device."""
+        device = self.get_device(device_id)
+        if device and "analytics_metrics" in device:
+            score = device["analytics_metrics"].get("health_score")
+            if score is not None:
+                return score
+
+        # Fallback to computing on-demand if not cached
+        if not device:
+            return None
+        device_history = self.get_device_history(device_id)
+        return self._analytics.compute_health_score(device, device_history)
+
+    def get_device_battery_drain_warning(self, device_id: str) -> bool:
+        """Get battery drain warning status for a device."""
+        device = self.get_device(device_id)
+        if device and "analytics_metrics" in device:
+            warning = device["analytics_metrics"].get("battery_drain_warning")
+            if warning is not None:
+                return warning
+
+        # Fallback to computing on-demand if not cached
+        device_history = self.get_device_history(device_id)
+        if not device_history:
+            return False
+        return self._analytics.check_battery_drain_warning(device_history)
+
+    def get_device_connectivity_warning(self, device_id: str) -> bool:
+        """Get connectivity warning status for a device."""
+        device = self.get_device(device_id)
+        if device and "analytics_metrics" in device:
+            warning = device["analytics_metrics"].get("connectivity_warning")
+            if warning is not None:
+                return warning
+
+        # Fallback to computing on-demand if not cached
+        if not device:
+            return False
+        # Add history to device data for analytics
+        device_with_history = device.copy()
+        device_with_history["history"] = self.get_device_history(device_id)
+        return self._analytics.check_connectivity_warning(
+            device_with_history, self._reconnect_rate_threshold
+        )
+
     async def async_shutdown(self) -> None:
         """Cancel any background tasks and unsubscribe from MQTT."""
         self.logger.info("Shutting down ZigSight coordinator")
 
+        # Cancel MQTT client task if using direct connection
+        if self._mqtt_client_task and not self._mqtt_client_task.done():
+            self._mqtt_client_task.cancel()
+            try:
+                await self._mqtt_client_task
+            except asyncio.CancelledError:
+                pass
+
         # Unsubscribe from MQTT
         for unsub in self._unsub_mqtt:
-            if unsub:
-                unsub()
+            unsub()
         self._unsub_mqtt.clear()
+        self._mqtt_callbacks.clear()
 
         # Cancel any pending tasks
         if hasattr(self, "_tasks"):

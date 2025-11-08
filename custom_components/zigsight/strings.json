@@ -1,14 +1,17 @@
 {
   "config": {
     "step": {
-      "user": {
-        "title": "ZigSight Setup",
-        "description": "Configure ZigSight to monitor your Zigbee network",
-        "data": {
-          "mqtt_topic_prefix": "MQTT Topic Prefix",
-          "integration_type": "Integration Type"
-        }
-      },
+            "user": {
+              "title": "ZigSight Setup",
+              "description": "Configure ZigSight to monitor your Zigbee network",
+              "data": {
+                "mqtt_broker": "MQTT Broker",
+                "mqtt_port": "MQTT Port",
+                "mqtt_username": "MQTT Username",
+                "mqtt_password": "MQTT Password",
+                "mqtt_topic_prefix": "MQTT Topic Prefix"
+              }
+            },
       "zigbee2mqtt": {
         "title": "Zigbee2MQTT Configuration",
         "description": "Configure Zigbee2MQTT connection",

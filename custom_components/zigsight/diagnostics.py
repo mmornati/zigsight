@@ -82,20 +82,20 @@ async def async_get_device_diagnostics(
         device_data["analytics_metrics"] = {}
 
     # Compute additional metrics
-    device_data["analytics_metrics"]["reconnect_rate"] = (
-        coordinator.get_device_reconnect_rate(device_id)
-    )
-    device_data["analytics_metrics"]["battery_trend"] = (
-        coordinator.get_device_battery_trend(device_id)
-    )
-    device_data["analytics_metrics"]["health_score"] = (
-        coordinator.get_device_health_score(device_id)
-    )
-    device_data["analytics_metrics"]["battery_drain_warning"] = (
-        coordinator.get_device_battery_drain_warning(device_id)
-    )
-    device_data["analytics_metrics"]["connectivity_warning"] = (
-        coordinator.get_device_connectivity_warning(device_id)
-    )
+    device_data["analytics_metrics"][
+        "reconnect_rate"
+    ] = coordinator.get_device_reconnect_rate(device_id)
+    device_data["analytics_metrics"][
+        "battery_trend"
+    ] = coordinator.get_device_battery_trend(device_id)
+    device_data["analytics_metrics"][
+        "health_score"
+    ] = coordinator.get_device_health_score(device_id)
+    device_data["analytics_metrics"][
+        "battery_drain_warning"
+    ] = coordinator.get_device_battery_drain_warning(device_id)
+    device_data["analytics_metrics"][
+        "connectivity_warning"
+    ] = coordinator.get_device_connectivity_warning(device_id)
 
     return device_data

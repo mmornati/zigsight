@@ -69,7 +69,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-class ZigSightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class ZigSightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[misc]
     """Handle a config flow for ZigSight."""
 
     VERSION = 1

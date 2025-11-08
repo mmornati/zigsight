@@ -341,15 +341,15 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         analytics_metrics["health_score"] = health_score
 
         # Warnings
-        analytics_metrics["battery_drain_warning"] = (
-            self._analytics.check_battery_drain_warning(device_history)
-        )
+        analytics_metrics[
+            "battery_drain_warning"
+        ] = self._analytics.check_battery_drain_warning(device_history)
         device_with_history = device.copy()
         device_with_history["history"] = device_history
-        analytics_metrics["connectivity_warning"] = (
-            self._analytics.check_connectivity_warning(
-                device_with_history, self._reconnect_rate_threshold
-            )
+        analytics_metrics[
+            "connectivity_warning"
+        ] = self._analytics.check_connectivity_warning(
+            device_with_history, self._reconnect_rate_threshold
         )
 
         self.logger.debug(

@@ -37,93 +37,68 @@ This document provides information for developers contributing to the ZigSight p
 └── README.md                   # Project README
 ```
 
-## Python Version
+## Development Environment
 
-This project requires **Python 3.11** or higher.
+- **Python**: 3.11 – 3.13 (CI defaults to 3.13)
+- **Home Assistant compatibility**: `homeassistant>=2025.10.0`
 
-Home Assistant compatibility: `homeassistant>=2025.5.0`
-
-## Development Setup
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/mmornati/zigsight.git
-   cd zigsight
-   ```
-
-2. Create a virtual environment:
-   ```bash
-   python3.11 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. Install development dependencies:
-   ```bash
-   pip install -r requirements-dev.txt
-   ```
-
-## Running Tests Locally
-
-To run the test suite:
+### Quick Start
 
 ```bash
-pytest tests/
+git clone https://github.com/mmornati/zigsight.git
+cd zigsight
+make setup-dev
+source .venv/bin/activate
 ```
 
-With coverage:
+`make setup-dev` creates the local virtualenv, installs every developer dependency from `requirements-dev.txt`, and registers the pre-commit hooks so linting runs before commits.
+
+### Handy Make targets
+
+| Command            | What it does                                                                 |
+|--------------------|------------------------------------------------------------------------------|
+| `make lint`        | `ruff check` + `mypy` (mirrors the GitHub CI lint job)                       |
+| `make security`    | Runs Bandit with the project configuration                                   |
+| `make test`        | Unit tests with coverage HTML + terminal summary                            |
+| `make test-quick`  | Unit tests without coverage                                                  |
+| `make format`      | `ruff format` and auto-fix lint warnings                                     |
+| `make check-format`| Verify formatting without modifying files                                    |
+| `make clean`       | Remove cached artifacts (`.mypy_cache`, `.ruff_cache`, `.pytest_cache`, …)   |
+
+All commands assume the virtualenv created by `make setup-dev` is active.
+
+### Manual setup (optional)
+
+If you prefer not to use the Makefile helpers:
 
 ```bash
-pytest --cov=custom_components --cov-report=term-missing tests/
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements-dev.txt
+pre-commit install
 ```
 
-To run specific tests:
+Run the individual tools exactly as the make targets do:
 
 ```bash
-pytest tests/test_coordinator.py
-pytest tests/test_sensor.py -v
-```
-
-## Testing Commands
-
-### Linting
-
-```bash
-# Check code style
-ruff check custom_components/ tests/
-
-# Format code
-ruff format custom_components/ tests/
-
-# Check only (no changes)
-ruff format --check custom_components/ tests/
-```
-
-### Type Checking
-
-```bash
-mypy custom_components/
-```
-
-### Running All Checks
-
-```bash
-# Run all checks
 ruff check custom_components/ tests/
 ruff format --check custom_components/ tests/
-mypy custom_components/
+mypy custom_components/zigsight/
 pytest tests/
+bandit -r custom_components/zigsight -c tests/bandit.yaml
 ```
 
-## Code Coverage
+### Coverage
 
-The project aims for **85% code coverage**. Coverage reports are generated during CI runs and uploaded to Codecov.
-
-To view coverage locally:
+Project target coverage is **85%**.
 
 ```bash
 pytest --cov=custom_components --cov-report=html tests/
-open htmlcov/index.html  # View coverage report
+open htmlcov/index.html
 ```
+
+The CI pipeline uploads coverage to Codecov; results without a token are still published for public repositories.
 
 ## Adding Secrets for Codecov
 

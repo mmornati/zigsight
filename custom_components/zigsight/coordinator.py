@@ -465,6 +465,14 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             device_with_history, self._reconnect_rate_threshold
         )
 
+    def get_all_devices(self) -> dict[str, dict[str, Any]]:
+        """Get all devices tracked by the coordinator.
+
+        Returns:
+            Dictionary of device_id -> device_data for all devices
+        """
+        return self._devices.copy()
+
     async def async_shutdown(self) -> None:
         """Cancel any background tasks and unsubscribe from MQTT."""
         self.logger.info("Shutting down ZigSight coordinator")

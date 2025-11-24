@@ -477,6 +477,97 @@ Returns dict with `recommended_channel`, `scores`, and `explanation`.
 - Channel 25: 2475 MHz (recommended)
 - Channels 12-24, 26 available but not recommended
 
+## Frontend Development
+
+ZigSight includes a custom Lovelace card for network topology visualization.
+
+### Card Location
+
+The topology card is located at:
+```
+custom_components/zigsight/www/topology-card.js
+```
+
+### No Build Process Required
+
+The topology card is written in vanilla JavaScript and requires no build process. It can be directly loaded by Home Assistant as a Lovelace resource.
+
+### Card Registration
+
+The card is automatically registered when loaded. Users need to:
+
+1. Copy the card to their `www/` directory:
+   ```bash
+   mkdir -p config/www/community/zigsight
+   cp custom_components/zigsight/www/topology-card.js config/www/community/zigsight/
+   ```
+
+2. Register as a Lovelace resource in `configuration.yaml`:
+   ```yaml
+   lovelace:
+     mode: yaml
+     resources:
+       - url: /local/community/zigsight/topology-card.js
+         type: module
+   ```
+
+   Or via UI: Settings → Dashboards → Resources → Add Resource
+
+### Card Usage
+
+Add to any dashboard:
+```yaml
+type: custom:zigsight-topology-card
+title: Zigbee Network Topology
+```
+
+### Card Development
+
+To modify the card:
+
+1. Edit `custom_components/zigsight/www/topology-card.js`
+2. Copy updated file to Home Assistant's `www/` directory
+3. Clear browser cache or use incognito mode
+4. Refresh the dashboard
+
+### Card Features
+
+- **Network Statistics**: Shows device counts by type
+- **Device Cards**: Interactive cards for each device with metrics
+- **Color Coding**: Visual indicators for device type and health
+- **Device Details**: Click any device to see detailed information
+- **Link Quality**: Color-coded signal strength indicators
+- **Warnings**: Highlights devices with connectivity or battery issues
+
+### API Endpoint
+
+The card fetches data from `/api/zigsight/topology` which returns:
+- Node list with device information
+- Edge list with parent-child relationships
+- Network statistics
+
+See `docs/ui.md` for complete API documentation.
+
+### Testing Frontend Changes
+
+Since there's no build process, testing is straightforward:
+
+1. Copy the updated card to Home Assistant
+2. Reload the dashboard
+3. Check browser console for errors
+4. Test all interactive features
+
+### Future Enhancements
+
+Potential improvements for the topology card:
+
+- Interactive graph visualization (D3.js, vis-network)
+- Device filtering and search
+- Automatic refresh intervals
+- Export topology as image
+- Historical topology comparison
+- Custom color schemes
+
 ## Contributing
 
 1. Create a feature branch: `git checkout -b feature/your-feature-name`

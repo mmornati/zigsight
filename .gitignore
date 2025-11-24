@@ -51,4 +51,6 @@ Thumbs.db
 bandit-report.json
 
 # Frontend assets (should be distributed via HACS)
+# Note: custom_components/zigsight/www/ is included for card distribution
 www/
+!custom_components/zigsight/www/

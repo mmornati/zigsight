@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from custom_components.zigsight.recommender import (
     calculate_overlap_factor,
     recommend_zigbee_channel,
@@ -182,5 +180,5 @@ def test_recommend_best_channel_has_lowest_score() -> None:
     recommended_score = result["scores"][recommended]
 
     # Recommended channel should have lowest or equal score
-    for channel, score in result["scores"].items():
+    for _channel, score in result["scores"].items():
         assert recommended_score <= score

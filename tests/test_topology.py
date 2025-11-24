@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import pytest
+from typing import Any
 
 from custom_components.zigsight.topology import build_topology
 
 
 def test_build_topology_empty_devices() -> None:
     """Test topology building with empty device list."""
-    devices = {}
+    devices: dict[str, Any] = {}
     topology = build_topology(devices)
 
     assert topology is not None

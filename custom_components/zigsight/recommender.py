@@ -97,9 +97,7 @@ def calculate_overlap_factor(
     return interference_factor
 
 
-def score_zigbee_channel(
-    zigbee_channel: int, wifi_aps: list[dict[str, Any]]
-) -> float:
+def score_zigbee_channel(zigbee_channel: int, wifi_aps: list[dict[str, Any]]) -> float:
     """Calculate interference score for a Zigbee channel.
 
     Args:
@@ -126,9 +124,7 @@ def score_zigbee_channel(
     return min(100.0, total_interference)
 
 
-def recommend_zigbee_channel(
-    wifi_aps: list[dict[str, Any]]
-) -> dict[str, Any]:
+def recommend_zigbee_channel(wifi_aps: list[dict[str, Any]]) -> dict[str, Any]:
     """Recommend the best Zigbee channel based on Wi-Fi interference.
 
     Args:

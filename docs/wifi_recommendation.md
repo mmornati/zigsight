@@ -9,7 +9,7 @@ Zigbee and Wi-Fi both operate in the 2.4 GHz spectrum, which can lead to interfe
 ## Understanding Channel Overlap
 
 ### Wi-Fi Channels
-Wi-Fi channels in the 2.4 GHz band use approximately 22 MHz of bandwidth each. Common channels are 1, 6, and 11, but channels 1-13 (or 1-14 in some regions) may be in use.
+Wi-Fi channels in the 2.4 GHz band use approximately 22 MHz of bandwidth each. While common channels are 1, 6, and 11, any channels from 1-13 (or 1-14 in some regions) may be in use.
 
 ### Zigbee Channels
 Zigbee uses much narrower channels (~2 MHz) numbered 11-26 in the 2.4 GHz band. However, only channels **11, 15, 20, and 25** are recommended because they provide optimal spacing from common Wi-Fi channels.

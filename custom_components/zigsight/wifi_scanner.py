@@ -9,6 +9,9 @@ from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
+# Constants for RSSI conversion
+RSSI_BASE_DBM = -100  # Base dBm value for percentage conversion
+
 
 class WiFiScanner(ABC):
     """Base class for Wi-Fi scanner adapters."""
@@ -216,7 +219,7 @@ class HostScanner(WiFiScanner):
                     else:
                         # Convert percentage to approximate dBm
                         percent = int(signal_part.split("/")[0])
-                        rssi = -100 + percent  # Rough conversion
+                        rssi = RSSI_BASE_DBM + percent  # Rough conversion
                     current_ap["rssi"] = rssi
                 except (ValueError, IndexError):
                     pass
@@ -278,7 +281,7 @@ class HostScanner(WiFiScanner):
                     channel = int(parts[1].strip())
                     signal = int(parts[2].strip())
                     # nmcli gives signal as percentage, convert to approximate dBm
-                    rssi = -100 + signal
+                    rssi = RSSI_BASE_DBM + signal
 
                     ap: dict[str, Any] = {"channel": channel, "rssi": rssi}
                     if ssid:

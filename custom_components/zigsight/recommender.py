@@ -45,6 +45,12 @@ ZIGBEE_CHANNEL_FREQ = {
 # Recommended Zigbee channels for evaluation
 RECOMMENDED_ZIGBEE_CHANNELS = [11, 15, 20, 25]
 
+# Constants for interference calculations
+WIFI_BANDWIDTH_MHZ = 22  # Wi-Fi channel bandwidth in MHz
+RSSI_WEAK_THRESHOLD = -90  # Weak signal threshold in dBm
+RSSI_STRONG_THRESHOLD = -30  # Strong signal threshold in dBm
+RSSI_RANGE = 60  # Range between strong and weak thresholds (RSSI_WEAK_THRESHOLD - RSSI_STRONG_THRESHOLD)
+
 
 def calculate_overlap_factor(
     wifi_channel: int, zigbee_channel: int, rssi: float
@@ -72,18 +78,18 @@ def calculate_overlap_factor(
 
     # Wi-Fi channels have ~22 MHz bandwidth, Zigbee has ~2 MHz
     # Significant overlap occurs within ~11 MHz
-    if freq_distance > 22:
+    if freq_distance > WIFI_BANDWIDTH_MHZ:
         # No overlap
         return 0.0
 
     # Calculate overlap factor based on frequency distance
     # Closer frequencies = more overlap
-    overlap_percentage = max(0, 1 - (freq_distance / 22))
+    overlap_percentage = max(0, 1 - (freq_distance / WIFI_BANDWIDTH_MHZ))
 
     # Factor in signal strength (RSSI)
     # Normalize RSSI: -30 dBm (strong) to -90 dBm (weak)
     # Strong signals cause more interference
-    normalized_rssi = max(0, min(100, (rssi + 90) * 100 / 60))
+    normalized_rssi = max(0, min(100, (rssi - RSSI_WEAK_THRESHOLD) * 100 / RSSI_RANGE))
 
     # Combine overlap and RSSI
     interference_factor = overlap_percentage * normalized_rssi

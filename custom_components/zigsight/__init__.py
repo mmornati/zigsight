@@ -78,6 +78,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register services
     await _async_setup_services(hass)
 
+    # Register API views
+    from .api import setup_api_views
+
+    setup_api_views(hass)
+
     return True
 
 

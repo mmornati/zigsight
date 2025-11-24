@@ -2,6 +2,25 @@
 
 .PHONY: help install test lint format clean build docs setup-dev security
 
+# Virtual environment detection and binary paths
+VENV := .venv
+VENV_PYTHON := $(VENV)/bin/python
+VENV_PIP := $(VENV)/bin/pip
+VENV_PYTEST := $(VENV)/bin/pytest
+VENV_RUFF := $(VENV)/bin/ruff
+VENV_MYPY := $(VENV)/bin/mypy
+VENV_BANDIT := $(VENV)/bin/bandit
+VENV_PRE_COMMIT := $(VENV)/bin/pre-commit
+
+# Use venv binaries if venv exists, otherwise fall back to system binaries
+PYTHON := $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
+PIP := $(if $(wildcard $(VENV_PIP)),$(VENV_PIP),pip)
+PYTEST := $(if $(wildcard $(VENV_PYTEST)),$(VENV_PYTEST),pytest)
+RUFF := $(if $(wildcard $(VENV_RUFF)),$(VENV_RUFF),ruff)
+MYPY := $(if $(wildcard $(VENV_MYPY)),$(VENV_MYPY),mypy)
+BANDIT := $(if $(wildcard $(VENV_BANDIT)),$(VENV_BANDIT),bandit)
+PRE_COMMIT := $(if $(wildcard $(VENV_PRE_COMMIT)),$(VENV_PRE_COMMIT),pre-commit)
+
 # Default target
 help:
 	@echo "Available targets:"
@@ -31,50 +50,54 @@ install: install-dev
 
 # Install development dependencies (deprecated, use setup-dev)
 install-dev:
-	pip install -r requirements-dev.txt
+	@if [ ! -d "$(VENV)" ]; then \
+		echo "Error: Virtual environment not found. Run 'make setup-dev' first."; \
+		exit 1; \
+	fi
+	$(PIP) install -r requirements-dev.txt
 
 # Bootstrap local development environment
 setup-dev:
 	@echo "Creating virtual environment and installing development tools..."
-	@test -d .venv || python3 -m venv .venv
-	. .venv/bin/activate && python3 -m pip install --upgrade pip
-	. .venv/bin/activate && python3 -m pip install -r requirements-dev.txt
-	. .venv/bin/activate && pre-commit install
+	@test -d $(VENV) || $(PYTHON) -m venv $(VENV)
+	$(VENV_PIP) install --upgrade pip
+	$(VENV_PIP) install -r requirements-dev.txt
+	$(VENV_PRE_COMMIT) install
 
 # Run unit tests
 test:
-	pytest tests/ -v --cov=custom_components/zigsight --cov-report=html --cov-report=term
+	$(PYTEST) tests/ -v --cov=custom_components/zigsight --cov-report=html --cov-report=term
 
 # Alias for unit tests
 test-unit:
-	pytest tests/ -v --cov=custom_components/zigsight --cov-report=html --cov-report=term
+	$(PYTEST) tests/ -v --cov=custom_components/zigsight --cov-report=html --cov-report=term
 
 # Quick test (no coverage)
 test-quick:
-	pytest tests/ -v
+	$(PYTEST) tests/ -v
 
 # Test with coverage report
 test-coverage:
-	pytest tests/ --cov=custom_components/zigsight --cov-report=html --cov-report=term
+	$(PYTEST) tests/ --cov=custom_components/zigsight --cov-report=html --cov-report=term
 
 # Run linting
 lint:
-	ruff check .
-	mypy custom_components/zigsight/
+	$(RUFF) check .
+	$(MYPY) custom_components/zigsight/
 
 # Security checks
 security:
-	bandit -r custom_components/zigsight -c tests/bandit.yaml
+	$(BANDIT) -r custom_components/zigsight -c tests/bandit.yaml
 
 # Format code
 format:
-	ruff format .
-	ruff check --fix .
+	$(RUFF) format .
+	$(RUFF) check --fix .
 
 # Check formatting
 check-format:
-	ruff format --check .
-	ruff check .
+	$(RUFF) format --check .
+	$(RUFF) check .
 
 # Clean build artifacts
 clean:
@@ -92,7 +115,7 @@ clean:
 
 # Build package
 build: clean
-	python -m build
+	$(PYTHON) -m build
 
 # Serve documentation (when MkDocs is ready)
 docs:
@@ -104,15 +127,15 @@ check: lint test
 
 # Pre-commit hooks
 pre-commit:
-	pre-commit run --all-files
+	$(PRE_COMMIT) run --all-files
 
 # Install pre-commit hooks
 install-hooks:
-	pre-commit install
+	$(PRE_COMMIT) install
 
 # Version info
 version:
 	@echo "ZigSight Integration"
-	@python -c "import json; print('Version:', json.load(open('custom_components/zigsight/manifest.json'))['version'])"
-	@echo "Python: $$(python3 --version)"
-	@echo "Pytest: $$(pytest --version 2>/dev/null || echo 'Not installed')"
+	@$(PYTHON) -c "import json; print('Version:', json.load(open('custom_components/zigsight/manifest.json'))['version'])"
+	@echo "Python: $$($(PYTHON) --version)"
+	@echo "Pytest: $$($(PYTEST) --version 2>/dev/null || echo 'Not installed')"

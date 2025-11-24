@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+from typing import Any
+
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
@@ -23,6 +28,10 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import ZigSightCoordinator
+from .recommender import recommend_zigbee_channel
+from .wifi_scanner import create_scanner
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[str] = ["sensor", "binary_sensor"]
 
@@ -66,6 +75,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Register services
+    await _async_setup_services(hass)
+
     return True
 
 
@@ -77,3 +89,59 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_shutdown()
 
     return unload_ok
+
+
+async def _async_setup_services(hass: HomeAssistant) -> None:
+    """Set up ZigSight services."""
+
+    # Only register services once
+    if hass.services.has_service(DOMAIN, "recommend_channel"):
+        return
+
+    async def async_recommend_channel(call: ServiceCall) -> None:
+        """Handle recommend_channel service call."""
+        mode = call.data.get("mode", "manual")
+        wifi_scan_data = call.data.get("wifi_scan_data")
+
+        try:
+            # Create appropriate scanner
+            scanner = create_scanner(
+                mode=mode,
+                scan_data=wifi_scan_data,
+            )
+
+            # Perform scan
+            wifi_aps = await scanner.scan()
+
+            # Get recommendation
+            result = recommend_zigbee_channel(wifi_aps)
+
+            _LOGGER.info(
+                "Zigbee channel recommendation: Channel %s (score: %.1f)",
+                result["recommended_channel"],
+                result["scores"][result["recommended_channel"]],
+            )
+            _LOGGER.info("Recommendation: %s", result["explanation"])
+
+            # Store result in hass.data for retrieval
+            hass.data.setdefault(DOMAIN, {})
+            hass.data[DOMAIN]["last_recommendation"] = result
+
+        except Exception as e:
+            _LOGGER.error("Error during channel recommendation: %s", e)
+            raise
+
+    # Service schema
+    recommend_channel_schema = vol.Schema(
+        {
+            vol.Optional("mode", default="manual"): cv.string,
+            vol.Optional("wifi_scan_data"): vol.Any(dict, list),
+        }
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "recommend_channel",
+        async_recommend_channel,
+        schema=recommend_channel_schema,
+    )

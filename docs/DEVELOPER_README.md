@@ -281,6 +281,202 @@ See `tests/test_analytics.py` for comprehensive test coverage:
 - Test health score computation with different metrics
 - Test warning conditions with threshold variations
 
+## Wi-Fi Scanner Adapters
+
+ZigSight includes a Wi-Fi scanning system for channel recommendation. The system uses an adapter pattern to support multiple input methods.
+
+### Scanner Architecture
+
+All scanners implement the `WiFiScanner` abstract base class:
+
+```python
+class WiFiScanner(ABC):
+    @abstractmethod
+    async def scan(self) -> list[dict[str, Any]]:
+        """Return list of APs with keys: channel, rssi, ssid (optional)"""
+```
+
+### Available Adapters
+
+#### ManualScanner
+Accepts pre-scanned data from user input.
+
+**Usage:**
+```python
+scanner = ManualScanner(scan_data=[
+    {"channel": 1, "rssi": -45, "ssid": "Network1"},
+    {"channel": 6, "rssi": -60}
+])
+aps = await scanner.scan()
+```
+
+#### RouterAPIScanner
+Queries router APIs for scan data. Currently a placeholder for future router-specific implementations.
+
+**Supported Router Types:**
+- UniFi (planned)
+- OpenWrt (planned)
+- Fritz!Box (planned)
+
+**Adding Router Support:**
+Extend `RouterAPIScanner.scan()` to add router-specific API calls:
+
+```python
+async def scan(self) -> list[dict[str, Any]]:
+    if self.router_type == "unifi":
+        return await self._scan_unifi()
+    elif self.router_type == "openwrt":
+        return await self._scan_openwrt()
+    # ...
+```
+
+#### HostScanner
+Scans Wi-Fi using host system tools (iwlist or nmcli).
+
+**Requirements:**
+- Linux host with Wi-Fi adapter
+- `iwlist` (wireless-tools) or `nmcli` (NetworkManager) installed
+- Appropriate permissions (may require privileged add-on)
+
+**Permissions:**
+- **iwlist**: Typically requires root or CAP_NET_ADMIN capability
+- **nmcli**: Usually works without elevated permissions if NetworkManager is running
+
+### Factory Function
+
+Use `create_scanner()` to instantiate the appropriate scanner:
+
+```python
+from custom_components.zigsight.wifi_scanner import create_scanner
+
+# Manual mode
+scanner = create_scanner(
+    mode="manual",
+    scan_data=[{"channel": 1, "rssi": -45}]
+)
+
+# Router API mode
+scanner = create_scanner(
+    mode="router_api",
+    router_config={
+        "router_type": "unifi",
+        "host": "192.168.1.1",
+        "username": "admin",
+        "password": "secret"
+    }
+)
+
+# Host scan mode
+scanner = create_scanner(
+    mode="host_scan",
+    host_config={"interface": "wlan0"}
+)
+```
+
+### Adding a New Router Adapter
+
+1. **Identify the API endpoint** for Wi-Fi scanning in your router
+2. **Add authentication logic** in `RouterAPIScanner.__init__()`
+3. **Implement the scan method** for your router type:
+
+```python
+async def _scan_your_router(self) -> list[dict[str, Any]]:
+    """Scan using YourRouter API."""
+    async with aiohttp.ClientSession() as session:
+        # Authenticate
+        auth_data = await self._authenticate_your_router(session)
+        
+        # Query scan endpoint
+        async with session.get(
+            f"http://{self.host}/api/wifi/scan",
+            headers={"Authorization": f"Bearer {auth_data['token']}"}
+        ) as response:
+            data = await response.json()
+        
+        # Parse response into standard format
+        return [
+            {
+                "channel": ap["chan"],
+                "rssi": ap["signal"],
+                "ssid": ap.get("name")
+            }
+            for ap in data["access_points"]
+        ]
+```
+
+4. **Add router type** to `RouterAPIScanner.scan()` dispatch logic
+5. **Add tests** in `tests/test_wifi_scanner.py`
+6. **Document** in `docs/wifi_recommendation.md`
+
+### Testing Scanner Adapters
+
+See `tests/test_wifi_scanner.py` for comprehensive test coverage:
+
+```python
+@pytest.mark.asyncio
+async def test_your_scanner() -> None:
+    scanner = YourScanner(config)
+    result = await scanner.scan()
+    
+    assert isinstance(result, list)
+    for ap in result:
+        assert "channel" in ap
+        assert "rssi" in ap
+```
+
+## Channel Recommender Algorithm
+
+The channel recommender in `recommender.py` uses frequency overlap analysis to score Zigbee channels.
+
+### Algorithm Overview
+
+1. **Calculate Overlap Factor** for each Wi-Fi AP and Zigbee channel pair:
+   - Compute frequency distance between channels
+   - Apply overlap percentage based on bandwidth (Wi-Fi ~22 MHz, Zigbee ~2 MHz)
+   - Factor in signal strength (RSSI)
+   
+2. **Score Each Zigbee Channel** (11, 15, 20, 25):
+   - Sum overlap factors from all Wi-Fi APs
+   - Lower score = less interference
+   
+3. **Select Best Channel**:
+   - Choose channel with lowest score
+   - Generate human-readable explanation
+
+### Key Functions
+
+#### `calculate_overlap_factor(wifi_channel, zigbee_channel, rssi)`
+Returns interference factor (0-100) for a single Wi-Fi AP and Zigbee channel pair.
+
+**Formula:**
+```python
+freq_distance = abs(wifi_freq - zigbee_freq)
+overlap_percentage = max(0, 1 - (freq_distance / 22))
+normalized_rssi = (rssi + 90) * 100 / 60  # -30 to -90 dBm range
+interference_factor = overlap_percentage * normalized_rssi
+```
+
+#### `score_zigbee_channel(zigbee_channel, wifi_aps)`
+Returns total interference score (0-100) for a Zigbee channel considering all Wi-Fi APs.
+
+#### `recommend_zigbee_channel(wifi_aps)`
+Returns dict with `recommended_channel`, `scores`, and `explanation`.
+
+### Frequency Mappings
+
+**Wi-Fi (2.4 GHz):**
+- Channel 1: 2412 MHz
+- Channel 6: 2437 MHz (most common)
+- Channel 11: 2462 MHz
+- Channels 1-13 supported (14 in Japan)
+
+**Zigbee (2.4 GHz):**
+- Channel 11: 2405 MHz (recommended)
+- Channel 15: 2425 MHz (recommended)
+- Channel 20: 2450 MHz (recommended)
+- Channel 25: 2475 MHz (recommended)
+- Channels 12-24, 26 available but not recommended
+
 ## Contributing
 
 1. Create a feature branch: `git checkout -b feature/your-feature-name`
@@ -296,3 +492,4 @@ See `tests/test_analytics.py` for comprehensive test coverage:
 - [Home Assistant Integration Architecture](https://developers.home-assistant.io/docs/creating_integration_architecture/)
 - [Pytest Documentation](https://docs.pytest.org/)
 - [Ruff Documentation](https://docs.astral.sh/ruff/)
+- [Wi-Fi/Zigbee Coexistence](https://www.metageek.com/training/resources/zigbee-wifi-coexistence/)

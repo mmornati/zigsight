@@ -46,7 +46,7 @@ class ZigSightTopologyView(HomeAssistantView):
             coordinator = coordinators[0]
 
             # Build topology from coordinator devices
-            devices = coordinator._devices  # noqa: SLF001
+            devices = coordinator.get_all_devices()
             topology = build_topology(devices)
 
             return self.json(topology)

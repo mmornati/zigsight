@@ -421,7 +421,7 @@ class ZigSightTopologyCard extends HTMLElement {
           <span>${Math.round(device.health_score)}</span>
         </div>
       ` : ''}
-      ${device.analytics?.reconnect_rate !== null ? `
+      ${device.analytics?.reconnect_rate != null ? `
         <div class="dialog-row">
           <span class="dialog-label">Reconnect Rate</span>
           <span>${device.analytics.reconnect_rate.toFixed(2)}/hr</span>

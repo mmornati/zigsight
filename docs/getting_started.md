@@ -76,4 +76,4 @@ mypy custom_components/
 pytest tests/
 ```
 
-For more information, see the [Developer README](../docs/DEVELOPER_README.md).
+For more information, see the [Developer README](DEVELOPER_README.md).

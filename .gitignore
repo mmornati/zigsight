@@ -50,6 +50,9 @@ Thumbs.db
 .env
 bandit-report.json
 
+# MkDocs build output
+site/
+
 # Frontend assets (should be distributed via HACS)
 # Note: custom_components/zigsight/www/ is included for card distribution
 www/

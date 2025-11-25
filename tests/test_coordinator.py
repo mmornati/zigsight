@@ -567,8 +567,8 @@ async def test_coordinator_get_battery_trend_with_data(mock_hass: MagicMock) -> 
     device.pop("analytics_metrics", None)
 
     trend = coordinator.get_device_battery_trend("test_device")
-    # Trend should be computed from history
-    assert trend is not None or trend is None  # May return None if regression fails
+    # The method should return a value (either a float or None) without crashing
+    assert isinstance(trend, (float, type(None)))
 
 
 @pytest.mark.asyncio

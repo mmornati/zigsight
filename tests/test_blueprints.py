@@ -257,3 +257,29 @@ class TestSpecificBlueprints:
         assert "report_time" in inputs, "daily report missing report_time input"
         report_time = inputs["report_time"]
         assert "default" in report_time, "report_time should have a default value"
+
+
+class TestBlueprintVariables:
+    """Test blueprint variables are correctly defined."""
+
+    @pytest.mark.parametrize("blueprint_file", BLUEPRINT_FILES)
+    def test_variables_at_top_level(self, blueprint_file: str) -> None:
+        """Test that variables are defined at blueprint top level, not nested."""
+        filepath = AUTOMATIONS_DIR / blueprint_file
+        data = load_yaml_file(filepath)
+
+        # Variables should be at top level if they exist
+        if "variables" in data:
+            assert isinstance(
+                data["variables"], dict
+            ), f"{blueprint_file} variables should be a dict"
+
+        # Check conditions don't have improperly nested variables
+        conditions = data.get("condition", [])
+        for i, condition in enumerate(conditions):
+            if condition.get("condition") == "template":
+                # Template conditions should not have variables at this level
+                # Variables should be at the blueprint top level
+                assert (
+                    "variables" not in condition
+                ), f"{blueprint_file} condition {i} has nested variables - move to top level"

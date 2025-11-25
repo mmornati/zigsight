@@ -61,6 +61,9 @@ trigger:
     for:
       minutes: 5
 
+variables:
+  cooldown_hours: !input cooldown_hours
+
 condition:
   - condition: template
     value_template: >-
@@ -70,8 +73,6 @@ condition:
       {% else %}
         {{ (now() - last_triggered).total_seconds() > (cooldown_hours | int * 3600) }}
       {% endif %}
-    variables:
-      cooldown_hours: !input cooldown_hours
 
 action:
   - variables:

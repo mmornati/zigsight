@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+import asyncio
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -59,6 +60,13 @@ class TestManualScanner:
 
         assert result == []
 
+    @pytest.mark.asyncio
+    async def test_scan_with_invalid_type(self) -> None:
+        """Test scanning with invalid type (string)."""
+        scanner = ManualScanner("invalid")  # type: ignore
+        result = await scanner.scan()
+        assert result == []
+
 
 @pytest.mark.unit
 class TestRouterAPIScanner:
@@ -89,6 +97,29 @@ class TestRouterAPIScanner:
 
         # Should return empty list as implementation is placeholder
         assert result == []
+
+    @pytest.mark.asyncio
+    async def test_router_api_scanner_with_api_key(self) -> None:
+        """Test router API scanner with API key."""
+        scanner = RouterAPIScanner(
+            router_type="openwrt",
+            host="192.168.1.1",
+            api_key="my-api-key",
+        )
+
+        assert scanner.api_key == "my-api-key"
+        result = await scanner.scan()
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_router_api_scanner_case_insensitive(self) -> None:
+        """Test router type is converted to lowercase."""
+        scanner = RouterAPIScanner(
+            router_type="UniFi",
+            host="192.168.1.1",
+        )
+
+        assert scanner.router_type == "unifi"
 
 
 @pytest.mark.unit
@@ -168,6 +199,17 @@ HiddenNetwork:1:70"""
         result = scanner._parse_nmcli_output("")
         assert result == []
 
+    def test_parse_nmcli_output_invalid_lines(self) -> None:
+        """Test nmcli output parsing with invalid lines."""
+        scanner = HostScanner()
+        output = """MyNetwork:6:50
+InvalidLine
+AnotherNetwork:11:35"""
+
+        result = scanner._parse_nmcli_output(output)
+        # Should skip invalid lines
+        assert len(result) == 2
+
     @pytest.mark.asyncio
     async def test_scan_no_tools_available(self) -> None:
         """Test host scanning when no tools are available."""
@@ -177,6 +219,105 @@ HiddenNetwork:1:70"""
         with patch.object(scanner, "_scan_with_iwlist", return_value=[]):
             with patch.object(scanner, "_scan_with_nmcli", return_value=[]):
                 result = await scanner.scan()
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_scan_iwlist_success(self) -> None:
+        """Test host scanning when iwlist succeeds."""
+        scanner = HostScanner()
+
+        expected_aps = [{"channel": 6, "rssi": -50, "ssid": "TestNetwork"}]
+
+        with patch.object(scanner, "_scan_with_iwlist", return_value=expected_aps):
+            result = await scanner.scan()
+
+        assert result == expected_aps
+
+    @pytest.mark.asyncio
+    async def test_scan_iwlist_fails_nmcli_succeeds(self) -> None:
+        """Test fallback to nmcli when iwlist fails."""
+        scanner = HostScanner()
+
+        expected_aps = [{"channel": 11, "rssi": -60, "ssid": "FallbackNetwork"}]
+
+        with patch.object(
+            scanner, "_scan_with_iwlist", side_effect=Exception("iwlist failed")
+        ):
+            with patch.object(scanner, "_scan_with_nmcli", return_value=expected_aps):
+                result = await scanner.scan()
+
+        assert result == expected_aps
+
+    @pytest.mark.asyncio
+    async def test_scan_both_fail(self) -> None:
+        """Test when both scan methods fail."""
+        scanner = HostScanner()
+
+        with patch.object(
+            scanner, "_scan_with_iwlist", side_effect=Exception("iwlist failed")
+        ):
+            with patch.object(
+                scanner, "_scan_with_nmcli", side_effect=Exception("nmcli failed")
+            ):
+                result = await scanner.scan()
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_scan_with_iwlist_command(self) -> None:
+        """Test _scan_with_iwlist handles subprocess correctly."""
+        scanner = HostScanner()
+
+        # Mock successful subprocess execution with proper async
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+
+        async def mock_communicate():
+            return (
+                b"""
+          Cell 01 - Address: AA:BB:CC:DD:EE:FF
+                    Channel:6
+                    ESSID:"TestNetwork"
+                    Signal level=-50 dBm
+                """,
+                b"",
+            )
+
+        mock_proc.communicate = mock_communicate
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            result = await scanner._scan_with_iwlist()
+
+        assert len(result) == 1
+        assert result[0]["channel"] == 6
+
+    @pytest.mark.asyncio
+    async def test_scan_with_iwlist_command_failure(self) -> None:
+        """Test _scan_with_iwlist handles command failure."""
+        scanner = HostScanner()
+
+        # Mock failed subprocess execution
+        mock_proc = MagicMock()
+        mock_proc.returncode = 1
+
+        async def mock_communicate():
+            return (b"", b"error")
+
+        mock_proc.communicate = mock_communicate
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            result = await scanner._scan_with_iwlist()
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_scan_with_iwlist_timeout(self) -> None:
+        """Test _scan_with_iwlist handles timeout."""
+        scanner = HostScanner()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=asyncio.TimeoutError):
+            result = await scanner._scan_with_iwlist()
 
         assert result == []
 

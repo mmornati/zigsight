@@ -76,8 +76,38 @@ jobs:
       - name: Run lint checks
         run: make lint
 
-  # Note: pytest removed due to josepy dependency conflicts in isolated pip installs
-  # Docker integration tests provide comprehensive validation in real HA environment
+  test:
+    name: Tests with Coverage
+    runs-on: "ubuntu-latest"
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout
+        uses: "actions/checkout@v5"
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: "actions/setup-python@v6"
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest pytest-asyncio pytest-cov pytest-timeout
+          python3 -m pip install homeassistant
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ -v --cov=custom_components/zigsight --cov-report=term --cov-report=xml --cov-fail-under=85
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.11'
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
 
   security:
     name: Security Scan

@@ -1,0 +1,104 @@
+blueprint:
+  name: ZigSight Battery Drain Alert
+  description: >-
+    Sends a notification when a Zigbee device's battery drops below a
+    specified threshold or drains faster than expected.
+  domain: automation
+  author: ZigSight
+  source_url: https://github.com/mmornati/zigsight/blob/main/automations/battery_drain.yaml
+  input:
+    battery_sensor:
+      name: Battery Sensor
+      description: The battery level sensor entity to monitor
+      selector:
+        entity:
+          domain: sensor
+          device_class: battery
+    battery_threshold:
+      name: Battery Threshold
+      description: Battery percentage below which to trigger the alert
+      default: 20
+      selector:
+        number:
+          min: 5
+          max: 50
+          step: 5
+          unit_of_measurement: "%"
+          mode: slider
+    notify_service:
+      name: Notification Service
+      description: >-
+        The notification service to use (e.g., notify.mobile_app_phone).
+        Leave empty to create a persistent notification instead.
+      default: ""
+      selector:
+        text:
+    notification_title:
+      name: Notification Title
+      description: Title for the notification message
+      default: "ZigSight: Low Battery Alert"
+      selector:
+        text:
+    cooldown_hours:
+      name: Cooldown Period
+      description: Hours to wait before sending another alert for the same device
+      default: 24
+      selector:
+        number:
+          min: 1
+          max: 168
+          step: 1
+          unit_of_measurement: hours
+          mode: slider
+
+mode: single
+max_exceeded: silent
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input battery_sensor
+    below: !input battery_threshold
+    for:
+      minutes: 5
+
+condition:
+  - condition: template
+    value_template: >-
+      {% set last_triggered = state_attr(this.entity_id, 'last_triggered') %}
+      {% if last_triggered is none %}
+        true
+      {% else %}
+        {{ (now() - last_triggered).total_seconds() > (cooldown_hours | int * 3600) }}
+      {% endif %}
+    variables:
+      cooldown_hours: !input cooldown_hours
+
+action:
+  - variables:
+      battery_sensor: !input battery_sensor
+      notify_service: !input notify_service
+      notification_title: !input notification_title
+      device_name: "{{ state_attr(battery_sensor, 'friendly_name') | default(battery_sensor) }}"
+      battery_level: "{{ states(battery_sensor) }}"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ notify_service != '' }}"
+        sequence:
+          - service: "{{ notify_service }}"
+            data:
+              title: "{{ notification_title }}"
+              message: >-
+                {{ device_name }} battery is low at {{ battery_level }}%.
+                Consider replacing the battery soon.
+              data:
+                tag: "zigsight_battery_{{ battery_sensor | replace('.', '_') }}"
+                group: zigsight_battery_alerts
+    default:
+      - service: persistent_notification.create
+        data:
+          title: "{{ notification_title }}"
+          message: >-
+            {{ device_name }} battery is low at {{ battery_level }}%.
+            Consider replacing the battery soon.
+          notification_id: "zigsight_battery_{{ battery_sensor | replace('.', '_') }}"

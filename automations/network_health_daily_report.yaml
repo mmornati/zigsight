@@ -1,0 +1,144 @@
+blueprint:
+  name: ZigSight Network Health Daily Report
+  description: >-
+    Sends a daily summary of your Zigbee network health, including device
+    counts, battery status, and any devices requiring attention.
+  domain: automation
+  author: ZigSight
+  source_url: https://github.com/mmornati/zigsight/blob/main/automations/network_health_daily_report.yaml
+  input:
+    report_time:
+      name: Report Time
+      description: Time of day to send the daily health report
+      default: "09:00:00"
+      selector:
+        time:
+    low_battery_threshold:
+      name: Low Battery Threshold
+      description: Battery percentage below which devices are flagged in the report
+      default: 30
+      selector:
+        number:
+          min: 10
+          max: 50
+          step: 5
+          unit_of_measurement: "%"
+          mode: slider
+    offline_hours_threshold:
+      name: Offline Hours Threshold
+      description: Hours a device must be offline to be flagged in the report
+      default: 24
+      selector:
+        number:
+          min: 1
+          max: 168
+          step: 1
+          unit_of_measurement: hours
+          mode: slider
+    notify_service:
+      name: Notification Service
+      description: >-
+        The notification service to use (e.g., notify.mobile_app_phone).
+        Leave empty to create a persistent notification instead.
+      default: ""
+      selector:
+        text:
+    notification_title:
+      name: Notification Title
+      description: Title for the daily report notification
+      default: "ZigSight: Daily Network Health Report"
+      selector:
+        text:
+    include_healthy_summary:
+      name: Include Healthy Device Summary
+      description: Include a summary of healthy devices in the report
+      default: true
+      selector:
+        boolean:
+    weekdays_only:
+      name: Weekdays Only
+      description: Only send reports on weekdays (Monday-Friday)
+      default: false
+      selector:
+        boolean:
+
+mode: single
+max_exceeded: silent
+
+trigger:
+  - platform: time
+    at: !input report_time
+
+variables:
+  low_battery_threshold: !input low_battery_threshold
+  offline_hours_threshold: !input offline_hours_threshold
+  notify_service: !input notify_service
+  notification_title: !input notification_title
+  include_healthy_summary: !input include_healthy_summary
+  weekdays_only: !input weekdays_only
+
+condition:
+  - condition: template
+    value_template: >-
+      {% if weekdays_only %}
+        {{ now().weekday() < 5 }}
+      {% else %}
+        true
+      {% endif %}
+
+action:
+  - variables:
+      battery_sensors: >-
+        {{ states.sensor
+           | selectattr('attributes.device_class', 'defined')
+           | selectattr('attributes.device_class', 'eq', 'battery')
+           | list }}
+      low_battery_devices: >-
+        {{ battery_sensors
+           | selectattr('state', 'lt', low_battery_threshold | string)
+           | map(attribute='name')
+           | list }}
+      low_battery_count: "{{ low_battery_devices | length }}"
+      total_battery_devices: "{{ battery_sensors | length }}"
+      healthy_devices: "{{ total_battery_devices - low_battery_count }}"
+      report_date: "{{ now().strftime('%Y-%m-%d') }}"
+      report_message: >-
+        📊 *Network Health Report for {{ report_date }}*
+
+        {% if include_healthy_summary %}
+        **Overview:**
+        • Total monitored devices: {{ total_battery_devices }}
+        • Healthy devices: {{ healthy_devices }}
+        • Devices needing attention: {{ low_battery_count }}
+        {% endif %}
+
+        {% if low_battery_count > 0 %}
+        ⚠️ **Low Battery Devices (< {{ low_battery_threshold }}%):**
+        {% for device in low_battery_devices %}
+        • {{ device }}
+        {% endfor %}
+        {% else %}
+        ✅ All devices have healthy battery levels.
+        {% endif %}
+
+        {% if low_battery_count > 0 %}
+        💡 *Tip: Consider replacing batteries in flagged devices soon.*
+        {% endif %}
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ notify_service != '' }}"
+        sequence:
+          - service: "{{ notify_service }}"
+            data:
+              title: "{{ notification_title }}"
+              message: "{{ report_message }}"
+              data:
+                tag: zigsight_daily_report
+                group: zigsight_reports
+    default:
+      - service: persistent_notification.create
+        data:
+          title: "{{ notification_title }}"
+          message: "{{ report_message }}"
+          notification_id: zigsight_daily_report_{{ report_date | replace('-', '_') }}

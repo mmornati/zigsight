@@ -691,6 +691,83 @@ User-facing documentation is in `docs/automations.md`, which covers:
 - Configuration reference for each blueprint
 - Customization examples
 
+## Documentation Site
+
+ZigSight documentation is built using [MkDocs](https://www.mkdocs.org/) and automatically deployed to GitHub Pages.
+
+### Viewing the Documentation
+
+The documentation site is available at: **https://mmornati.github.io/zigsight/**
+
+### Building Documentation Locally
+
+To preview documentation changes locally:
+
+```bash
+# Install documentation dependencies
+pip install -r requirements-docs.txt
+
+# Start the development server
+mkdocs serve
+
+# Or build the static site
+mkdocs build
+```
+
+The development server runs at `http://127.0.0.1:8000/` with live reload.
+
+### Documentation Structure
+
+Documentation files are in the `docs/` directory:
+
+```
+docs/
+├── index.md                    # Homepage
+├── getting_started.md          # Installation guide
+├── analytics.md                # Analytics engine documentation
+├── wifi_recommendation.md      # Wi-Fi channel recommendation guide
+├── ui.md                       # Network topology card documentation
+├── automations.md              # Automation blueprints guide
+├── faq.md                      # Frequently asked questions
+├── DEVELOPER_README.md         # This file
+└── integrations/
+    ├── zigbee2mqtt.md          # Zigbee2MQTT integration guide
+    ├── zha.md                  # ZHA integration guide
+    └── deconz.md               # deCONZ integration guide
+```
+
+### Adding or Editing Pages
+
+1. Create or edit markdown files in the `docs/` directory
+2. Update `mkdocs.yml` navigation if adding new pages
+3. Test locally with `mkdocs serve`
+4. Submit a pull request
+
+### Deployment Workflow
+
+Documentation is automatically deployed via the `.github/workflows/deploy-docs.yaml` workflow:
+
+- **Trigger**: Push to `main` branch that modifies `docs/**`, `mkdocs.yml`, or `requirements-docs.txt`
+- **Build**: MkDocs builds the static site with `mkdocs build --strict`
+- **Deploy**: The `peaceiris/actions-gh-pages` action publishes to the `gh-pages` branch
+- **Hosting**: GitHub Pages serves the site from the `gh-pages` branch
+
+The workflow can also be triggered manually via `workflow_dispatch`.
+
+### MkDocs Configuration
+
+The documentation configuration is in `mkdocs.yml`:
+
+- **Theme**: ReadTheDocs theme
+- **Plugins**: Search
+- **Extensions**: Tables, fenced code blocks, admonitions, table of contents
+
+### Documentation Requirements
+
+Documentation dependencies are in `requirements-docs.txt`:
+
+- `mkdocs>=1.5.0`
+
 ## Contributing
 
 1. Create a feature branch: `git checkout -b feature/your-feature-name`

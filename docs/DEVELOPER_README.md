@@ -9,6 +9,11 @@ This document provides information for developers contributing to the ZigSight p
 ├── .github/
 │   └── workflows/
 │       └── ci.yml              # GitHub Actions CI workflow
+├── automations/
+│   ├── README.md               # Blueprint overview and import instructions
+│   ├── battery_drain.yaml      # Battery low alert blueprint
+│   ├── reconnect_flap.yaml     # Device flapping alert blueprint
+│   └── network_health_daily_report.yaml  # Daily health report blueprint
 ├── custom_components/
 │   └── zigsight/
 │       ├── __init__.py         # Integration entry point
@@ -27,6 +32,7 @@ This document provides information for developers contributing to the ZigSight p
 │           └── binary_sensor.py # Binary sensor entity classes
 ├── docs/
 │   ├── getting_started.md      # User documentation
+│   ├── automations.md          # Automation blueprints guide
 │   └── DEVELOPER_README.md     # This file
 ├── tests/
 │   ├── test_manifest.py        # Manifest validation tests
@@ -567,6 +573,123 @@ Potential improvements for the topology card:
 - Export topology as image
 - Historical topology comparison
 - Custom color schemes
+
+## Automation Blueprints
+
+ZigSight includes pre-built Home Assistant automation blueprints in the `automations/` directory.
+
+### Blueprint Location
+
+Blueprints are stored in:
+```
+automations/
+├── README.md                        # Overview and import instructions
+├── battery_drain.yaml               # Battery low alert blueprint
+├── reconnect_flap.yaml              # Device flapping detection blueprint
+└── network_health_daily_report.yaml # Daily network health report blueprint
+```
+
+### Blueprint Structure
+
+Each blueprint follows the Home Assistant blueprint schema:
+
+```yaml
+blueprint:
+  name: Blueprint Name
+  description: Description of what the blueprint does
+  domain: automation
+  author: ZigSight
+  source_url: https://github.com/mmornati/zigsight/blob/main/automations/blueprint.yaml
+  input:
+    input_name:
+      name: Human Readable Name
+      description: What this input controls
+      default: default_value
+      selector:
+        # Input selector type
+
+trigger:
+  # Trigger configuration
+
+condition:
+  # Optional conditions
+
+action:
+  # Actions to perform
+```
+
+### Creating a New Blueprint
+
+1. **Create the blueprint file** in `automations/`:
+   ```bash
+   touch automations/my_new_blueprint.yaml
+   ```
+
+2. **Define the blueprint metadata**:
+   - `name`: Short, descriptive name
+   - `description`: What the blueprint does
+   - `domain`: Always `automation` for automation blueprints
+   - `author`: "ZigSight"
+   - `source_url`: Link to the file on GitHub
+
+3. **Define inputs** with appropriate selectors:
+   - `entity`: Entity picker
+   - `number`: Numeric input with min/max/step
+   - `text`: Free text input
+   - `boolean`: Toggle switch
+   - `time`: Time picker
+   - `select`: Dropdown selection
+
+4. **Add triggers, conditions, and actions** using the inputs:
+   ```yaml
+   trigger:
+     - platform: state
+       entity_id: !input my_entity_input
+   ```
+
+5. **Test the blueprint**:
+   - Import into Home Assistant
+   - Create an automation from it
+   - Verify all inputs work correctly
+
+6. **Add tests** in `tests/test_blueprints.yaml`:
+   ```python
+   def test_my_blueprint_yaml_valid():
+       """Test that my_blueprint.yaml is valid YAML."""
+       blueprint_path = Path("automations/my_new_blueprint.yaml")
+       with blueprint_path.open() as f:
+           data = yaml.safe_load(f)
+       assert "blueprint" in data
+       assert "trigger" in data
+       assert "action" in data
+   ```
+
+7. **Update documentation**:
+   - Add to `automations/README.md`
+   - Add configuration reference to `docs/automations.md`
+
+### Blueprint Testing
+
+Blueprint YAML files are validated in CI:
+
+```bash
+# Run blueprint validation tests
+pytest tests/test_blueprints.py -v
+```
+
+Tests verify:
+- YAML syntax is valid
+- Required blueprint keys are present
+- Input definitions are properly formatted
+- Triggers and actions are defined
+
+### User Documentation
+
+User-facing documentation is in `docs/automations.md`, which covers:
+- How to import blueprints
+- How to create automations from blueprints
+- Configuration reference for each blueprint
+- Customization examples
 
 ## Contributing
 

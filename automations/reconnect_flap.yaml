@@ -1,0 +1,130 @@
+blueprint:
+  name: ZigSight Device Reconnect Flapping Alert
+  description: >-
+    Sends a notification when a Zigbee device reconnects too frequently,
+    indicating potential connectivity issues or interference.
+  domain: automation
+  author: ZigSight
+  source_url: https://github.com/mmornati/zigsight/blob/main/automations/reconnect_flap.yaml
+  input:
+    device_availability:
+      name: Device Availability Entity
+      description: >-
+        The availability binary sensor or connectivity sensor for the device.
+        This entity should change state when the device goes offline/online.
+      selector:
+        entity:
+          domain:
+            - binary_sensor
+            - sensor
+    reconnect_count_threshold:
+      name: Reconnect Count Threshold
+      description: Number of reconnects within the time window to trigger an alert
+      default: 5
+      selector:
+        number:
+          min: 2
+          max: 20
+          step: 1
+          mode: slider
+    time_window_minutes:
+      name: Time Window
+      description: Time window in minutes to count reconnections
+      default: 60
+      selector:
+        number:
+          min: 15
+          max: 1440
+          step: 15
+          unit_of_measurement: minutes
+          mode: slider
+    notify_service:
+      name: Notification Service
+      description: >-
+        The notification service to use (e.g., notify.mobile_app_phone).
+        Leave empty to create a persistent notification instead.
+      default: ""
+      selector:
+        text:
+    notification_title:
+      name: Notification Title
+      description: Title for the notification message
+      default: "ZigSight: Device Flapping Detected"
+      selector:
+        text:
+    cooldown_hours:
+      name: Cooldown Period
+      description: Hours to wait before sending another alert for the same device
+      default: 6
+      selector:
+        number:
+          min: 1
+          max: 48
+          step: 1
+          unit_of_measurement: hours
+          mode: slider
+
+mode: single
+max_exceeded: silent
+
+trigger:
+  - platform: state
+    entity_id: !input device_availability
+    to: "on"
+
+variables:
+  device_availability: !input device_availability
+  reconnect_count_threshold: !input reconnect_count_threshold
+  time_window_minutes: !input time_window_minutes
+  notify_service: !input notify_service
+  notification_title: !input notification_title
+  cooldown_hours: !input cooldown_hours
+  device_name: "{{ state_attr(device_availability, 'friendly_name') | default(device_availability) }}"
+
+condition:
+  - condition: template
+    value_template: >-
+      {% set start_time = now() - timedelta(minutes=time_window_minutes) %}
+      {% set events = state_attr(this.entity_id, 'reconnect_events') | default([]) %}
+      {% set recent_events = events | selectattr('timestamp', 'gt', start_time.isoformat()) | list %}
+      {{ recent_events | length >= (reconnect_count_threshold - 1) }}
+  - condition: template
+    value_template: >-
+      {% set last_notified = state_attr(this.entity_id, 'last_notified') %}
+      {% if last_notified is none %}
+        true
+      {% else %}
+        {{ (now() - last_notified).total_seconds() > (cooldown_hours * 3600) }}
+      {% endif %}
+
+action:
+  - variables:
+      reconnect_count: >-
+        {% set start_time = now() - timedelta(minutes=time_window_minutes) %}
+        {% set events = state_attr(this.entity_id, 'reconnect_events') | default([]) %}
+        {% set recent_events = events | selectattr('timestamp', 'gt', start_time.isoformat()) | list %}
+        {{ recent_events | length + 1 }}
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ notify_service != '' }}"
+        sequence:
+          - service: "{{ notify_service }}"
+            data:
+              title: "{{ notification_title }}"
+              message: >-
+                {{ device_name }} has reconnected {{ reconnect_count }} times
+                in the last {{ time_window_minutes }} minutes.
+                This may indicate interference or connectivity issues.
+              data:
+                tag: "zigsight_flap_{{ device_availability | replace('.', '_') }}"
+                group: zigsight_connectivity_alerts
+    default:
+      - service: persistent_notification.create
+        data:
+          title: "{{ notification_title }}"
+          message: >-
+            {{ device_name }} has reconnected {{ reconnect_count }} times
+            in the last {{ time_window_minutes }} minutes.
+            This may indicate interference or connectivity issues.
+          notification_id: "zigsight_flap_{{ device_availability | replace('.', '_') }}"

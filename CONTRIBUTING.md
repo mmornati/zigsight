@@ -121,24 +121,131 @@ async def async_setup(hass: HomeAssistant) -> bool:
 
 ## 🧪 Writing Tests
 
+### Test Requirements
+
 - Write tests for all new functionality
-- Aim for 85%+ code coverage
+- **Minimum 85% code coverage is enforced by CI** - PRs failing this check will be rejected
 - Use pytest fixtures from `conftest.py`
 - Follow the existing test structure
 
-Example test:
+### Running Tests
+
+```bash
+# Run all tests with coverage
+make test
+
+# Run tests without coverage (faster)
+make test-quick
+
+# Run tests with HTML coverage report
+make test-coverage
+
+# Run specific test file
+pytest tests/test_analytics.py -v
+
+# Run tests matching a pattern
+pytest -k "test_coordinator" -v
+```
+
+### Test Markers
+
+Tests can be marked for categorization:
+
+```python
+import pytest
+
+@pytest.mark.slow
+def test_long_running_operation():
+    """Test that takes a long time."""
+    pass
+
+@pytest.mark.integration
+def test_integration_with_mqtt():
+    """Test that requires external services."""
+    pass
+
+@pytest.mark.unit
+def test_pure_function():
+    """Unit test for pure function."""
+    pass
+```
+
+Run tests by marker:
+
+```bash
+# Skip slow tests
+pytest -m "not slow"
+
+# Run only unit tests
+pytest -m unit
+
+# Run only integration tests
+pytest -m integration
+```
+
+### Coverage Reports
+
+After running tests with coverage, you can view the report:
+
+```bash
+# Terminal report (shown automatically)
+pytest tests/ --cov=custom_components/zigsight --cov-report=term
+
+# HTML report (open htmlcov/index.html in browser)
+pytest tests/ --cov=custom_components/zigsight --cov-report=html
+
+# XML report (for CI tools like codecov)
+pytest tests/ --cov=custom_components/zigsight --cov-report=xml
+```
+
+### Example Test
 
 ```python
 """Test module."""
 import pytest
+from unittest.mock import MagicMock
 
 from custom_components.zigsight.coordinator import ZigSightCoordinator
 
 
-def test_coordinator_construction(mock_hass):
+@pytest.fixture
+def mock_hass():
+    """Create mock Home Assistant instance."""
+    hass = MagicMock()
+    hass.data = {}
+    return hass
+
+
+@pytest.mark.asyncio
+async def test_coordinator_construction(mock_hass):
     """Test coordinator can be constructed."""
     coordinator = ZigSightCoordinator(mock_hass)
     assert coordinator is not None
+    assert coordinator.name == "zigsight"
+
+
+@pytest.mark.unit
+def test_analytics_compute():
+    """Test analytics computation."""
+    from custom_components.zigsight.analytics import DeviceAnalytics
+    
+    analytics = DeviceAnalytics()
+    result = analytics.compute_reconnect_rate([])
+    assert result == 0.0
+```
+
+### Async Tests
+
+For testing async code, use `pytest-asyncio`:
+
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_async_function():
+    """Test async function."""
+    result = await some_async_function()
+    assert result is not None
 ```
 
 ## 📋 Commit Messages

@@ -12,6 +12,8 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
+    CONF_ENABLE_ZHA,
+    CONF_INTEGRATION_TYPE,
     CONF_MQTT_BROKER,
     CONF_MQTT_PASSWORD,
     CONF_MQTT_PORT,
@@ -20,12 +22,15 @@ from .const import (
     CONF_RECONNECT_RATE_THRESHOLD,
     CONF_RECONNECT_RATE_WINDOW_HOURS,
     DEFAULT_BATTERY_DRAIN_THRESHOLD,
+    DEFAULT_ENABLE_ZHA,
+    DEFAULT_INTEGRATION_TYPE,
     DEFAULT_MQTT_BROKER,
     DEFAULT_MQTT_PORT,
     DEFAULT_MQTT_TOPIC_PREFIX,
     DEFAULT_RECONNECT_RATE_THRESHOLD,
     DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
     DOMAIN,
+    INTEGRATION_TYPE_ZHA,
 )
 from .coordinator import ZigSightCoordinator
 from .recommender import recommend_zigbee_channel
@@ -38,11 +43,46 @@ PLATFORMS: list[str] = ["sensor", "binary_sensor"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up ZigSight from a config entry."""
-    mqtt_prefix = entry.data.get(CONF_MQTT_TOPIC_PREFIX, DEFAULT_MQTT_TOPIC_PREFIX)
-    mqtt_broker = entry.data.get(CONF_MQTT_BROKER, DEFAULT_MQTT_BROKER)
-    mqtt_port = entry.data.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT)
-    mqtt_username = entry.data.get(CONF_MQTT_USERNAME, "")
-    mqtt_password = entry.data.get(CONF_MQTT_PASSWORD, "")
+    # Determine integration type and enable_zha (backward compatibility)
+    integration_type = entry.data.get(CONF_INTEGRATION_TYPE, DEFAULT_INTEGRATION_TYPE)
+    # For backward compatibility, check CONF_ENABLE_ZHA first
+    if CONF_ENABLE_ZHA in entry.data:
+        enable_zha = entry.data.get(CONF_ENABLE_ZHA, DEFAULT_ENABLE_ZHA)
+    else:
+        # New config flow: derive from integration_type
+        enable_zha = integration_type == INTEGRATION_TYPE_ZHA
+
+    # Only use MQTT parameters if not using ZHA
+    if enable_zha:
+        # ZHA mode: don't use MQTT at all
+        mqtt_prefix = DEFAULT_MQTT_TOPIC_PREFIX
+        mqtt_broker = None
+        mqtt_port = None
+        mqtt_username = None
+        mqtt_password = None
+    else:
+        # Zigbee2MQTT mode: use MQTT parameters
+        mqtt_prefix = entry.data.get(CONF_MQTT_TOPIC_PREFIX, DEFAULT_MQTT_TOPIC_PREFIX)
+        mqtt_broker_raw = entry.data.get(CONF_MQTT_BROKER, DEFAULT_MQTT_BROKER)
+        mqtt_port_raw = entry.data.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT)
+        mqtt_username_raw = entry.data.get(CONF_MQTT_USERNAME, "")
+        mqtt_password_raw = entry.data.get(CONF_MQTT_PASSWORD, "")
+
+        # Only pass non-default values to avoid triggering direct MQTT connection
+        # when using Home Assistant's MQTT integration
+        mqtt_broker = (
+            mqtt_broker_raw
+            if mqtt_broker_raw and mqtt_broker_raw != DEFAULT_MQTT_BROKER
+            else None
+        )
+        mqtt_port = (
+            mqtt_port_raw
+            if mqtt_port_raw and mqtt_port_raw != DEFAULT_MQTT_PORT
+            else None
+        )
+        mqtt_username = mqtt_username_raw if mqtt_username_raw else None
+        mqtt_password = mqtt_password_raw if mqtt_password_raw else None
+
     battery_drain_threshold = entry.data.get(
         CONF_BATTERY_DRAIN_THRESHOLD, DEFAULT_BATTERY_DRAIN_THRESHOLD
     )
@@ -56,13 +96,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = ZigSightCoordinator(
         hass,
         mqtt_prefix=mqtt_prefix,
-        mqtt_broker=mqtt_broker if mqtt_broker != DEFAULT_MQTT_BROKER else None,
-        mqtt_port=mqtt_port if mqtt_port != DEFAULT_MQTT_PORT else None,
-        mqtt_username=mqtt_username if mqtt_username else None,
-        mqtt_password=mqtt_password if mqtt_password else None,
+        mqtt_broker=mqtt_broker,
+        mqtt_port=mqtt_port,
+        mqtt_username=mqtt_username,
+        mqtt_password=mqtt_password,
         battery_drain_threshold=battery_drain_threshold,
         reconnect_rate_threshold=reconnect_rate_threshold,
         reconnect_rate_window_hours=reconnect_rate_window_hours,
+        enable_zha=enable_zha,
     )
 
     # Start coordinator (sets up MQTT subscriptions)

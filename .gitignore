@@ -57,3 +57,5 @@ site/
 # Note: custom_components/zigsight/www/ is included for card distribution
 www/
 !custom_components/zigsight/www/
+
+*.zip

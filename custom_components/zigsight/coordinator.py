@@ -24,6 +24,7 @@ from .const import (
     DOMAIN,
     EVENT_DEVICE_UPDATE,
 )
+from .zha_collector import ZHACollector
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         battery_drain_threshold: float = DEFAULT_BATTERY_DRAIN_THRESHOLD,
         reconnect_rate_threshold: float = DEFAULT_RECONNECT_RATE_THRESHOLD,
         reconnect_rate_window_hours: int = DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
+        enable_zha: bool = False,
     ) -> None:
         """Initialize coordinator."""
         super().__init__(
@@ -66,9 +68,19 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             battery_drain_threshold=battery_drain_threshold,
         )
         self._reconnect_rate_threshold = reconnect_rate_threshold
+        self._enable_zha = enable_zha
+        self._zha_collector: ZHACollector | None = None
+        if enable_zha:
+            self._zha_collector = ZHACollector(hass)
 
     async def async_start(self) -> None:
         """Start the coordinator and subscribe to MQTT topics."""
+        if self._enable_zha:
+            # ZHA mode: skip MQTT subscriptions, only use ZHA collector
+            self.logger.info("Starting ZigSight coordinator in ZHA mode")
+            return
+
+        # Zigbee2MQTT mode: subscribe to MQTT topics
         self.logger.info(
             "Starting ZigSight coordinator with MQTT prefix: %s", self._mqtt_prefix
         )
@@ -356,12 +368,100 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "Updated analytics metrics for %s: %s", device_id, analytics_metrics
         )
 
+    async def _collect_zha_devices(self) -> None:
+        """Collect devices from ZHA integration."""
+        if not self._zha_collector or not self._zha_collector.is_available():
+            return
+
+        try:
+            zha_devices = await self._zha_collector.collect_devices()
+
+            for device_id, device_data in zha_devices.items():
+                # Process ZHA device similar to MQTT devices
+                self._process_zha_device_update(device_id, device_data)
+
+            self.logger.debug("Collected %d ZHA devices", len(zha_devices))
+        except Exception as err:
+            self.logger.error("Error collecting ZHA devices: %s", err)
+
+    def _process_zha_device_update(
+        self, device_id: str, device_data: dict[str, Any]
+    ) -> None:
+        """Process a ZHA device update and store metrics."""
+        now = datetime.now()
+
+        # Extract metrics from ZHA device data
+        metrics = device_data.get("metrics", {})
+
+        # Initialize device entry if not exists
+        if device_id not in self._devices:
+            self._devices[device_id] = {
+                "device_id": device_id,
+                "friendly_name": device_data.get("friendly_name", device_id),
+                "first_seen": now.isoformat(),
+                "reconnect_count": 0,
+                "last_reconnect": None,
+                "source": "zha",
+            }
+
+        device = self._devices[device_id]
+
+        # Check for reconnections (similar to MQTT logic)
+        last_seen_str = device.get("metrics", {}).get("last_seen")
+        if last_seen_str:
+            try:
+                last_seen = datetime.fromisoformat(last_seen_str)
+                time_diff = (now - last_seen).total_seconds()
+                # If more than 5 minutes since last update, consider it a reconnect
+                if time_diff > 300:
+                    device["reconnect_count"] = device.get("reconnect_count", 0) + 1
+                    device["last_reconnect"] = now.isoformat()
+            except (ValueError, TypeError):
+                pass
+
+        # Update device metrics
+        device["metrics"] = metrics
+        device["last_update"] = now.isoformat()
+        device["friendly_name"] = device_data.get(
+            "friendly_name", device.get("friendly_name", device_id)
+        )
+
+        # Store in history
+        if device_id not in self._device_history:
+            self._device_history[device_id] = []
+
+        self._device_history[device_id].append(
+            {
+                "timestamp": now.isoformat(),
+                "metrics": metrics.copy(),
+            }
+        )
+
+        # Keep only last 1000 entries per device
+        if len(self._device_history[device_id]) > 1000:
+            self._device_history[device_id] = self._device_history[device_id][-1000:]
+
+        # Fire event for device update
+        self.hass.bus.async_fire(
+            EVENT_DEVICE_UPDATE,
+            {
+                "device_id": device_id,
+                "metrics": metrics,
+            },
+        )
+
+        self.logger.debug("Updated ZHA device %s: %s", device_id, metrics)
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from ZigSight.
 
         Returns a dictionary of device_id -> device_data for quick lookup.
         """
         try:
+            # Collect ZHA devices if enabled
+            if self._enable_zha and self._zha_collector:
+                await self._collect_zha_devices()
+
             # Update analytics metrics for all devices
             for device_id in self._devices:
                 if device_id != "bridge":

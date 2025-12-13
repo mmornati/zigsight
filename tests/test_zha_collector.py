@@ -243,12 +243,14 @@ async def test_collect_entity_metrics_with_entities(mock_hass: MagicMock) -> Non
 @pytest.mark.asyncio
 async def test_collect_devices_handles_errors(mock_hass: MagicMock) -> None:
     """Test collect_devices handles device errors gracefully."""
+    from unittest.mock import PropertyMock
+
     # Setup mock gateway with a device that raises an error
     mock_gateway = MagicMock()
     mock_device = MagicMock()
     mock_device.name = "Error Device"
     # Make accessing lqi raise an exception
-    type(mock_device).lqi = property(lambda self: (_ for _ in ()).throw(Exception("Test error")))
+    type(mock_device).lqi = PropertyMock(side_effect=Exception("Test error"))
 
     ieee = "00:11:22:33:44:55:66:77"
     mock_gateway.devices = {ieee: mock_device}

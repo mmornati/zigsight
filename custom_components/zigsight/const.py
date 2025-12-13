@@ -50,3 +50,9 @@ CONF_RECONNECT_RATE_WINDOW_HOURS = "reconnect_rate_window_hours"
 DEFAULT_BATTERY_DRAIN_THRESHOLD = 10.0  # percentage per hour
 DEFAULT_RECONNECT_RATE_THRESHOLD = 5.0  # events per hour
 DEFAULT_RECONNECT_RATE_WINDOW_HOURS = 24  # hours
+
+# Device source types
+DEVICE_SOURCE_ZHA = "zha"
+DEVICE_SOURCE_ZIGBEE2MQTT = "zigbee2mqtt"
+DEVICE_SOURCE_DECONZ = "deconz"
+DEVICE_SOURCE_UNKNOWN = "unknown"

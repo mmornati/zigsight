@@ -590,7 +590,7 @@ class ZigSightPanel extends HTMLElement {
             
             <div class="filter-group">
               <label class="filter-label">Device Type</label>
-              <select>
+              <select data-filter="deviceType">
                 <option value="all" ${this._filters.deviceType === 'all' ? 'selected' : ''}>All Types</option>
                 <option value="coordinator" ${this._filters.deviceType === 'coordinator' ? 'selected' : ''}>Coordinator</option>
                 <option value="router" ${this._filters.deviceType === 'router' ? 'selected' : ''}>Router</option>
@@ -600,7 +600,7 @@ class ZigSightPanel extends HTMLElement {
             
             <div class="filter-group">
               <label class="filter-label">Health Status</label>
-              <select>
+              <select data-filter="healthStatus">
                 <option value="all" ${this._filters.healthStatus === 'all' ? 'selected' : ''}>All Status</option>
                 <option value="healthy" ${this._filters.healthStatus === 'healthy' ? 'selected' : ''}>Healthy</option>
                 <option value="warning" ${this._filters.healthStatus === 'warning' ? 'selected' : ''}>Warning</option>
@@ -610,7 +610,7 @@ class ZigSightPanel extends HTMLElement {
             
             <div class="filter-group">
               <label class="filter-label">Integration Source</label>
-              <select>
+              <select data-filter="integrationSource">
                 <option value="all" ${this._filters.integrationSource === 'all' ? 'selected' : ''}>All Sources</option>
                 <option value="zha" ${this._filters.integrationSource === 'zha' ? 'selected' : ''}>ZHA</option>
                 <option value="zigbee2mqtt" ${this._filters.integrationSource === 'zigbee2mqtt' ? 'selected' : ''}>Zigbee2MQTT</option>
@@ -651,15 +651,15 @@ class ZigSightPanel extends HTMLElement {
             <thead>
               <tr>
                 <th style="width: 40px;">
-                  <input type="checkbox" ${allSelected ? 'checked' : ''} />
+                  <input type="checkbox" ${allSelected ? 'checked' : ''} id="select-all" />
                 </th>
-                <th class="sortable ${this._sortBy === 'name' ? 'sorted-' + this._sortDirection : ''}">Device</th>
-                <th class="sortable ${this._sortBy === 'health' ? 'sorted-' + this._sortDirection : ''}">Health</th>
+                <th class="sortable ${this._sortBy === 'name' ? 'sorted-' + this._sortDirection : ''}" data-sort="name">Device</th>
+                <th class="sortable ${this._sortBy === 'health' ? 'sorted-' + this._sortDirection : ''}" data-sort="health">Health</th>
                 <th>Type</th>
-                <th class="sortable ${this._sortBy === 'battery' ? 'sorted-' + this._sortDirection : ''}">Battery</th>
-                <th class="sortable ${this._sortBy === 'linkQuality' ? 'sorted-' + this._sortDirection : ''}">Link Quality</th>
-                <th class="sortable ${this._sortBy === 'lastSeen' ? 'sorted-' + this._sortDirection : ''}">Last Seen</th>
-                <th class="sortable ${this._sortBy === 'reconnectCount' ? 'sorted-' + this._sortDirection : ''}">Reconnects</th>
+                <th class="sortable ${this._sortBy === 'battery' ? 'sorted-' + this._sortDirection : ''}" data-sort="battery">Battery</th>
+                <th class="sortable ${this._sortBy === 'linkQuality' ? 'sorted-' + this._sortDirection : ''}" data-sort="linkQuality">Link Quality</th>
+                <th class="sortable ${this._sortBy === 'lastSeen' ? 'sorted-' + this._sortDirection : ''}" data-sort="lastSeen">Last Seen</th>
+                <th class="sortable ${this._sortBy === 'reconnectCount' ? 'sorted-' + this._sortDirection : ''}" data-sort="reconnectCount">Reconnects</th>
               </tr>
             </thead>
             <tbody>
@@ -760,12 +760,12 @@ class ZigSightPanel extends HTMLElement {
       });
     }
     
-    // Filter selects
-    const selects = this.shadowRoot.querySelectorAll('select');
-    selects.forEach((select, index) => {
+    // Filter selects - using data attributes
+    const selects = this.shadowRoot.querySelectorAll('select[data-filter]');
+    selects.forEach(select => {
       select.addEventListener('change', (e) => {
-        const filterMap = ['deviceType', 'healthStatus', 'integrationSource'];
-        this.handleFilterChange(filterMap[index], e.target.value);
+        const filterName = e.target.dataset.filter;
+        this.handleFilterChange(filterName, e.target.value);
       });
     });
     
@@ -787,30 +787,32 @@ class ZigSightPanel extends HTMLElement {
       });
     });
     
-    // Table header sorting
-    const headers = this.shadowRoot.querySelectorAll('.device-table th.sortable');
-    headers.forEach((header, index) => {
+    // Table header sorting - using data attributes
+    const headers = this.shadowRoot.querySelectorAll('.device-table th[data-sort]');
+    headers.forEach(header => {
       header.addEventListener('click', () => {
-        const sortMap = ['name', 'health', 'battery', 'linkQuality', 'lastSeen', 'reconnectCount'];
-        // Skip first column (checkbox)
-        this.handleSortChange(sortMap[index]);
+        const sortBy = header.dataset.sort;
+        this.handleSortChange(sortBy);
       });
     });
     
-    // Checkbox selection
-    const selectAllCheckbox = this.shadowRoot.querySelector('thead input[type="checkbox"]');
+    // Checkbox selection - using event delegation on table
+    const selectAllCheckbox = this.shadowRoot.querySelector('#select-all');
     if (selectAllCheckbox) {
       selectAllCheckbox.addEventListener('change', () => {
         this.toggleSelectAll();
       });
     }
     
-    const deviceCheckboxes = this.shadowRoot.querySelectorAll('tbody input[type="checkbox"]');
-    deviceCheckboxes.forEach(checkbox => {
-      checkbox.addEventListener('change', (e) => {
-        this.toggleDeviceSelection(e.target.dataset.deviceId);
+    // Event delegation for device checkboxes
+    const tbody = this.shadowRoot.querySelector('tbody');
+    if (tbody) {
+      tbody.addEventListener('change', (e) => {
+        if (e.target.type === 'checkbox' && e.target.dataset.deviceId) {
+          this.toggleDeviceSelection(e.target.dataset.deviceId);
+        }
       });
-    });
+    }
     
     // Bulk action buttons
     const buttons = this.shadowRoot.querySelectorAll('.bulk-actions button');

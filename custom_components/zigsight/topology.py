@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from .const import DEVICE_SOURCE_UNKNOWN
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -50,7 +52,7 @@ def build_topology(devices: dict[str, Any]) -> dict[str, Any]:
             "battery": metrics.get("battery"),
             "last_seen": metrics.get("last_seen"),
             "health_score": analytics_metrics.get("health_score"),
-            "source": device_data.get("source", "unknown"),
+            "source": device_data.get("source", DEVICE_SOURCE_UNKNOWN),
             "analytics": {
                 "reconnect_rate": analytics_metrics.get("reconnect_rate"),
                 "battery_trend": analytics_metrics.get("battery_trend"),

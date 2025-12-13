@@ -4,7 +4,7 @@ This document describes how to use the ZigSight Device Management Panel to manag
 
 ## Overview
 
-The ZigSight Device Management Panel provides a comprehensive interface for managing large Zigbee networks with two powerful view modes:
+The ZigSight Device Management Panel provides a comprehensive interface for managing large Zigbee networks with four powerful view modes:
 
 ### List View
 - **Advanced Filtering**: Filter devices by type, health status, battery level, link quality, and integration source
@@ -13,7 +13,7 @@ The ZigSight Device Management Panel provides a comprehensive interface for mana
 - **Bulk Actions**: Select multiple devices and export their data
 - **Pagination**: Efficiently browse through large device lists with 20 devices per page
 
-### Topology View (New!)
+### Topology View
 - **Interactive Network Graph**: Visual representation of your Zigbee network topology
 - **Device Nodes**: Different shapes and colors for coordinators, routers, and end devices
 - **Link Quality Visualization**: Color-coded edges showing connection quality
@@ -22,13 +22,22 @@ The ZigSight Device Management Panel provides a comprehensive interface for mana
 - **Performance Optimized**: Handles networks with 100+ devices efficiently
 - **Problem Highlighting**: Quickly identify devices with connectivity or health issues
 
-### Analytics View (New!)
+### Analytics View
 - **Network Overview Dashboard**: Key metrics including total devices, average health score, and warning counts
 - **Distribution Charts**: Battery level and link quality distribution visualizations
 - **Historical Trends**: Time-series charts showing health score, battery, link quality, and reconnect rate trends
 - **Device Comparison**: Side-by-side comparison of multiple devices
 - **Alert Insights**: Devices requiring immediate attention with predictive warnings
 - **Data Export**: Export analytics data in CSV or JSON format for external analysis
+
+### Channel Recommendation View (New!)
+- **Wi-Fi Scan Integration**: Scan your Wi-Fi environment to detect interference
+- **Channel Visualization**: Visual spectrum showing Wi-Fi and Zigbee channels
+- **Interference Heatmap**: Color-coded display of channel interference levels
+- **Channel Scores**: Bar chart ranking channels by interference (lower is better)
+- **Step-by-Step Guidance**: Detailed instructions for changing Zigbee channels
+- **Safety Warnings**: Alerts about downtime and device reconnection requirements
+- **Recommendation History**: Track past recommendations and channel changes
 
 ## Installation
 
@@ -83,11 +92,12 @@ type: custom:zigsight-panel
 
 ## Switching Between Views
 
-The panel supports three view modes that you can switch between using the toggle buttons in the header:
+The panel supports four view modes that you can switch between using the toggle buttons in the header:
 
 - **📋 List View**: Traditional table view with filtering, sorting, and bulk actions
 - **🔗 Topology View**: Interactive network graph visualization
 - **📊 Analytics View**: Comprehensive analytics dashboard with charts and insights
+- **📡 Channel View**: Channel recommendation with Wi-Fi interference analysis
 
 Simply click the corresponding button to switch between views. Your filter settings and selections are preserved when switching views.
 
@@ -719,6 +729,228 @@ The Analytics View is optimized for real-time insights:
 - **Client-side Processing**: All filtering and calculations happen in your browser
 - **Responsive Charts**: Charts adapt to screen size automatically
 
+## Channel Recommendation View Features
+
+The Channel Recommendation View helps you optimize your Zigbee network by analyzing Wi-Fi interference and recommending the best Zigbee channel to minimize conflicts.
+
+### 1. Wi-Fi Network Scan
+
+Before getting a recommendation, you need to scan your Wi-Fi environment:
+
+#### Scan Modes
+
+**Manual Scan Data (Recommended)**
+- Paste Wi-Fi scan data in JSON format
+- Obtain scan data from your router's admin interface
+- Format: Array of objects with `channel`, `rssi`, and optional `ssid`
+- Example:
+  ```json
+  [
+    {"channel": 1, "rssi": -45, "ssid": "MyNetwork"},
+    {"channel": 6, "rssi": -60, "ssid": "NeighborWiFi"},
+    {"channel": 11, "rssi": -75, "ssid": "AnotherNetwork"}
+  ]
+  ```
+
+**Host System Scan**
+- Uses the Home Assistant host's Wi-Fi adapter
+- Requires `iwlist` or `nmcli` tools
+- May require elevated permissions
+- Automatically scans for nearby access points
+
+**Router API (Future)**
+- Direct integration with router APIs (UniFi, OpenWrt, Fritz!Box)
+- Planned for future releases
+- Will enable automated periodic scans
+
+#### How to Perform a Scan
+
+1. **Select Scan Mode**: Choose between Manual, Host System, or Router API
+2. **Enter Scan Data** (Manual mode): Paste your Wi-Fi scan JSON data
+3. **Click "Scan and Recommend"**: Triggers the analysis
+4. **Review Results**: See the recommended channel and explanation
+
+### 2. Channel Visualization
+
+After scanning, the view displays a visual spectrum showing:
+
+#### Spectrum Diagram
+- **Wi-Fi Channels**: Orange markers showing detected Wi-Fi networks
+- **Zigbee Channels**: Blue markers for Zigbee channels (11, 15, 20, 25, 26)
+- **Interference Bars**: Height indicates interference level on each Zigbee channel
+- **Recommended Channel**: Highlighted with a star ⭐ and green color
+
+#### Interference Levels
+- **Green (Low)**: Interference score < 20 - Excellent choice
+- **Orange (Medium)**: Interference score 20-50 - Acceptable
+- **Red (High)**: Interference score > 50 - Avoid if possible
+
+### 3. Channel Scores
+
+A bar chart displays interference scores for all recommended Zigbee channels:
+
+- **Lower scores are better** (less interference)
+- Channels are sorted from best to worst
+- Color-coded bars:
+  - **Green**: Excellent (score < 20)
+  - **Orange**: Good (score 20-50)
+  - **Red**: Poor (score > 50)
+
+#### Understanding Scores
+
+Scores are calculated based on:
+- Frequency overlap between Wi-Fi and Zigbee channels
+- Signal strength (RSSI) of nearby Wi-Fi access points
+- Number of Wi-Fi networks on overlapping frequencies
+
+### 4. Recommendation Explanation
+
+The system provides a detailed explanation including:
+
+- Number of Wi-Fi access points detected
+- Wi-Fi channels in use
+- Recommended Zigbee channel
+- Interference score of the recommended channel
+- Severity assessment (minimal, moderate, or significant interference)
+
+### 5. Channel Change Instructions
+
+The view provides step-by-step guidance for changing your Zigbee channel:
+
+#### Important Warnings
+
+⚠️ **Before changing channels, be aware:**
+- Network will be temporarily unavailable (15-30 minutes)
+- All devices must reconnect
+- Automations using Zigbee devices will be paused
+- Battery-powered devices may take longer to rejoin
+
+#### Step-by-Step Process
+
+**Step 1: Backup Your Network**
+- Create a backup of your Zigbee configuration
+- Document current device list
+- Note any custom settings
+- (Automated backup coming soon)
+
+**Step 2: Plan for Downtime**
+- Choose a time when automation downtime is acceptable
+- Ensure 15-30 minutes for the full process
+- Inform household members of the maintenance window
+
+**Step 3: Change the Channel**
+
+**For ZHA:**
+1. Go to **Settings** → **Devices & Services** → **ZHA**
+2. Click **Configure**
+3. Select **Change Channel**
+4. Choose the recommended channel
+5. Confirm the change
+
+**For Zigbee2MQTT:**
+1. Edit `configuration.yaml` in Zigbee2MQTT
+2. Set `advanced.channel` to the recommended channel
+3. Restart Zigbee2MQTT
+4. Wait for coordinator to restart on new channel
+
+**For deCONZ:**
+1. Open deCONZ GUI (Phoscon app)
+2. Go to **Settings** → **Gateway**
+3. Select the recommended channel
+4. Apply and wait for restart
+
+**Step 4: Monitor Reconnection**
+- Switch to the Topology View
+- Watch devices rejoin the network
+- Battery devices may take longer (up to next wake cycle)
+- Expect 5-15 minutes for most devices
+
+**Step 5: Verify Network Health**
+- Check all devices are online in List View
+- Review link quality in Topology View
+- Test critical automations
+- Monitor for 24 hours for stability
+
+### 6. Recommendation History
+
+The view maintains a history of your channel recommendations:
+
+#### What's Tracked
+- Timestamp of each scan
+- Recommended channel
+- Interference score
+- Number of Wi-Fi access points detected
+
+#### Using History
+- Compare recommendations over time
+- Track changes in Wi-Fi environment
+- Identify trends in interference
+- Document when channel changes were made
+
+History is stored in Home Assistant memory and retains the last 10 recommendations.
+
+### 7. Best Practices
+
+#### When to Change Channels
+
+Consider changing your Zigbee channel if:
+- Current interference score is > 50
+- New channel score is at least 20 points lower
+- Experiencing frequent device disconnections
+- Added new Wi-Fi access points nearby
+- Network performance has degraded
+
+#### When NOT to Change
+
+Avoid changing channels if:
+- Current channel score < 20 (already excellent)
+- Improvement would be < 10 points
+- Network is stable and performing well
+- Recent changes haven't stabilized yet (wait 1 week)
+
+#### Periodic Monitoring
+
+- **Monthly**: Check for new Wi-Fi networks
+- **Quarterly**: Run a fresh scan and compare
+- **After Changes**: Re-scan if you add/remove Wi-Fi APs
+- **Performance Issues**: Scan when experiencing problems
+
+### 8. Troubleshooting
+
+#### No Recommendation Available
+
+If you see "No channel recommendation available":
+1. Perform a Wi-Fi scan first
+2. Ensure scan data is in correct JSON format
+3. Check that scan data includes `channel` and `rssi` fields
+4. Verify API is responding (check browser console)
+
+#### All Channels Show High Interference
+
+If all channels have high scores (> 50):
+- This indicates a very congested 2.4 GHz environment
+- Choose the channel with the lowest score anyway
+- Consider upgrading to Zigbee devices that support 5 GHz (rare)
+- Reduce Wi-Fi power levels if possible
+- Add more Zigbee routers to improve mesh resilience
+
+#### Devices Not Reconnecting After Channel Change
+
+If devices don't rejoin:
+1. **Wait longer**: Some devices need 30+ minutes
+2. **Power cycle routers**: Unplug for 10 seconds, plug back in
+3. **Rejoin manually**: Some devices need manual rejoining
+4. **Battery devices**: Replace batteries or trigger wake cycle
+5. **Factory reset**: Last resort for problematic devices
+
+#### Invalid Scan Data Error
+
+If you get validation errors:
+- Ensure JSON format is correct (use a validator)
+- Check that `channel` values are 1-14
+- Verify `rssi` values are negative numbers (-30 to -90)
+- Remove any invalid or incomplete entries
+
 ## Advanced Usage
 
 ### Combining Filters
@@ -807,7 +1039,59 @@ Query Parameters:
 
 Returns analytics data in the specified format.
 
-The panel processes this data client-side for all three views.
+### Channel Recommendation APIs (New!)
+
+#### Get Current Recommendation
+```
+GET /api/zigsight/channel-recommendation
+```
+
+Returns the most recent channel recommendation including:
+- `has_recommendation`: Boolean indicating if recommendation exists
+- `recommended_channel`: Best Zigbee channel (11, 15, 20, or 25)
+- `current_channel`: Current Zigbee channel (if available)
+- `scores`: Object with interference scores for each channel
+- `explanation`: Human-readable recommendation explanation
+- `timestamp`: When the recommendation was generated
+
+#### Trigger New Scan and Recommendation
+```
+POST /api/zigsight/channel-recommendation
+Content-Type: application/json
+
+{
+  "mode": "manual",
+  "wifi_scan_data": [
+    {"channel": 1, "rssi": -45, "ssid": "MyNetwork"},
+    {"channel": 6, "rssi": -60}
+  ]
+}
+```
+
+Request Parameters:
+- `mode`: Scan mode (`manual`, `host_scan`, or `router_api`)
+- `wifi_scan_data`: Array of Wi-Fi APs (required for manual mode)
+  - Each AP should have `channel` (1-14) and `rssi` (dBm)
+  - Optional `ssid` field for network name
+
+Returns new recommendation with Wi-Fi AP data.
+
+#### Get Recommendation History
+```
+GET /api/zigsight/recommendation-history
+```
+
+Returns:
+- `history`: Array of past recommendations (up to 10)
+- `count`: Number of history entries
+
+Each history entry includes:
+- Timestamp
+- Recommended channel
+- Channel scores
+- Number of Wi-Fi APs detected
+
+The panel processes this data client-side for all four views.
 
 ## Technology Stack
 
@@ -829,6 +1113,13 @@ The panel processes this data client-side for all three views.
 - Line charts for time-series trends
 - Dynamic script loading from CDN
 - Client-side data processing and aggregation
+
+### Channel Recommendation View
+- Native Web Components
+- Interactive spectrum visualization
+- Bar chart for channel scores
+- JSON-based Wi-Fi scan data input
+- RESTful API integration for recommendations
 
 ## Future Enhancements
 
@@ -876,6 +1167,24 @@ Planned features for future releases:
 - [ ] Custom alert thresholds
 - [ ] Scheduled email reports
 - [ ] Integration with Home Assistant notifications
+
+### Channel Recommendation View
+- [x] Wi-Fi scan integration (manual mode) ✅
+- [x] Channel visualization with spectrum diagram ✅
+- [x] Interference heatmap display ✅
+- [x] Channel scores visualization (bar chart) ✅
+- [x] Step-by-step channel change guidance ✅
+- [x] Safety warnings and best practices ✅
+- [x] Recommendation history tracking ✅
+- [ ] Automated Wi-Fi scanning (host system)
+- [ ] Router API integration (UniFi, OpenWrt, Fritz!Box)
+- [ ] Automated channel change service integration
+- [ ] Real-time interference monitoring
+- [ ] Periodic scan scheduling
+- [ ] Channel change rollback capability
+- [ ] Backup/restore integration
+- [ ] Email/notification alerts for high interference
+- [ ] 5 GHz Zigbee support (future hardware)
 
 ### General
 - [ ] Dark mode optimization

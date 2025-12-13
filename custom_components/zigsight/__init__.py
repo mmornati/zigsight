@@ -124,6 +124,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     setup_api_views(hass)
 
+    # Register frontend panel (only once)
+    await _async_register_panel(hass)
+
     return True
 
 
@@ -190,4 +193,48 @@ async def _async_setup_services(hass: HomeAssistant) -> None:
         "recommend_channel",
         async_recommend_channel,
         schema=recommend_channel_schema,
+    )
+
+
+async def _async_register_panel(hass: HomeAssistant) -> None:
+    """Register the ZigSight frontend panel automatically.
+
+    Note: In Home Assistant 2025+, programmatic panel registration is deprecated.
+    Panels must be registered via panel_custom in configuration.yaml.
+    This function provides helpful setup instructions.
+    """
+    # Check if panel is already registered
+    frontend_panels = hass.data.setdefault("frontend_panels", {})
+    if "zigsight" in frontend_panels:
+        _LOGGER.debug("ZigSight panel already registered")
+        return
+
+    # Determine module URL based on installation method
+    # HACS installations: /hacsfiles/zigsight/zigsight-panel.js
+    # Manual installations: /local/zigsight/zigsight-panel.js
+    module_url = "/hacsfiles/zigsight/zigsight-panel.js"
+
+    # In Home Assistant 2025+, async_register_built_in_panel is deprecated
+    # and custom panels must be registered via panel_custom in configuration.yaml
+    # We'll log clear instructions for the user
+
+    _LOGGER.info(
+        "ZigSight frontend panel setup required. "
+        "In Home Assistant 2025+, panels must be registered manually. "
+        "Please add the following to your configuration.yaml:\n"
+        "\n"
+        "panel_custom:\n"
+        "  - name: zigsight\n"
+        "    sidebar_title: ZigSight\n"
+        "    sidebar_icon: mdi:zigbee\n"
+        "    url_path: zigsight\n"
+        "    module_url: %s\n"
+        "    require_admin: false\n"
+        "\n"
+        "For manual installations (not HACS), use:\n"
+        "    module_url: /local/zigsight/zigsight-panel.js\n"
+        "\n"
+        "After adding, restart Home Assistant. "
+        "See docs/frontend_panel.md for complete instructions.",
+        module_url,
     )

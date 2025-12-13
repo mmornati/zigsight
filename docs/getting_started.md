@@ -15,7 +15,7 @@ To install ZigSight, copy the `custom_components/zigsight/` directory into your 
 
 Your directory structure should look like this:
 
-```
+```text
 config/
 ├── configuration.yaml
 └── custom_components/
@@ -40,12 +40,14 @@ When adding the integration, you'll first choose your Zigbee coordinator:
 ### Step 2: Configure Integration-Specific Settings
 
 **For Zigbee2MQTT:**
+
 - **MQTT Broker**: Hostname or IP of your MQTT broker (leave as `localhost` to use Home Assistant's MQTT integration)
 - **MQTT Port**: Port number (default: 1883)
 - **MQTT Username/Password**: Optional, if your broker requires authentication
 - **MQTT Topic Prefix**: Base topic for Zigbee2MQTT (default: `zigbee2mqtt`)
 
 **For ZHA:**
+
 - No additional configuration needed - ZigSight automatically detects your ZHA devices
 
 ### Step 3: Configure Analytics Settings (Optional)
@@ -68,7 +70,31 @@ ZigSight includes a comprehensive frontend panel accessible from the Home Assist
 - **Analytics Dashboard**: Network health overview and insights
 - **Channel Recommendation**: Wi-Fi interference analysis and channel recommendations
 
-To enable the frontend panel, see [Frontend Panel Documentation](frontend_panel.md).
+### Quick Setup
+
+**Important**: In Home Assistant 2025+, panels must be registered manually. Add this to your `configuration.yaml`:
+
+```yaml
+panel_custom:
+  - name: zigsight
+    sidebar_title: ZigSight
+    sidebar_icon: mdi:zigbee
+    url_path: zigsight
+    module_url: /hacsfiles/zigsight/zigsight-panel.js
+    require_admin: false
+```
+
+**For manual installations** (not HACS), use:
+
+```yaml
+    module_url: /local/zigsight/zigsight-panel.js
+```
+
+And copy the panel file to `config/www/zigsight/zigsight-panel.js`.
+
+After adding, restart Home Assistant. The panel will appear in the sidebar.
+
+For complete setup instructions and troubleshooting, see [Frontend Panel Documentation](frontend_panel.md).
 
 ## What's Next?
 

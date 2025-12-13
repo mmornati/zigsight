@@ -209,32 +209,39 @@ async def _async_register_panel(hass: HomeAssistant) -> None:
         _LOGGER.debug("ZigSight panel already registered")
         return
 
-    # Determine module URL based on installation method
-    # HACS installations: /hacsfiles/zigsight/zigsight-panel.js
-    # Manual installations: /local/zigsight/zigsight-panel.js
-    module_url = "/hacsfiles/zigsight/zigsight-panel.js"
-
     # In Home Assistant 2025+, async_register_built_in_panel is deprecated
     # and custom panels must be registered via panel_custom in configuration.yaml
     # We'll log clear instructions for the user
 
     _LOGGER.info(
         "ZigSight frontend panel setup required. "
-        "In Home Assistant 2025+, panels must be registered manually. "
-        "Please add the following to your configuration.yaml:\n"
+        "In Home Assistant 2025+, panels must be registered manually.\n"
         "\n"
-        "panel_custom:\n"
-        "  - name: zigsight\n"
-        "    sidebar_title: ZigSight\n"
-        "    sidebar_icon: mdi:zigbee\n"
-        "    url_path: zigsight\n"
-        "    module_url: %s\n"
-        "    require_admin: false\n"
+        "STEP 1: Copy the panel file to your www directory:\n"
+        "  For HACS: mkdir -p config/www/community/zigsight && "
+        "cp config/custom_components/zigsight/www/zigsight-panel.js config/www/community/zigsight/\n"
+        "  For manual: mkdir -p config/www/zigsight && "
+        "cp custom_components/zigsight/www/zigsight-panel.js config/www/zigsight/\n"
         "\n"
-        "For manual installations (not HACS), use:\n"
-        "    module_url: /local/zigsight/zigsight-panel.js\n"
+        "STEP 2: Add to configuration.yaml:\n"
+        "  For HACS:\n"
+        "    panel_custom:\n"
+        "      - name: zigsight\n"
+        "        sidebar_title: ZigSight\n"
+        "        sidebar_icon: mdi:zigbee\n"
+        "        url_path: zigsight\n"
+        "        module_url: /local/community/zigsight/zigsight-panel.js\n"
+        "        require_admin: false\n"
+        "  For manual:\n"
+        "    panel_custom:\n"
+        "      - name: zigsight\n"
+        "        sidebar_title: ZigSight\n"
+        "        sidebar_icon: mdi:zigbee\n"
+        "        url_path: zigsight\n"
+        "        module_url: /local/zigsight/zigsight-panel.js\n"
+        "        require_admin: false\n"
         "\n"
-        "After adding, restart Home Assistant. "
-        "See docs/frontend_panel.md for complete instructions.",
-        module_url,
+        "STEP 3: Restart Home Assistant.\n"
+        "\n"
+        "See docs/frontend_panel.md for complete instructions."
     )

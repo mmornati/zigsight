@@ -41,17 +41,31 @@ The ZigSight Frontend Panel provides a comprehensive interface for managing larg
 
 ## Installation
 
-### Step 1: Ensure Panel File is Available
+### Step 1: Copy the Panel File
 
-The panel file (`zigsight-panel.js`) is included with ZigSight. For HACS installations, it's automatically available. For manual installations, ensure the file exists at:
+The panel file (`zigsight-panel.js`) is included with ZigSight, but it needs to be copied to your `www` directory to be accessible.
 
+**For HACS installations:**
+
+HACS doesn't automatically serve files from `custom_components/zigsight/www/`. You need to manually copy the panel file:
+
+```bash
+mkdir -p config/www/community/zigsight
+cp config/custom_components/zigsight/www/zigsight-panel.js config/www/community/zigsight/
 ```
-custom_components/zigsight/www/zigsight-panel.js
+
+**For manual installations:**
+
+```bash
+mkdir -p config/www/zigsight
+cp custom_components/zigsight/www/zigsight-panel.js config/www/zigsight/
 ```
 
 ### Step 2: Register the Panel
 
 Add the following to your `configuration.yaml`:
+
+**For HACS installations:**
 
 ```yaml
 panel_custom:
@@ -59,11 +73,11 @@ panel_custom:
     sidebar_title: ZigSight
     sidebar_icon: mdi:zigbee
     url_path: zigsight
-    module_url: /hacsfiles/zigsight/zigsight-panel.js
+    module_url: /local/community/zigsight/zigsight-panel.js
     require_admin: false
 ```
 
-**Note**: If you installed ZigSight manually (not via HACS), use:
+**For manual installations:**
 
 ```yaml
 panel_custom:
@@ -75,12 +89,12 @@ panel_custom:
     require_admin: false
 ```
 
-For manual installations, you'll need to copy the panel file to your `www` directory:
+**Important Notes:**
 
-```bash
-mkdir -p config/www/zigsight
-cp custom_components/zigsight/www/zigsight-panel.js config/www/zigsight/
-```
+- HACS does **not** automatically serve files from `custom_components/zigsight/www/`
+- You **must** manually copy the panel file to the `www` directory
+- Use `/local/` path (not `/hacsfiles/`) for integration www files
+- The `/hacsfiles/` endpoint is only for HACS plugins/cards, not integration files
 
 ### Step 3: Restart Home Assistant
 
@@ -554,6 +568,59 @@ The panel works best with modern browsers:
 2. **Check File Location**: Ensure `zigsight-panel.js` is in the correct directory
 3. **Clear Browser Cache**: Try hard refresh (Ctrl+Shift+R) or incognito mode
 4. **Check Browser Console**: Open developer tools (F12) and check for errors
+
+### Panel File Not Found Error
+
+If you see "Unable to load custom panel from /hacsfiles/zigsight/zigsight-panel.js":
+
+**The Problem**: HACS doesn't automatically serve files from `custom_components/zigsight/www/`. The `/hacsfiles/` endpoint is only for HACS plugins/cards, not integration www files.
+
+**The Solution**:
+
+1. **Copy the panel file** to your www directory:
+
+   **For HACS installations:**
+   ```bash
+   mkdir -p config/www/community/zigsight
+   cp config/custom_components/zigsight/www/zigsight-panel.js config/www/community/zigsight/
+   ```
+
+   **For manual installations:**
+   ```bash
+   mkdir -p config/www/zigsight
+   cp custom_components/zigsight/www/zigsight-panel.js config/www/zigsight/
+   ```
+
+2. **Update your `configuration.yaml`** to use the correct path:
+
+   **For HACS installations:**
+   ```yaml
+   panel_custom:
+     - name: zigsight
+       sidebar_title: ZigSight
+       sidebar_icon: mdi:zigbee
+       url_path: zigsight
+       module_url: /local/community/zigsight/zigsight-panel.js
+       require_admin: false
+   ```
+
+   **For manual installations:**
+   ```yaml
+   panel_custom:
+     - name: zigsight
+       sidebar_title: ZigSight
+       sidebar_icon: mdi:zigbee
+       url_path: zigsight
+       module_url: /local/zigsight/zigsight-panel.js
+       require_admin: false
+   ```
+
+3. **Restart Home Assistant**
+
+**Key Points**:
+- Use `/local/` path, not `/hacsfiles/` for integration www files
+- The file must be in `www/community/zigsight/` (HACS) or `www/zigsight/` (manual)
+- Verify the file exists and has correct permissions
 
 ### No Devices Displayed
 

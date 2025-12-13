@@ -72,27 +72,49 @@ ZigSight includes a comprehensive frontend panel accessible from the Home Assist
 
 ### Quick Setup
 
-**Important**: In Home Assistant 2025+, panels must be registered manually. Add this to your `configuration.yaml`:
+**Important**: In Home Assistant 2025+, panels must be registered manually. Follow these steps:
 
-```yaml
-panel_custom:
-  - name: zigsight
-    sidebar_title: ZigSight
-    sidebar_icon: mdi:zigbee
-    url_path: zigsight
-    module_url: /hacsfiles/zigsight/zigsight-panel.js
-    require_admin: false
-```
+1. **Copy the panel file** to your `www` directory:
 
-**For manual installations** (not HACS), use:
+   **For HACS installations:**
+   ```bash
+   mkdir -p config/www/community/zigsight
+   cp config/custom_components/zigsight/www/zigsight-panel.js config/www/community/zigsight/
+   ```
 
-```yaml
-    module_url: /local/zigsight/zigsight-panel.js
-```
+   **For manual installations:**
+   ```bash
+   mkdir -p config/www/zigsight
+   cp custom_components/zigsight/www/zigsight-panel.js config/www/zigsight/
+   ```
 
-And copy the panel file to `config/www/zigsight/zigsight-panel.js`.
+2. **Add the panel configuration** to your `configuration.yaml`:
 
-After adding, restart Home Assistant. The panel will appear in the sidebar.
+   **For HACS installations:**
+   ```yaml
+   panel_custom:
+     - name: zigsight
+       sidebar_title: ZigSight
+       sidebar_icon: mdi:zigbee
+       url_path: zigsight
+       module_url: /local/community/zigsight/zigsight-panel.js
+       require_admin: false
+   ```
+
+   **For manual installations:**
+   ```yaml
+   panel_custom:
+     - name: zigsight
+       sidebar_title: ZigSight
+       sidebar_icon: mdi:zigbee
+       url_path: zigsight
+       module_url: /local/zigsight/zigsight-panel.js
+       require_admin: false
+   ```
+
+3. **Restart Home Assistant**. The panel will appear in the sidebar.
+
+**Note**: HACS doesn't automatically serve files from `custom_components/zigsight/www/`. You must copy the panel file to the `www` directory manually.
 
 For complete setup instructions and troubleshooting, see [Frontend Panel Documentation](frontend_panel.md).
 

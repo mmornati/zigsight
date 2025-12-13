@@ -17,11 +17,20 @@ class ZigSightPanel extends HTMLElement {
     this._network = null;
     
     // View mode state
-    this._viewMode = 'list'; // 'list' or 'topology'
+    this._viewMode = 'list'; // 'list', 'topology', or 'analytics'
     this._selectedLayout = 'hierarchical';
     this._showLinkQuality = true;
     this._visibleDeviceTypes = new Set(['coordinator', 'router', 'end_device']);
     this._highlightProblematic = false;
+    
+    // Analytics state
+    this._analyticsOverview = null;
+    this._selectedDevicesForComparison = new Set();
+    this._analyticsTimeRange = 24; // hours
+    
+    // Constants
+    this.MAX_TREND_DEVICES = 50; // Maximum devices shown in trend selector
+    this.MAX_COMPARISON_DEVICES = 20; // Maximum devices shown in comparison selector
     
     // Filter state
     this._filters = {
@@ -53,9 +62,26 @@ class ZigSightPanel extends HTMLElement {
       this._topology = response;
       this._devices = response.nodes || [];
       this.applyFiltersAndSort();
+      
+      // Load analytics overview if in analytics mode
+      if (this._viewMode === 'analytics') {
+        await this.loadAnalyticsOverview();
+      }
     } catch (error) {
       console.error('Failed to load devices:', error);
       this.renderError('Failed to load devices. Please check that ZigSight is configured correctly.');
+    }
+  }
+  
+  async loadAnalyticsOverview() {
+    try {
+      const response = await this._hass.callApi('GET', '/api/zigsight/analytics/overview');
+      this._analyticsOverview = response;
+      if (this._viewMode === 'analytics') {
+        this.render();
+      }
+    } catch (error) {
+      console.error('Failed to load analytics overview:', error);
     }
   }
 
@@ -236,9 +262,12 @@ class ZigSightPanel extends HTMLElement {
       return;
     }
 
-    // If topology view is selected and we have topology data, render topology view
+    // Render based on view mode
     if (this._viewMode === 'topology' && this._topology) {
       this.renderTopologyView();
+      return;
+    } else if (this._viewMode === 'analytics') {
+      this.renderAnalyticsView();
       return;
     }
 
@@ -614,6 +643,7 @@ class ZigSightPanel extends HTMLElement {
             <div class="view-toggle">
               <button class="${this._viewMode === 'list' ? 'active' : ''}" data-view="list">📋 List</button>
               <button class="${this._viewMode === 'topology' ? 'active' : ''}" data-view="topology">🔗 Topology</button>
+              <button class="${this._viewMode === 'analytics' ? 'active' : ''}" data-view="analytics">📊 Analytics</button>
             </div>
             <button id="refresh-devices">Refresh</button>
           </div>
@@ -816,8 +846,11 @@ class ZigSightPanel extends HTMLElement {
     // View toggle buttons
     const viewToggles = this.shadowRoot.querySelectorAll('.view-toggle button[data-view]');
     viewToggles.forEach(button => {
-      button.addEventListener('click', () => {
+      button.addEventListener('click', async () => {
         this._viewMode = button.dataset.view;
+        if (this._viewMode === 'analytics') {
+          await this.loadAnalyticsOverview();
+        }
         this.render();
       });
     });
@@ -947,6 +980,7 @@ class ZigSightPanel extends HTMLElement {
             <div class="view-toggle">
               <button class="${this._viewMode === 'list' ? 'active' : ''}" data-view="list">📋 List</button>
               <button class="${this._viewMode === 'topology' ? 'active' : ''}" data-view="topology">🔗 Topology</button>
+              <button class="${this._viewMode === 'analytics' ? 'active' : ''}" data-view="analytics">📊 Analytics</button>
             </div>
             <button id="refresh-devices">Refresh</button>
             <button id="fit-topology">Fit to Screen</button>
@@ -1046,6 +1080,787 @@ class ZigSightPanel extends HTMLElement {
     this.attachEventListeners();
     this.attachTopologyEventListeners();
     this.initializeNetwork();
+  }
+
+  renderAnalyticsView() {
+    if (!this._analyticsOverview) {
+      this.renderLoading();
+      return;
+    }
+
+    const overview = this._analyticsOverview;
+    
+    this.shadowRoot.innerHTML = `
+      <style>
+        ${this.getCommonStyles()}
+        ${this.getAnalyticsStyles()}
+      </style>
+      
+      <div class="panel">
+        <div class="panel-header">
+          <span>ZigSight Analytics Dashboard</span>
+          <div class="header-controls">
+            <div class="view-toggle">
+              <button class="${this._viewMode === 'list' ? 'active' : ''}" data-view="list">📋 List</button>
+              <button class="${this._viewMode === 'topology' ? 'active' : ''}" data-view="topology">🔗 Topology</button>
+              <button class="${this._viewMode === 'analytics' ? 'active' : ''}" data-view="analytics">📊 Analytics</button>
+            </div>
+            <button id="refresh-devices">Refresh</button>
+          </div>
+        </div>
+        
+        <!-- Network Overview Section -->
+        <div class="analytics-section">
+          <h2 class="section-title">Network Overview</h2>
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-label">Total Devices</div>
+              <div class="stat-value">${overview.total_devices}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Average Health Score</div>
+              <div class="stat-value">${overview.average_health_score}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Devices with Warnings</div>
+              <div class="stat-value ${overview.devices_with_warnings > 0 ? 'warning' : ''}">${overview.devices_with_warnings}</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Distribution Charts Section -->
+        <div class="analytics-section">
+          <h2 class="section-title">Distribution Analysis</h2>
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3 class="chart-title">Battery Level Distribution</h3>
+              <canvas id="battery-chart"></canvas>
+              <div class="chart-legend">
+                ${this.renderDistributionLegend(overview.battery_distribution)}
+              </div>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Link Quality Distribution</h3>
+              <canvas id="lqi-chart"></canvas>
+              <div class="chart-legend">
+                ${this.renderDistributionLegend(overview.link_quality_distribution)}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Time Series Trends Section -->
+        <div class="analytics-section">
+          <h2 class="section-title">Historical Trends</h2>
+          <div class="trends-controls">
+            <div class="control-group">
+              <label>Select Device:</label>
+              <select id="trend-device-select">
+                <option value="">Network-wide Average</option>
+                ${this._devices.slice(0, this.MAX_TREND_DEVICES).map(d => `
+                  <option value="${d.id}">${d.label}</option>
+                `).join('')}
+              </select>
+            </div>
+            <div class="control-group">
+              <label>Time Range:</label>
+              <select id="trend-time-range">
+                <option value="6">Last 6 hours</option>
+                <option value="12">Last 12 hours</option>
+                <option value="24" selected>Last 24 hours</option>
+                <option value="48">Last 48 hours</option>
+                <option value="168">Last week</option>
+              </select>
+            </div>
+            <button id="load-trends" class="secondary">Load Trends</button>
+          </div>
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3 class="chart-title">Health Score Trend</h3>
+              <canvas id="health-trend-chart"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Battery Level Trend</h3>
+              <canvas id="battery-trend-chart"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Link Quality Trend</h3>
+              <canvas id="lqi-trend-chart"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Reconnect Rate Trend</h3>
+              <canvas id="reconnect-trend-chart"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Device Alerts Section -->
+        <div class="analytics-section">
+          <h2 class="section-title">Alerts & Insights</h2>
+          <div class="alerts-container">
+            ${this.renderDeviceAlerts()}
+          </div>
+        </div>
+        
+        <!-- Device Comparison Section -->
+        <div class="analytics-section">
+          <h2 class="section-title">Device Comparison</h2>
+          <div class="comparison-controls">
+            <p>Select devices from the list below to compare their performance metrics:</p>
+            <div class="device-selector">
+              ${this.renderDeviceSelector()}
+            </div>
+          </div>
+          ${this._selectedDevicesForComparison.size > 0 ? `
+            <div class="comparison-table">
+              ${this.renderComparisonTable()}
+            </div>
+          ` : `
+            <div class="empty-state">
+              <div class="empty-state-icon">📊</div>
+              <div>Select 2 or more devices to compare</div>
+            </div>
+          `}
+        </div>
+        
+        <!-- Export Section -->
+        <div class="analytics-section">
+          <h2 class="section-title">Export Analytics</h2>
+          <div class="export-controls">
+            <button id="export-json" class="secondary">📄 Export as JSON</button>
+            <button id="export-csv" class="secondary">📊 Export as CSV</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    this.attachEventListeners();
+    this.attachAnalyticsEventListeners();
+    this.initializeCharts();
+  }
+
+  renderDistributionLegend(distribution) {
+    return Object.entries(distribution)
+      .map(([label, count]) => `
+        <div class="legend-item">
+          <span class="legend-label">${label}</span>
+          <span class="legend-value">${count} devices</span>
+        </div>
+      `).join('');
+  }
+
+  renderDeviceAlerts() {
+    const devicesNeedingAttention = this._devices.filter(d => {
+      const analytics = d.analytics || {};
+      const metrics = d.metrics || {};
+      return analytics.battery_drain_warning || 
+             analytics.connectivity_warning ||
+             (metrics.battery !== null && metrics.battery < 20) ||
+             (d.health_score !== null && d.health_score < 50);
+    });
+
+    if (devicesNeedingAttention.length === 0) {
+      return `
+        <div class="alert-item success">
+          <span class="alert-icon">✅</span>
+          <div>
+            <div class="alert-title">All Systems Healthy</div>
+            <div class="alert-desc">No devices require immediate attention</div>
+          </div>
+        </div>
+      `;
+    }
+
+    return devicesNeedingAttention.map(device => {
+      const analytics = device.analytics || {};
+      const metrics = device.metrics || {};
+      const warnings = [];
+      
+      if (metrics.battery !== null && metrics.battery < 20) {
+        warnings.push('Low battery');
+      }
+      if (analytics.battery_drain_warning) {
+        warnings.push('Rapid battery drain detected');
+      }
+      if (analytics.connectivity_warning) {
+        warnings.push('Connectivity issues');
+      }
+      if (device.health_score !== null && device.health_score < 50) {
+        warnings.push('Critical health score');
+      }
+
+      return `
+        <div class="alert-item warning">
+          <span class="alert-icon">⚠️</span>
+          <div>
+            <div class="alert-title">${device.label}</div>
+            <div class="alert-desc">${warnings.join(', ')}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  renderDeviceSelector() {
+    const maxDevices = this.MAX_COMPARISON_DEVICES;
+    return `
+      <div class="device-list-compact">
+        ${this._devices.slice(0, maxDevices).map(device => `
+          <label class="device-checkbox">
+            <input 
+              type="checkbox" 
+              value="${device.id}"
+              ${this._selectedDevicesForComparison.has(device.id) ? 'checked' : ''}
+              data-comparison-device
+            />
+            <span>${device.label}</span>
+          </label>
+        `).join('')}
+        ${this._devices.length > maxDevices ? `<div class="more-devices">... and ${this._devices.length - maxDevices} more devices</div>` : ''}
+      </div>
+    `;
+  }
+
+  renderComparisonTable() {
+    const selectedDevices = this._devices.filter(d => 
+      this._selectedDevicesForComparison.has(d.id)
+    );
+
+    if (selectedDevices.length === 0) return '';
+
+    return `
+      <table class="comparison-table-element">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            ${selectedDevices.map(d => `<th>${d.label}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Health Score</td>
+            ${selectedDevices.map(d => `<td class="${this.getHealthClass(d.health_score)}">${d.health_score !== null ? d.health_score.toFixed(1) : 'N/A'}</td>`).join('')}
+          </tr>
+          <tr>
+            <td>Battery Level</td>
+            ${selectedDevices.map(d => {
+              const battery = d.battery || d.metrics?.battery;
+              return `<td>${battery !== null && battery !== undefined ? battery + '%' : 'N/A'}</td>`;
+            }).join('')}
+          </tr>
+          <tr>
+            <td>Link Quality</td>
+            ${selectedDevices.map(d => {
+              const lqi = d.link_quality || d.metrics?.link_quality;
+              return `<td class="${this.getLinkQualityClass(lqi)}">${lqi !== null && lqi !== undefined ? lqi : 'N/A'}</td>`;
+            }).join('')}
+          </tr>
+          <tr>
+            <td>Reconnect Rate</td>
+            ${selectedDevices.map(d => {
+              const rate = d.analytics?.reconnect_rate;
+              return `<td>${rate !== null && rate !== undefined ? rate.toFixed(2) + '/hr' : 'N/A'}</td>`;
+            }).join('')}
+          </tr>
+          <tr>
+            <td>Last Seen</td>
+            ${selectedDevices.map(d => {
+              const lastSeen = d.last_seen || d.metrics?.last_seen;
+              return `<td>${lastSeen ? new Date(lastSeen).toLocaleString() : 'Never'}</td>`;
+            }).join('')}
+          </tr>
+        </tbody>
+      </table>
+    `;
+  }
+
+  getHealthClass(score) {
+    if (score === null || score === undefined) return '';
+    if (score >= 80) return 'health-good';
+    if (score >= 50) return 'health-warning';
+    return 'health-critical';
+  }
+
+  attachAnalyticsEventListeners() {
+    // Export buttons
+    const exportJson = this.shadowRoot.getElementById('export-json');
+    const exportCsv = this.shadowRoot.getElementById('export-csv');
+
+    if (exportJson) {
+      exportJson.addEventListener('click', () => this.exportAnalytics('json'));
+    }
+
+    if (exportCsv) {
+      exportCsv.addEventListener('click', () => this.exportAnalytics('csv'));
+    }
+
+    // Device comparison checkboxes
+    const comparisonCheckboxes = this.shadowRoot.querySelectorAll('[data-comparison-device]');
+    comparisonCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        const deviceId = e.target.value;
+        if (e.target.checked) {
+          this._selectedDevicesForComparison.add(deviceId);
+        } else {
+          this._selectedDevicesForComparison.delete(deviceId);
+        }
+        this.render();
+      });
+    });
+    
+    // Trend loading button
+    const loadTrendsBtn = this.shadowRoot.getElementById('load-trends');
+    if (loadTrendsBtn) {
+      loadTrendsBtn.addEventListener('click', () => this.loadTrends());
+    }
+  }
+  
+  async loadTrends() {
+    const deviceSelect = this.shadowRoot.getElementById('trend-device-select');
+    const timeRangeSelect = this.shadowRoot.getElementById('trend-time-range');
+    
+    if (!deviceSelect || !timeRangeSelect) return;
+    
+    const deviceId = deviceSelect.value;
+    const hours = parseInt(timeRangeSelect.value);
+    
+    try {
+      // Load trends for each metric
+      const metrics = ['health_score', 'battery', 'link_quality', 'reconnect_rate'];
+      const trendsData = {};
+      
+      for (const metric of metrics) {
+        let url = `/api/zigsight/analytics/trends?metric=${metric}&hours=${hours}`;
+        if (deviceId) {
+          url += `&device_id=${deviceId}`;
+        }
+        
+        const response = await this._hass.callApi('GET', url);
+        trendsData[metric] = response.data || [];
+      }
+      
+      // Update charts with trends data
+      this.updateTrendCharts(trendsData);
+    } catch (error) {
+      console.error('Failed to load trends:', error);
+      alert('Failed to load trend data. Please try again.');
+    }
+  }
+  
+  updateTrendCharts(trendsData) {
+    // Destroy existing trend charts if they exist
+    if (this._trendCharts) {
+      Object.values(this._trendCharts).forEach(chart => chart.destroy());
+    }
+    this._trendCharts = {};
+    
+    const chartConfigs = {
+      'health-trend-chart': {
+        metric: 'health_score',
+        label: 'Health Score',
+        color: '#2196F3',
+        yMax: 100
+      },
+      'battery-trend-chart': {
+        metric: 'battery',
+        label: 'Battery %',
+        color: '#4CAF50',
+        yMax: 100
+      },
+      'lqi-trend-chart': {
+        metric: 'link_quality',
+        label: 'Link Quality',
+        color: '#FF9800',
+        yMax: 255
+      },
+      'reconnect-trend-chart': {
+        metric: 'reconnect_rate',
+        label: 'Reconnects/hour',
+        color: '#f44336',
+        yMax: null
+      }
+    };
+    
+    for (const [canvasId, config] of Object.entries(chartConfigs)) {
+      const canvas = this.shadowRoot.getElementById(canvasId);
+      if (!canvas) continue;
+      
+      const data = trendsData[config.metric] || [];
+      
+      const chartData = {
+        labels: data.map(d => new Date(d.timestamp).toLocaleTimeString()),
+        datasets: [{
+          label: config.label,
+          data: data.map(d => d.value),
+          borderColor: config.color,
+          backgroundColor: config.color + '20',
+          tension: 0.4,
+          fill: true
+        }]
+      };
+      
+      const options = {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: config.yMax
+          }
+        }
+      };
+      
+      this._trendCharts[canvasId] = new window.Chart(canvas, {
+        type: 'line',
+        data: chartData,
+        options: options
+      });
+    }
+  }
+
+  async exportAnalytics(format) {
+    try {
+      const url = `/api/zigsight/analytics/export?format=${format}`;
+      
+      if (format === 'csv') {
+        // For CSV, we need to handle it differently since it's not JSON
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${this._hass.auth.data.access_token}`,
+          },
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Export failed: ${response.statusText}`);
+        }
+        
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `zigsight-analytics-${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(downloadUrl);
+      } else {
+        const data = await this._hass.callApi('GET', url);
+        const dataStr = JSON.stringify(data, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const downloadUrl = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `zigsight-analytics-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        URL.revokeObjectURL(downloadUrl);
+      }
+    } catch (error) {
+      console.error('Failed to export analytics:', error);
+      alert('Failed to export analytics data. Please try again.');
+    }
+  }
+
+  async initializeCharts() {
+    // Load Chart.js from CDN if not already loaded
+    // Note: For production use, consider using SRI hash or bundling locally
+    // Currently using CDN for ease of use and to avoid bundling large libraries
+    if (!window.Chart) {
+      await this.loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js');
+    }
+
+    const overview = this._analyticsOverview;
+    
+    // Battery Distribution Chart
+    const batteryCtx = this.shadowRoot.getElementById('battery-chart');
+    if (batteryCtx) {
+      new window.Chart(batteryCtx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(overview.battery_distribution),
+          datasets: [{
+            data: Object.values(overview.battery_distribution),
+            backgroundColor: [
+              '#f44336',
+              '#FF9800',
+              '#FFC107',
+              '#8BC34A',
+              '#4CAF50',
+            ],
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: false
+            }
+          }
+        }
+      });
+    }
+
+    // Link Quality Distribution Chart
+    const lqiCtx = this.shadowRoot.getElementById('lqi-chart');
+    if (lqiCtx) {
+      new window.Chart(lqiCtx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(overview.link_quality_distribution),
+          datasets: [{
+            data: Object.values(overview.link_quality_distribution),
+            backgroundColor: [
+              '#f44336',
+              '#FF9800',
+              '#8BC34A',
+              '#4CAF50',
+            ],
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: false
+            }
+          }
+        }
+      });
+    }
+  }
+
+  getAnalyticsStyles() {
+    return `
+      .analytics-section {
+        margin-bottom: 32px;
+      }
+      
+      .section-title {
+        font-size: 18px;
+        font-weight: 500;
+        margin-bottom: 16px;
+        color: var(--primary-text-color);
+        border-bottom: 2px solid var(--divider-color);
+        padding-bottom: 8px;
+      }
+      
+      .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 24px;
+        margin-top: 16px;
+      }
+      
+      .chart-card {
+        background: var(--primary-background-color);
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid var(--divider-color);
+      }
+      
+      .chart-title {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 12px;
+        color: var(--primary-text-color);
+      }
+      
+      .chart-legend {
+        margin-top: 12px;
+        font-size: 12px;
+      }
+      
+      .legend-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+      }
+      
+      .legend-label {
+        color: var(--secondary-text-color);
+      }
+      
+      .legend-value {
+        color: var(--primary-text-color);
+        font-weight: 500;
+      }
+      
+      .trends-controls {
+        display: flex;
+        gap: 16px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+        padding: 16px;
+        background: var(--primary-background-color);
+        border-radius: 8px;
+      }
+      
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      
+      .control-group label {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--secondary-text-color);
+      }
+      
+      .control-group select {
+        padding: 8px 12px;
+        border: 1px solid var(--divider-color);
+        border-radius: 4px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        font-size: 14px;
+        min-width: 200px;
+      }
+      
+      .alerts-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      
+      .alert-item {
+        display: flex;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--divider-color);
+        background: var(--primary-background-color);
+      }
+      
+      .alert-item.warning {
+        background: #fff3e0;
+        border-color: #FF9800;
+      }
+      
+      .alert-item.success {
+        background: #e8f5e9;
+        border-color: #4CAF50;
+      }
+      
+      .alert-icon {
+        font-size: 24px;
+      }
+      
+      .alert-title {
+        font-weight: 500;
+        color: var(--primary-text-color);
+        margin-bottom: 4px;
+      }
+      
+      .alert-desc {
+        font-size: 12px;
+        color: var(--secondary-text-color);
+      }
+      
+      .stat-value.warning {
+        color: #f57c00;
+      }
+      
+      .comparison-controls {
+        margin-bottom: 16px;
+      }
+      
+      .device-list-compact {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 12px;
+        background: var(--primary-background-color);
+        border-radius: 8px;
+      }
+      
+      .device-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: background 0.2s;
+      }
+      
+      .device-checkbox:hover {
+        background: var(--secondary-background-color);
+      }
+      
+      .device-checkbox input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+      }
+      
+      .more-devices {
+        grid-column: 1 / -1;
+        text-align: center;
+        color: var(--secondary-text-color);
+        font-size: 12px;
+        padding: 8px;
+      }
+      
+      .comparison-table-element {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--card-background-color);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      
+      .comparison-table-element th,
+      .comparison-table-element td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--divider-color);
+      }
+      
+      .comparison-table-element th {
+        background: var(--primary-background-color);
+        font-weight: 500;
+        font-size: 12px;
+        text-transform: uppercase;
+        color: var(--secondary-text-color);
+      }
+      
+      .comparison-table-element tbody tr:hover {
+        background: var(--secondary-background-color);
+      }
+      
+      .health-good {
+        color: #4CAF50;
+        font-weight: 500;
+      }
+      
+      .health-warning {
+        color: #FF9800;
+        font-weight: 500;
+      }
+      
+      .health-critical {
+        color: #f44336;
+        font-weight: 500;
+      }
+      
+      .export-controls {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      
+      canvas {
+        max-height: 300px;
+      }
+    `;
   }
 
   renderLoading() {

@@ -10,11 +10,12 @@ ZigSight is a Home Assistant custom component that provides diagnostics and opti
 
 ### Which Zigbee integrations does ZigSight support?
 
-ZigSight supports:
+ZigSight currently supports:
 
 - **Zigbee2MQTT** - MQTT-based Zigbee bridge
 - **ZHA** - Zigbee Home Automation (native Home Assistant integration)
-- **deCONZ** - Dresden Elektronik's Phoscon gateway
+
+**deCONZ** support is planned for a future release.
 
 ### Is ZigSight available through HACS?
 
@@ -32,7 +33,7 @@ See the [Getting Started](getting_started.md) guide for detailed installation in
 
 ### Does ZigSight require MQTT?
 
-MQTT is required only if you use Zigbee2MQTT as your Zigbee coordinator. For ZHA or deCONZ, MQTT is not needed.
+MQTT is required only if you use Zigbee2MQTT as your Zigbee coordinator. For ZHA, MQTT is not needed. If you're using Home Assistant's built-in MQTT integration, you can leave the MQTT Broker setting as `localhost` and ZigSight will use it automatically.
 
 ### What are the system requirements?
 
@@ -149,7 +150,7 @@ Set the `notify_service` input to your mobile app notification service, e.g., `n
 
 Check that:
 
-1. Your Zigbee coordinator (Zigbee2MQTT, ZHA, or deCONZ) is working correctly
+1. Your Zigbee coordinator (Zigbee2MQTT or ZHA) is working correctly
 2. Devices are visible in your coordinator's interface
 3. The ZigSight integration is configured for the correct coordinator type
 

@@ -51,7 +51,7 @@ ZigSight works with these Zigbee coordination solutions:
 
 - [Zigbee2MQTT](integrations/zigbee2mqtt.md) - MQTT-based Zigbee bridge
 - [ZHA](integrations/zha.md) - Zigbee Home Automation (native Home Assistant)
-- [deCONZ](integrations/deconz.md) - Dresden Elektronik's Phoscon gateway
+- [deCONZ](integrations/deconz.md) - Coming soon (Dresden Elektronik's Phoscon gateway)
 
 ## Quick Start
 
@@ -68,7 +68,7 @@ For detailed installation instructions, see the [Getting Started](getting_starte
 | Section | Description |
 |---------|-------------|
 | [Getting Started](getting_started.md) | Installation and initial setup |
-| [Integrations](integrations/zigbee2mqtt.md) | Setting up Zigbee2MQTT, ZHA, or deCONZ |
+| [Integrations](integrations/zigbee2mqtt.md) | Setting up Zigbee2MQTT or ZHA |
 | [Analytics](analytics.md) | Understanding device metrics and health scores |
 | [Wi-Fi Recommendation](wifi_recommendation.md) | Channel optimization for minimal interference |
 | [UI](ui.md) | Network topology visualization card |

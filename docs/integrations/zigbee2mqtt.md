@@ -30,11 +30,13 @@ Enter the following details:
 
 | Field | Description | Example |
 |-------|-------------|---------|
-| MQTT Host | MQTT broker hostname or IP | `192.168.1.100` or `core-mosquitto` |
+| MQTT Broker | MQTT broker hostname or IP. Leave as `localhost` to use Home Assistant's MQTT integration | `localhost` or `192.168.1.100` or `core-mosquitto` |
 | MQTT Port | MQTT broker port | `1883` |
-| MQTT Username | MQTT username (if required) | `homeassistant` |
-| MQTT Password | MQTT password (if required) | `your_password` |
-| Base Topic | Zigbee2MQTT base topic | `zigbee2mqtt` |
+| MQTT Username | MQTT username (optional, if broker requires authentication) | `homeassistant` |
+| MQTT Password | MQTT password (optional, if broker requires authentication) | `your_password` |
+| MQTT Topic Prefix | Zigbee2MQTT base topic prefix | `zigbee2mqtt` |
+
+**Note**: If you're using Home Assistant's built-in MQTT integration, leave the MQTT Broker as `localhost`. ZigSight will automatically use Home Assistant's MQTT connection. Only specify a different broker if you're using a separate MQTT instance.
 
 ### Step 3: Configure Analytics (Optional)
 
@@ -78,10 +80,12 @@ ZigSight listens to these topics:
 
 | Topic | Data |
 |-------|------|
-| `{base_topic}/bridge/devices` | Full device list with details |
-| `{base_topic}/bridge/state` | Bridge online/offline status |
-| `{base_topic}/{friendly_name}` | Device state updates |
-| `{base_topic}/bridge/event` | Join/leave events |
+| `{topic_prefix}/bridge/devices` | Full device list with details |
+| `{topic_prefix}/bridge/state` | Bridge online/offline status |
+| `{topic_prefix}/{friendly_name}` | Device state updates |
+| `{topic_prefix}/bridge/event` | Join/leave events |
+
+Where `{topic_prefix}` is the MQTT Topic Prefix you configured (default: `zigbee2mqtt`).
 
 ## Entities Created
 
@@ -120,8 +124,10 @@ Here's a complete configuration example:
 ### Devices Not Appearing
 
 1. **Check MQTT connection**: Verify ZigSight can connect to your MQTT broker
-2. **Verify topics**: Ensure `base_topic` matches your Zigbee2MQTT configuration
-3. **Check device list**: Publish to `zigbee2mqtt/bridge/devices` should be occurring
+   - If using Home Assistant's MQTT integration, ensure it's configured and running
+   - If using a separate broker, verify the host, port, and credentials are correct
+2. **Verify topic prefix**: Ensure the MQTT Topic Prefix matches your Zigbee2MQTT configuration (usually `zigbee2mqtt`)
+3. **Check device list**: Verify Zigbee2MQTT is publishing to `{topic_prefix}/bridge/devices`
 4. **Review logs**: Enable debug logging for `custom_components.zigsight`
 
 ### Incorrect Device Data
@@ -164,8 +170,9 @@ For best results:
 
 If you have multiple Zigbee2MQTT instances:
 
-- Use distinct base topics (e.g., `zigbee2mqtt/home`, `zigbee2mqtt/garage`)
-- Add separate ZigSight instances for each
+- Use distinct topic prefixes (e.g., `zigbee2mqtt/home`, `zigbee2mqtt/garage`)
+- Configure each Zigbee2MQTT instance with a different topic prefix
+- Note: ZigSight currently supports one instance per Home Assistant installation
 
 ### Monitoring
 

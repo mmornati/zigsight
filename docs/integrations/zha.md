@@ -24,11 +24,7 @@ Before configuring ZigSight with ZHA, ensure you have:
 3. Search for "ZigSight"
 4. Select **ZHA** as the integration type
 
-### Step 2: Select ZHA Instance
-
-If you have multiple ZHA instances (rare), select the one you want to monitor.
-
-### Step 3: Configure Analytics (Optional)
+### Step 2: Configure Analytics (Optional)
 
 Customize the analytics thresholds:
 
@@ -37,6 +33,8 @@ Customize the analytics thresholds:
 | Battery Drain Threshold | Minimum drain rate (%/hour) to trigger warning | 10.0 |
 | Reconnect Rate Threshold | Maximum reconnect rate (events/hour) before warning | 5.0 |
 | Reconnect Rate Window | Time window in hours for calculations | 24 |
+| Reconnect Threshold | Number of reconnections to track | 5 |
+| Data Retention | Number of days to keep device history | 30 |
 
 ## How It Works
 

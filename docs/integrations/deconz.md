@@ -1,22 +1,29 @@
 # deCONZ Integration
 
-This guide explains how to configure ZigSight with deCONZ (Phoscon).
+> **Coming Soon**: deCONZ support is planned for a future release. Currently, ZigSight supports Zigbee2MQTT and ZHA integrations.
 
 ## Overview
 
-[deCONZ](https://phoscon.de/en/conbee/) is Dresden Elektronik's software for their ConBee and RaspBee Zigbee gateways. It provides a REST API and websocket interface that ZigSight uses to collect device data and compute analytics.
+[deCONZ](https://phoscon.de/en/conbee/) is Dresden Elektronik's software for their ConBee and RaspBee Zigbee gateways. Future versions of ZigSight will integrate with deCONZ to collect device data and compute analytics.
 
-## Prerequisites
+## Current Status
 
-Before configuring ZigSight with deCONZ, ensure you have:
+deCONZ integration is not yet available in ZigSight. If you're using deCONZ, you can:
 
-- **deCONZ** installed and running (standalone or as Home Assistant add-on)
-- **ConBee** or **RaspBee** gateway connected
-- **Home Assistant deCONZ integration** configured
-- Devices paired with your deCONZ instance
-- API key generated in Phoscon
+1. **Use Zigbee2MQTT instead**: Many users migrate from deCONZ to Zigbee2MQTT for better features and compatibility
+2. **Wait for deCONZ support**: Follow the [GitHub repository](https://github.com/mmornati/zigsight) for updates on deCONZ support
 
-## Configuration
+## Planned Features
+
+When deCONZ support is added, it will include:
+
+- Automatic device discovery from deCONZ
+- Device health monitoring and analytics
+- Wi-Fi channel recommendations
+- Network topology visualization
+- Integration with Home Assistant's deCONZ integration
+
+## Configuration (Planned)
 
 ### Step 1: Obtain API Key
 

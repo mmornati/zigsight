@@ -12,6 +12,7 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
+    CONF_ENABLE_ZHA,
     CONF_MQTT_BROKER,
     CONF_MQTT_PASSWORD,
     CONF_MQTT_PORT,
@@ -20,6 +21,7 @@ from .const import (
     CONF_RECONNECT_RATE_THRESHOLD,
     CONF_RECONNECT_RATE_WINDOW_HOURS,
     DEFAULT_BATTERY_DRAIN_THRESHOLD,
+    DEFAULT_ENABLE_ZHA,
     DEFAULT_MQTT_BROKER,
     DEFAULT_MQTT_PORT,
     DEFAULT_MQTT_TOPIC_PREFIX,
@@ -52,6 +54,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     reconnect_rate_window_hours = entry.data.get(
         CONF_RECONNECT_RATE_WINDOW_HOURS, DEFAULT_RECONNECT_RATE_WINDOW_HOURS
     )
+    enable_zha = entry.data.get(CONF_ENABLE_ZHA, DEFAULT_ENABLE_ZHA)
 
     coordinator = ZigSightCoordinator(
         hass,
@@ -63,6 +66,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         battery_drain_threshold=battery_drain_threshold,
         reconnect_rate_threshold=reconnect_rate_threshold,
         reconnect_rate_window_hours=reconnect_rate_window_hours,
+        enable_zha=enable_zha,
     )
 
     # Start coordinator (sets up MQTT subscriptions)

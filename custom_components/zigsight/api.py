@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
+from datetime import datetime, timedelta
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
@@ -201,14 +204,19 @@ class ZigSightAnalyticsTrendsView(HomeAssistantView):
                 # Get trends for specific device
                 device_history = coordinator.get_device_history(device_id)
                 
-                from datetime import datetime, timedelta
-                
                 # Filter history by time window
                 cutoff_time = datetime.now() - timedelta(hours=hours)
-                filtered_history = [
-                    entry for entry in device_history
-                    if datetime.fromisoformat(entry.get("timestamp", "")) > cutoff_time
-                ]
+                filtered_history = []
+                for entry in device_history:
+                    try:
+                        timestamp_str = entry.get("timestamp", "")
+                        if timestamp_str:
+                            timestamp = datetime.fromisoformat(timestamp_str)
+                            if timestamp > cutoff_time:
+                                filtered_history.append(entry)
+                    except (ValueError, TypeError):
+                        # Skip entries with invalid timestamps
+                        continue
                 
                 # Extract metric data
                 trends = []
@@ -333,9 +341,6 @@ class ZigSightAnalyticsExportView(HomeAssistantView):
             
             if export_format == "csv":
                 # Convert to CSV
-                import csv
-                import io
-                
                 output = io.StringIO()
                 if export_data:
                     writer = csv.DictWriter(output, fieldnames=export_data[0].keys())

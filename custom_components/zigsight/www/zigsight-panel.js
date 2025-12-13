@@ -1530,6 +1530,10 @@ class ZigSightPanel extends HTMLElement {
           },
         });
         
+        if (!response.ok) {
+          throw new Error(`Export failed: ${response.statusText}`);
+        }
+        
         const blob = await response.blob();
         const downloadUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -1556,6 +1560,8 @@ class ZigSightPanel extends HTMLElement {
 
   async initializeCharts() {
     // Load Chart.js from CDN if not already loaded
+    // Note: For production use, consider using SRI hash or bundling locally
+    // Currently using CDN for ease of use and to avoid bundling large libraries
     if (!window.Chart) {
       await this.loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js');
     }

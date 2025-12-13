@@ -1,16 +1,26 @@
-# ZigSight Device List Panel
+# ZigSight Device Management Panel
 
-This document describes how to use the ZigSight Device List Panel to manage and monitor your Zigbee devices with advanced filtering, sorting, and search capabilities.
+This document describes how to use the ZigSight Device Management Panel to manage and monitor your Zigbee devices with advanced filtering, sorting, search capabilities, and interactive network topology visualization.
 
 ## Overview
 
-The ZigSight Device List Panel provides a comprehensive interface for managing large Zigbee networks with:
+The ZigSight Device Management Panel provides a comprehensive interface for managing large Zigbee networks with two powerful view modes:
 
+### List View
 - **Advanced Filtering**: Filter devices by type, health status, battery level, link quality, and integration source
 - **Flexible Sorting**: Sort devices by name, health score, battery level, link quality, last seen timestamp, and reconnect count
 - **Real-time Search**: Find devices quickly by name or device ID
 - **Bulk Actions**: Select multiple devices and export their data
 - **Pagination**: Efficiently browse through large device lists with 20 devices per page
+
+### Topology View (New!)
+- **Interactive Network Graph**: Visual representation of your Zigbee network topology
+- **Device Nodes**: Different shapes and colors for coordinators, routers, and end devices
+- **Link Quality Visualization**: Color-coded edges showing connection quality
+- **Multiple Layouts**: Hierarchical tree or force-directed graph layouts
+- **Interactive Controls**: Click nodes for details, zoom, pan, filter by device type
+- **Performance Optimized**: Handles networks with 100+ devices efficiently
+- **Problem Highlighting**: Quickly identify devices with connectivity or health issues
 
 ## Installation
 
@@ -63,9 +73,25 @@ Add the following to your dashboard configuration:
 type: custom:zigsight-panel
 ```
 
+## Switching Between Views
+
+The panel supports two view modes that you can switch between using the toggle buttons in the header:
+
+- **📋 List View**: Traditional table view with filtering, sorting, and bulk actions
+- **🔗 Topology View**: Interactive network graph visualization
+
+Simply click the corresponding button to switch between views. Your filter settings and selections are preserved when switching views.
+
 ## Features
 
-### 1. Device Statistics
+### Common Features (Both Views)
+
+#### View Toggle
+- Located in the panel header
+- Switch instantly between list and topology views
+- Refresh button to reload device data from the API
+
+#### Device Statistics
 
 At the top of the panel, you'll see real-time statistics:
 
@@ -201,42 +227,240 @@ Each device row shows:
 - **Last Seen**: Timestamp of last communication
 - **Reconnects**: Reconnection rate per hour
 
+## Topology View Features
+
+The Topology View provides an interactive network graph visualization that helps you understand your Zigbee network structure, identify connectivity issues, and optimize device placement.
+
+### 1. Network Graph Visualization
+
+The main canvas displays your Zigbee network as an interactive graph:
+
+- **Nodes**: Represent individual devices with different shapes:
+  - 💎 **Diamond**: Coordinator (root of the network)
+  - ⬛ **Square**: Router devices (can relay messages)
+  - ⚫ **Circle**: End devices (sensors, battery-powered devices)
+
+- **Edges**: Show parent-child relationships (connections) between devices
+  - **Direction**: Arrows point from parent to child device
+  - **Color**: Indicates link quality (see legend)
+  - **Width**: Thicker lines indicate better link quality
+
+### 2. Layout Options
+
+Choose between different layout algorithms to visualize your network:
+
+#### Hierarchical Tree Layout (Default)
+- **Use Case**: Best for understanding network structure and hierarchy
+- **Visualization**: Coordinator at top, routers in middle, end devices at bottom
+- **Benefits**: Clear parent-child relationships, easy to spot network depth
+- **Physics**: Disabled for stable, predictable layout
+
+#### Force-Directed Graph Layout
+- **Use Case**: Best for dense networks or identifying clusters
+- **Visualization**: Nodes arranged by connections, related devices group together
+- **Benefits**: Natural clustering, reveals network patterns
+- **Physics**: Enabled with stabilization for optimal positioning
+
+**How to Switch**: Use the "Layout" dropdown in the toolbar
+
+### 3. Interactive Controls
+
+#### Zoom and Pan
+- **Mouse Wheel**: Zoom in/out on the graph
+- **Click and Drag**: Pan around the network
+- **Fit to Screen**: Button to reset view and show entire network
+- **Navigation Buttons**: Built-in controls for zoom and navigation
+
+#### Click to View Device Details
+- **Click any node** to display a detailed information panel showing:
+  - Device name and type
+  - Link quality to parent device
+  - Battery level (if applicable)
+  - Health score and status
+  - Reconnect rate statistics
+  - Last seen timestamp
+  - Warning indicators for devices with issues
+
+- **Click anywhere else** to close the details panel
+- **Close button (×)** in the details panel to dismiss
+
+### 4. Device Type Filtering
+
+Toggle visibility of device types using the toolbar buttons:
+
+- **Coordinator**: Show/hide the coordinator node
+- **Routers**: Show/hide all router devices
+- **End Devices**: Show/hide all end devices
+
+**Use Cases**:
+- Hide end devices to focus on backbone infrastructure
+- Show only routers to analyze message routing paths
+- Isolate coordinator to check direct connections
+
+### 5. Link Quality Visualization
+
+#### Color-Coded Connections
+
+Edges (connections) are color-coded based on Link Quality Indicator (LQI):
+
+- 🟢 **Green (Excellent)**: LQI 200-255 - Strong, reliable connection
+- 🟡 **Yellow-Green (Good)**: LQI 150-199 - Good connection quality
+- 🟠 **Orange (Fair)**: LQI 100-149 - Acceptable but could be improved
+- 🔴 **Red (Poor)**: LQI 0-99 - Weak connection, may cause issues
+
+#### Link Quality Labels
+
+Toggle the display of LQI values on edges:
+
+- **Link Quality Button**: Click to show/hide numeric LQI values
+- **When Enabled**: Each connection displays its LQI value
+- **When Disabled**: Cleaner view with only color coding
+
+**Benefits**:
+- Quickly identify weak connections
+- Plan router placement for better coverage
+- Troubleshoot communication issues
+
+### 6. Highlight Problematic Devices
+
+The "Highlight Issues" feature helps you quickly identify devices that need attention:
+
+**How It Works**:
+1. Click the "Highlight Issues" button in the toolbar
+2. Devices with problems are highlighted in red
+3. Normal devices retain their type-based colors
+
+**Devices Flagged as Problematic**:
+- Health score below 50 (critical)
+- Connectivity warnings from analytics
+- Battery drain warnings
+- Frequent reconnections
+
+**Use Cases**:
+- Daily network health check
+- Identify devices needing battery replacement
+- Find devices in poor locations
+- Prioritize maintenance tasks
+
+### 7. Performance Optimization
+
+The topology view is optimized for large networks (100+ devices):
+
+- **Canvas Rendering**: Uses HTML5 canvas for smooth performance
+- **Physics Stabilization**: Automatically disables after initial layout
+- **Lazy Loading**: vis-network library loaded on-demand from CDN
+- **Responsive**: Adapts to different screen sizes
+
+**Performance Tips**:
+- Use Hierarchical layout for very large networks (faster rendering)
+- Hide device types you don't need to reduce visual complexity
+- Use "Fit to Screen" to quickly navigate large networks
+
+### 8. Topology Legend
+
+A legend at the bottom explains the visualization:
+
+- **Node Colors**: Device types (Coordinator, Router, End Device, Problematic)
+- **Edge Colors**: Link quality ranges
+- **Visual Reference**: Quick reminder of what each color means
+
 ## Usage Examples
 
-### Example 1: Find All Critical Devices
+### Topology View Examples
+
+#### Example 1: Identify Network Coverage Gaps
+
+1. Switch to **Topology View**
+2. Select **Hierarchical Layout**
+3. Enable **Highlight Issues**
+4. Look for red (problematic) nodes
+5. Check their link quality to parent devices
+6. Plan router placement to improve coverage
+
+#### Example 2: Optimize Router Placement
+
+1. Switch to **Topology View**
+2. Enable **Link Quality** labels
+3. Hide **End Devices** to focus on backbone
+4. Identify routers with many red/orange connections
+5. Consider relocating routers for better mesh coverage
+
+#### Example 3: Analyze Network Structure
+
+1. Switch to **Topology View**
+2. Select **Force-Directed Layout**
+3. Observe natural clustering of devices
+4. Identify isolated or poorly connected groups
+5. Plan network expansion accordingly
+
+#### Example 4: Daily Health Check
+
+1. Switch to **Topology View**
+2. Click **Highlight Issues**
+3. Check for red nodes (problematic devices)
+4. Click each red node to view details
+5. Address warnings and connectivity issues
+
+### List View Examples
+
+#### Example 1: Find All Critical Devices
 
 1. Set **Health Status** filter to **Critical**
 2. Sort by **Health** column (ascending)
 3. Review devices with lowest health scores
 4. Export the list for troubleshooting
 
-### Example 2: Monitor Low Battery Devices
+#### Example 2: Monitor Low Battery Devices
 
 1. Set **Battery Level** range to 0% - 20%
 2. Sort by **Battery** column (ascending)
 3. Identify devices needing battery replacement
 4. Export for maintenance planning
 
-### Example 3: Identify Poor Signal Quality
+#### Example 3: Identify Poor Signal Quality
 
 1. Set **Link Quality** range to 0 - 100
 2. Sort by **Link Quality** column (ascending)
 3. Review devices with poor connectivity
 4. Plan repeater placement or device relocation
 
-### Example 4: Filter by Room
+#### Example 4: Filter by Room
 
 1. Use **Search** with room name (e.g., "bedroom")
 2. Review all devices in that room
 3. Check health and connectivity status
 4. Export room-specific device data
 
-### Example 5: Compare Integration Sources
+#### Example 5: Compare Integration Sources
 
 1. Set **Integration Source** to **ZHA**
 2. Note the device count and health
 3. Change to **Zigbee2MQTT**
 4. Compare performance metrics
+
+## Combined Workflow Example
+
+### Weekly Network Maintenance Routine
+
+1. **Start in List View**:
+   - Sort by **Health** (ascending)
+   - Identify devices with scores < 80
+   - Note device names/IDs
+
+2. **Switch to Topology View**:
+   - Enable **Highlight Issues**
+   - Locate the problematic devices visually
+   - Check their link quality and position in the network
+
+3. **Analyze Connectivity**:
+   - Enable **Link Quality** labels
+   - Identify poor connections (red/orange)
+   - Plan router placement improvements
+
+4. **Back to List View**:
+   - Filter by **Battery Range** (0-20%)
+   - Export list of devices needing battery replacement
+   - Schedule maintenance
 
 ## Data Export Format
 
@@ -322,6 +546,29 @@ The panel works best with modern browsers:
 3. **Select Devices**: Ensure at least one device is selected for "Export Selected"
 4. **Try Export All**: Use "Export All" as an alternative
 
+### Topology View Not Loading
+
+1. **Check Internet Connection**: The vis-network library is loaded from CDN
+2. **Check Browser Console**: Look for script loading errors
+3. **Try Refresh**: Click the Refresh button to reload
+4. **Check Firewall**: Ensure access to unpkg.com CDN is allowed
+5. **Switch to List View**: Use list view if topology is unavailable
+
+### Network Graph Not Displaying Properly
+
+1. **Resize Window**: Try resizing browser window to trigger redraw
+2. **Click Fit to Screen**: Use the fit button to reset the view
+3. **Switch Layout**: Try changing between hierarchical and force-directed
+4. **Clear Physics**: If using force-directed, wait for stabilization
+5. **Check Device Count**: Very large networks (200+) may take longer to render
+
+### Devices Not Showing in Topology
+
+1. **Check Device Type Filters**: Ensure device types are not hidden
+2. **Check Topology Data**: Verify devices have parent relationships
+3. **Refresh Data**: Click refresh to reload from API
+4. **Check API Response**: Verify `/api/zigsight/topology` returns nodes and edges
+
 ## Advanced Usage
 
 ### Combining Filters
@@ -366,16 +613,38 @@ The panel uses the ZigSight topology API:
 GET /api/zigsight/topology
 ```
 
-This returns device data that the panel processes client-side. Future versions may include additional endpoints for:
+This returns device and network data including:
+- **nodes**: Array of device objects with metrics and analytics
+- **edges**: Array of connection objects with link quality
+- **device_count**: Total number of devices
+- **coordinator_count**, **router_count**, **end_device_count**: Device type counts
+
+The panel processes this data client-side for both list and topology views. Future versions may include additional endpoints for:
 
 - Server-side filtering (for very large networks)
 - Historical device data
 - Custom sorting algorithms
+- Network path analysis
+
+## Technology Stack
+
+### List View
+- Native Web Components (Custom Elements)
+- Shadow DOM for style encapsulation
+- Event delegation for performance
+- Client-side filtering and sorting
+
+### Topology View
+- **vis-network v9.1.9**: Graph visualization library
+- Canvas-based rendering for performance
+- Physics engine for force-directed layout
+- Dynamic script loading from CDN
 
 ## Future Enhancements
 
 Planned features for future releases:
 
+### List View
 - [ ] Virtual scrolling for 1000+ device networks
 - [ ] Custom column visibility settings
 - [ ] Device grouping by room/area
@@ -384,8 +653,46 @@ Planned features for future releases:
 - [ ] Saved filter presets
 - [ ] Auto-refresh option
 - [ ] Keyboard navigation
+
+### Topology View
+- [x] Interactive network graph visualization ✅
+- [x] Multiple layout algorithms ✅
+- [x] Device type filtering ✅
+- [x] Link quality visualization ✅
+- [x] Click for device details ✅
+- [x] Zoom and pan controls ✅
+- [x] Highlight problematic devices ✅
+- [ ] Manual node positioning (drag and drop)
+- [ ] Save custom layout arrangements
+- [ ] Network path highlighting (show route to coordinator)
+- [ ] Subnet grouping for large networks
+- [ ] Historical link quality overlay
+- [ ] Mesh quality heatmap
+- [ ] Export topology as image (PNG/SVG)
+- [ ] Web Workers for layout calculations (very large networks)
+
+### General
 - [ ] Dark mode optimization
 - [ ] Mobile-responsive improvements
+- [ ] Accessibility (ARIA labels, keyboard shortcuts)
+- [ ] Internationalization (i18n)
+
+## Performance Considerations
+
+### List View
+- **Pagination**: Default 20 items per page prevents rendering thousands of DOM nodes
+- **Event Delegation**: Single listener per table/section instead of per row
+- **Client-side Processing**: Filtering and sorting happen in memory
+- **Recommended**: Up to 500 devices perform smoothly
+
+### Topology View
+- **Canvas Rendering**: More efficient than SVG for large graphs
+- **Physics Stabilization**: Automatically disabled after initial layout
+- **Hierarchical Layout**: Recommended for 100+ devices (faster than force-directed)
+- **Device Type Hiding**: Reduces visual complexity and improves performance
+- **Recommended**: Up to 200 devices with force-directed, 500+ with hierarchical
+
+**Tip**: For networks with 500+ devices, use hierarchical layout and hide end devices to focus on the backbone infrastructure.
 
 ## Related Documentation
 

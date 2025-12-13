@@ -28,6 +28,6 @@ Apache License 2.0
 
 ## Links
 
-- [Documentation](https://github.com/mmornati/zigsight/tree/main/docs)
+- [Documentation](https://mmornati.github.io/zigsight/)
 - [Issue Tracker](https://github.com/mmornati/zigsight/issues)
 - [Changelog](CHANGELOG.md) (coming soon)

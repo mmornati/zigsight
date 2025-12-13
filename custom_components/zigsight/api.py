@@ -374,6 +374,156 @@ class ZigSightAnalyticsExportView(HomeAssistantView):
             )
 
 
+class ZigSightChannelRecommendationView(HomeAssistantView):
+    """View to serve channel recommendation data."""
+
+    url = "/api/zigsight/channel-recommendation"
+    name = "api:zigsight:channel-recommendation"
+    requires_auth = True
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the channel recommendation view."""
+        self.hass = hass
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Handle GET request for channel recommendation data."""
+        try:
+            from .const import DOMAIN
+
+            # Get the last recommendation from service call
+            last_recommendation = self.hass.data.get(DOMAIN, {}).get("last_recommendation")
+            
+            if not last_recommendation:
+                # No recommendation available, return empty state
+                return self.json({
+                    "has_recommendation": False,
+                    "message": "No channel recommendation available. Please run the 'zigsight.recommend_channel' service first.",
+                })
+            
+            # Add current Zigbee channel from coordinator if available
+            current_channel = None
+            for coordinator_data in self.hass.data.get(DOMAIN, {}).values():
+                if hasattr(coordinator_data, "get_network_info"):
+                    network_info = coordinator_data.get_network_info()
+                    if network_info:
+                        current_channel = network_info.get("channel")
+                        break
+            
+            response_data = {
+                "has_recommendation": True,
+                "recommended_channel": last_recommendation.get("recommended_channel"),
+                "current_channel": current_channel,
+                "scores": last_recommendation.get("scores", {}),
+                "explanation": last_recommendation.get("explanation", ""),
+                "timestamp": datetime.now().isoformat(),
+            }
+            
+            return self.json(response_data)
+
+        except Exception as err:
+            _LOGGER.error("Error getting channel recommendation: %s", err, exc_info=True)
+            return self.json(
+                {"error": f"Failed to get channel recommendation: {err}"},
+                status_code=500,
+            )
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Handle POST request to trigger channel recommendation."""
+        try:
+            from .recommender import recommend_zigbee_channel
+            from .wifi_scanner import create_scanner
+
+            data = await request.json()
+            mode = data.get("mode", "manual")
+            wifi_scan_data = data.get("wifi_scan_data")
+
+            # Create appropriate scanner
+            scanner = create_scanner(
+                mode=mode,
+                scan_data=wifi_scan_data,
+            )
+
+            # Perform scan
+            wifi_aps = await scanner.scan()
+
+            # Get recommendation
+            result = recommend_zigbee_channel(wifi_aps)
+
+            _LOGGER.info(
+                "Zigbee channel recommendation: Channel %s (score: %.1f)",
+                result["recommended_channel"],
+                result["scores"][result["recommended_channel"]],
+            )
+
+            # Store result in hass.data
+            from .const import DOMAIN
+            self.hass.data.setdefault(DOMAIN, {})
+            self.hass.data[DOMAIN]["last_recommendation"] = result
+            
+            # Also store in history
+            history_key = "recommendation_history"
+            if history_key not in self.hass.data[DOMAIN]:
+                self.hass.data[DOMAIN][history_key] = []
+            
+            history_entry = {
+                **result,
+                "timestamp": datetime.now().isoformat(),
+                "wifi_aps_count": len(wifi_aps),
+            }
+            self.hass.data[DOMAIN][history_key].append(history_entry)
+            
+            # Keep only last 10 recommendations in history
+            self.hass.data[DOMAIN][history_key] = self.hass.data[DOMAIN][history_key][-10:]
+
+            # Return recommendation
+            return self.json({
+                "has_recommendation": True,
+                "recommended_channel": result["recommended_channel"],
+                "scores": result["scores"],
+                "explanation": result["explanation"],
+                "wifi_aps": wifi_aps,
+                "timestamp": history_entry["timestamp"],
+            })
+
+        except Exception as err:
+            _LOGGER.error("Error during channel recommendation: %s", err, exc_info=True)
+            return self.json(
+                {"error": f"Failed to generate channel recommendation: {err}"},
+                status_code=500,
+            )
+
+
+class ZigSightRecommendationHistoryView(HomeAssistantView):
+    """View to serve recommendation history."""
+
+    url = "/api/zigsight/recommendation-history"
+    name = "api:zigsight:recommendation-history"
+    requires_auth = True
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the recommendation history view."""
+        self.hass = hass
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Handle GET request for recommendation history."""
+        try:
+            from .const import DOMAIN
+
+            history = self.hass.data.get(DOMAIN, {}).get("recommendation_history", [])
+            
+            return self.json({
+                "history": history,
+                "count": len(history),
+            })
+
+        except Exception as err:
+            _LOGGER.error("Error getting recommendation history: %s", err, exc_info=True)
+            return self.json(
+                {"error": f"Failed to get recommendation history: {err}"},
+                status_code=500,
+            )
+
+
 def setup_api_views(hass: HomeAssistant) -> None:
     """Set up API views for ZigSight."""
     _LOGGER.info("Setting up ZigSight API views")
@@ -385,5 +535,9 @@ def setup_api_views(hass: HomeAssistant) -> None:
     hass.http.register_view(ZigSightAnalyticsOverviewView(hass))
     hass.http.register_view(ZigSightAnalyticsTrendsView(hass))
     hass.http.register_view(ZigSightAnalyticsExportView(hass))
+    
+    # Register channel recommendation views
+    hass.http.register_view(ZigSightChannelRecommendationView(hass))
+    hass.http.register_view(ZigSightRecommendationHistoryView(hass))
 
     _LOGGER.info("ZigSight API views registered")

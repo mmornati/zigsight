@@ -17,7 +17,7 @@ class ZigSightPanel extends HTMLElement {
     this._network = null;
     
     // View mode state
-    this._viewMode = 'list'; // 'list', 'topology', or 'analytics'
+    this._viewMode = 'list'; // 'list', 'topology', 'analytics', or 'recommendations'
     this._selectedLayout = 'hierarchical';
     this._showLinkQuality = true;
     this._visibleDeviceTypes = new Set(['coordinator', 'router', 'end_device']);
@@ -27,6 +27,13 @@ class ZigSightPanel extends HTMLElement {
     this._analyticsOverview = null;
     this._selectedDevicesForComparison = new Set();
     this._analyticsTimeRange = 24; // hours
+    
+    // Recommendations state
+    this._recommendation = null;
+    this._recommendationHistory = [];
+    this._wifiScanData = null;
+    this._scanMode = 'manual';
+    this._scanError = null;
     
     // Constants
     this.MAX_TREND_DEVICES = 50; // Maximum devices shown in trend selector
@@ -268,6 +275,9 @@ class ZigSightPanel extends HTMLElement {
       return;
     } else if (this._viewMode === 'analytics') {
       this.renderAnalyticsView();
+      return;
+    } else if (this._viewMode === 'recommendations') {
+      this.renderRecommendationsView();
       return;
     }
 
@@ -644,6 +654,7 @@ class ZigSightPanel extends HTMLElement {
               <button class="${this._viewMode === 'list' ? 'active' : ''}" data-view="list">📋 List</button>
               <button class="${this._viewMode === 'topology' ? 'active' : ''}" data-view="topology">🔗 Topology</button>
               <button class="${this._viewMode === 'analytics' ? 'active' : ''}" data-view="analytics">📊 Analytics</button>
+              <button class="${this._viewMode === 'recommendations' ? 'active' : ''}" data-view="recommendations">📡 Channel</button>
             </div>
             <button id="refresh-devices">Refresh</button>
           </div>
@@ -850,6 +861,8 @@ class ZigSightPanel extends HTMLElement {
         this._viewMode = button.dataset.view;
         if (this._viewMode === 'analytics') {
           await this.loadAnalyticsOverview();
+        } else if (this._viewMode === 'recommendations') {
+          await this.loadRecommendations();
         }
         this.render();
       });
@@ -981,6 +994,7 @@ class ZigSightPanel extends HTMLElement {
               <button class="${this._viewMode === 'list' ? 'active' : ''}" data-view="list">📋 List</button>
               <button class="${this._viewMode === 'topology' ? 'active' : ''}" data-view="topology">🔗 Topology</button>
               <button class="${this._viewMode === 'analytics' ? 'active' : ''}" data-view="analytics">📊 Analytics</button>
+              <button class="${this._viewMode === 'recommendations' ? 'active' : ''}" data-view="recommendations">📡 Channel</button>
             </div>
             <button id="refresh-devices">Refresh</button>
             <button id="fit-topology">Fit to Screen</button>
@@ -1104,6 +1118,7 @@ class ZigSightPanel extends HTMLElement {
               <button class="${this._viewMode === 'list' ? 'active' : ''}" data-view="list">📋 List</button>
               <button class="${this._viewMode === 'topology' ? 'active' : ''}" data-view="topology">🔗 Topology</button>
               <button class="${this._viewMode === 'analytics' ? 'active' : ''}" data-view="analytics">📊 Analytics</button>
+              <button class="${this._viewMode === 'recommendations' ? 'active' : ''}" data-view="recommendations">📡 Channel</button>
             </div>
             <button id="refresh-devices">Refresh</button>
           </div>
@@ -2596,6 +2611,911 @@ class ZigSightPanel extends HTMLElement {
       script.onerror = reject;
       document.head.appendChild(script);
     });
+  }
+
+  // Recommendations View Methods
+
+  async loadRecommendations() {
+    try {
+      const response = await this._hass.callApi('GET', '/api/zigsight/channel-recommendation');
+      this._recommendation = response;
+      
+      // Also load history
+      const historyResponse = await this._hass.callApi('GET', '/api/zigsight/recommendation-history');
+      this._recommendationHistory = historyResponse.history || [];
+      
+      if (this._viewMode === 'recommendations') {
+        this.render();
+      }
+    } catch (error) {
+      console.error('Failed to load recommendations:', error);
+      this._recommendation = null;
+    }
+  }
+
+  async triggerWifiScan() {
+    try {
+      // Prepare request data
+      const requestData = {
+        mode: this._scanMode
+      };
+      
+      if (this._scanMode === 'manual' && this._wifiScanData) {
+        requestData.wifi_scan_data = this._wifiScanData;
+      }
+      
+      // Call the API to trigger scan and get recommendation
+      const response = await fetch('/api/zigsight/channel-recommendation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this._hass.auth.data.access_token}`,
+        },
+        body: JSON.stringify(requestData),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Scan failed: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      this._recommendation = result;
+      
+      // Load history only (don't reload the recommendation we just received)
+      const historyResponse = await this._hass.callApi('GET', '/api/zigsight/recommendation-history');
+      this._recommendationHistory = historyResponse.history || [];
+      
+      this.render();
+    } catch (error) {
+      console.error('Failed to trigger Wi-Fi scan:', error);
+      // Store error for display in the UI
+      this._scanError = `Failed to perform Wi-Fi scan and recommendation: ${error.message}`;
+      this.render();
+    }
+  }
+
+  renderRecommendationsView() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        ${this.getCommonStyles()}
+        ${this.getRecommendationsStyles()}
+      </style>
+      
+      <div class="panel">
+        <div class="panel-header">
+          <span>ZigSight Channel Recommendation</span>
+          <div class="header-controls">
+            <div class="view-toggle">
+              <button class="${this._viewMode === 'list' ? 'active' : ''}" data-view="list">📋 List</button>
+              <button class="${this._viewMode === 'topology' ? 'active' : ''}" data-view="topology">🔗 Topology</button>
+              <button class="${this._viewMode === 'analytics' ? 'active' : ''}" data-view="analytics">📊 Analytics</button>
+              <button class="${this._viewMode === 'recommendations' ? 'active' : ''}" data-view="recommendations">📡 Channel</button>
+            </div>
+            <button id="refresh-devices">Refresh</button>
+          </div>
+        </div>
+        
+        <!-- Wi-Fi Scan Section -->
+        <div class="recommendation-section">
+          <h2 class="section-title">Wi-Fi Network Scan</h2>
+          
+          ${this._scanError ? `
+            <div class="error-box">
+              <span class="error-icon">❌</span>
+              <div>
+                <strong>Scan Error:</strong> ${this._scanError}
+              </div>
+              <button class="dismiss-error" id="dismiss-error">×</button>
+            </div>
+          ` : ''}
+          
+          <div class="scan-controls">
+            <p>Scan your Wi-Fi environment to get accurate channel recommendations that avoid interference.</p>
+            <div class="scan-options">
+              <div class="scan-mode-selector">
+                <label>
+                  <input type="radio" name="scan-mode" value="manual" ${this._scanMode === 'manual' ? 'checked' : ''} />
+                  <span>Manual Scan Data</span>
+                </label>
+                <label>
+                  <input type="radio" name="scan-mode" value="host_scan" ${this._scanMode === 'host_scan' ? 'checked' : ''} />
+                  <span>Host System Scan</span>
+                </label>
+                <label>
+                  <input type="radio" name="scan-mode" value="router_api" ${this._scanMode === 'router_api' ? 'checked' : ''} />
+                  <span>Router API (Future)</span>
+                </label>
+              </div>
+              
+              ${this._scanMode === 'manual' ? `
+                <div class="manual-scan-input">
+                  <label>Paste Wi-Fi scan data (JSON format):</label>
+                  <textarea id="wifi-scan-data" rows="6" placeholder='[{"channel": 1, "rssi": -50, "ssid": "MyWiFi"}, ...]'>${this._wifiScanData ? JSON.stringify(this._wifiScanData, null, 2) : ''}</textarea>
+                  <div class="input-help">
+                    <strong>Format:</strong> Array of objects with <code>channel</code> (1-14), <code>rssi</code> (dBm), and optional <code>ssid</code>.
+                  </div>
+                </div>
+              ` : ''}
+              
+              <button id="trigger-scan" class="primary">Scan and Recommend</button>
+            </div>
+          </div>
+        </div>
+        
+        ${this._recommendation && this._recommendation.has_recommendation ? `
+          <!-- Recommendation Results Section -->
+          <div class="recommendation-section">
+            <h2 class="section-title">Channel Recommendation</h2>
+            <div class="recommendation-result">
+              <div class="recommendation-summary">
+                <div class="recommended-channel-display">
+                  <div class="channel-label">Recommended Channel</div>
+                  <div class="channel-value">${this._recommendation.recommended_channel}</div>
+                  ${this._recommendation.current_channel ? `
+                    <div class="current-channel">Current: ${this._recommendation.current_channel}</div>
+                  ` : ''}
+                </div>
+                <div class="recommendation-explanation">
+                  <p>${this._recommendation.explanation}</p>
+                </div>
+              </div>
+              
+              <!-- Channel Visualization -->
+              <div class="channel-visualization">
+                <h3>Channel Interference Analysis</h3>
+                <div class="channel-spectrum">
+                  ${this.renderChannelSpectrum(this._recommendation)}
+                </div>
+              </div>
+              
+              <!-- Channel Scores -->
+              <div class="channel-scores">
+                <h3>Channel Scores (Lower is Better)</h3>
+                <div class="scores-chart">
+                  ${this.renderChannelScores(this._recommendation.scores)}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Channel Change Guide Section -->
+          <div class="recommendation-section">
+            <h2 class="section-title">Channel Change Instructions</h2>
+            <div class="change-guide">
+              <div class="warning-box">
+                <span class="warning-icon">⚠️</span>
+                <div>
+                  <strong>Important:</strong> Changing the Zigbee channel will cause temporary network downtime.
+                  All devices will need to reconnect, which may take several minutes.
+                </div>
+              </div>
+              
+              <div class="step-by-step">
+                <h4>Step-by-Step Guide:</h4>
+                <ol>
+                  <li>
+                    <strong>Backup your network:</strong>
+                    <p>Before making changes, create a backup of your Zigbee network configuration.</p>
+                    <button class="secondary" disabled>Create Backup (Coming Soon)</button>
+                  </li>
+                  <li>
+                    <strong>Plan for downtime:</strong>
+                    <p>Ensure you have 15-30 minutes for the channel change and device reconnection process.</p>
+                    <p>Automations relying on Zigbee devices will be temporarily unavailable.</p>
+                  </li>
+                  <li>
+                    <strong>Change the channel:</strong>
+                    <p>Access your Zigbee coordinator settings (ZHA, Zigbee2MQTT, or deCONZ) and change to channel <strong>${this._recommendation.recommended_channel}</strong>.</p>
+                    <button class="secondary" disabled>Auto-Change Channel (Coming Soon)</button>
+                  </li>
+                  <li>
+                    <strong>Wait for devices to reconnect:</strong>
+                    <p>Monitor the topology view and wait for all devices to rejoin the network.</p>
+                    <p>Battery-powered devices may take longer to reconnect (up to their next wake cycle).</p>
+                  </li>
+                  <li>
+                    <strong>Verify the network:</strong>
+                    <p>Check the topology view to ensure all devices are connected with good link quality.</p>
+                    <p>Test critical automations to ensure proper operation.</p>
+                  </li>
+                </ol>
+              </div>
+              
+              <div class="documentation-links">
+                <h4>Helpful Resources:</h4>
+                <ul>
+                  <li><a href="https://www.home-assistant.io/integrations/zha/#changing-the-channel" target="_blank">ZHA Channel Change Guide</a></li>
+                  <li><a href="https://www.zigbee2mqtt.io/guide/configuration/zigbee-network.html#changing-the-network-channel" target="_blank">Zigbee2MQTT Channel Change</a></li>
+                  <li><a href="https://zigbee.blakadder.com/getting-started.html" target="_blank">Zigbee Network Best Practices</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        ` : `
+          <!-- No Recommendation Available -->
+          <div class="recommendation-section">
+            <div class="empty-state">
+              <div class="empty-state-icon">📡</div>
+              <div>No channel recommendation available</div>
+              <div style="margin-top: 8px; font-size: 14px;">Perform a Wi-Fi scan to get started</div>
+            </div>
+          </div>
+        `}
+        
+        <!-- Recommendation History Section -->
+        ${this._recommendationHistory.length > 0 ? `
+          <div class="recommendation-section">
+            <h2 class="section-title">Recommendation History</h2>
+            <div class="history-list">
+              ${this.renderRecommendationHistory()}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+    
+    this.attachEventListeners();
+    this.attachRecommendationsEventListeners();
+  }
+
+  renderChannelSpectrum(recommendation) {
+    // Render a visual representation of Wi-Fi and Zigbee channels
+    // Only show the channels that are actually recommended (11, 15, 20, 25)
+    const zigbeeChannels = [11, 15, 20, 25];
+    const wifiChannels = [1, 6, 11];
+    const scores = recommendation.scores || {};
+    
+    return `
+      <div class="spectrum-diagram">
+        <div class="spectrum-track">
+          <!-- Wi-Fi Channels -->
+          <div class="wifi-channels">
+            <div class="channel-label">Wi-Fi Channels</div>
+            ${wifiChannels.map(ch => `
+              <div class="wifi-channel" style="left: ${this.getChannelPosition(ch, 'wifi')}%;">
+                <div class="channel-marker wifi-marker">Ch${ch}</div>
+              </div>
+            `).join('')}
+          </div>
+          
+          <!-- Zigbee Channels -->
+          <div class="zigbee-channels">
+            <div class="channel-label">Zigbee Channels</div>
+            ${zigbeeChannels.map(ch => {
+              const score = scores[ch] || 0;
+              const isRecommended = ch === recommendation.recommended_channel;
+              const interferenceLevel = score < 20 ? 'low' : score < 50 ? 'medium' : 'high';
+              
+              return `
+                <div class="zigbee-channel ${isRecommended ? 'recommended' : ''}" 
+                     style="left: ${this.getChannelPosition(ch, 'zigbee')}%;"
+                     title="Channel ${ch}: Score ${score.toFixed(1)}">
+                  <div class="channel-marker zigbee-marker ${interferenceLevel}">
+                    ${ch}${isRecommended ? ' ⭐' : ''}
+                  </div>
+                  <div class="interference-bar" style="height: ${Math.min(score, 100)}px;"></div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+        <div class="spectrum-legend">
+          <span class="legend-item"><span class="marker wifi-marker"></span> Wi-Fi Channels</span>
+          <span class="legend-item"><span class="marker zigbee-marker low"></span> Low Interference</span>
+          <span class="legend-item"><span class="marker zigbee-marker medium"></span> Medium Interference</span>
+          <span class="legend-item"><span class="marker zigbee-marker high"></span> High Interference</span>
+          <span class="legend-item"><span class="marker zigbee-marker recommended">⭐</span> Recommended</span>
+        </div>
+      </div>
+    `;
+  }
+
+  getChannelPosition(channel, type) {
+    // Map channel to position on spectrum (0-100%)
+    if (type === 'wifi') {
+      // Wi-Fi channels 1-14 map to 2412-2484 MHz
+      const freq = 2412 + (channel - 1) * 5;
+      return ((freq - 2400) / 100) * 100;
+    } else {
+      // Zigbee channels 11-26 map to 2405-2480 MHz
+      const freq = 2405 + (channel - 11) * 5;
+      return ((freq - 2400) / 100) * 100;
+    }
+  }
+
+  renderChannelScores(scores) {
+    const maxScore = Math.max(...Object.values(scores), 1);
+    
+    return Object.entries(scores)
+      .sort((a, b) => a[1] - b[1]) // Sort by score (best first)
+      .map(([channel, score]) => {
+        const percentage = (score / maxScore) * 100;
+        const scoreClass = score < 20 ? 'excellent' : score < 50 ? 'good' : 'poor';
+        
+        return `
+          <div class="score-row">
+            <div class="score-channel">Channel ${channel}</div>
+            <div class="score-bar-container">
+              <div class="score-bar ${scoreClass}" style="width: ${percentage}%;"></div>
+            </div>
+            <div class="score-value">${score.toFixed(1)}</div>
+          </div>
+        `;
+      }).join('');
+  }
+
+  renderRecommendationHistory() {
+    return this._recommendationHistory
+      .slice()
+      .reverse() // Show most recent first
+      .map(entry => {
+        const timestamp = new Date(entry.timestamp).toLocaleString();
+        
+        return `
+          <div class="history-entry">
+            <div class="history-timestamp">${timestamp}</div>
+            <div class="history-details">
+              <span class="history-channel">Channel ${entry.recommended_channel}</span>
+              <span class="history-score">Score: ${entry.scores[entry.recommended_channel].toFixed(1)}</span>
+              <span class="history-aps">${entry.wifi_aps_count} Wi-Fi APs</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+  }
+
+  attachRecommendationsEventListeners() {
+    // Dismiss error button
+    const dismissErrorBtn = this.shadowRoot.getElementById('dismiss-error');
+    if (dismissErrorBtn) {
+      dismissErrorBtn.addEventListener('click', () => {
+        this._scanError = null;
+        this.render();
+      });
+    }
+    
+    // Scan mode radio buttons
+    const scanModeInputs = this.shadowRoot.querySelectorAll('input[name="scan-mode"]');
+    scanModeInputs.forEach(input => {
+      input.addEventListener('change', (e) => {
+        this._scanMode = e.target.value;
+        this.render();
+      });
+    });
+    
+    // Manual scan data textarea
+    const wifiDataTextarea = this.shadowRoot.getElementById('wifi-scan-data');
+    if (wifiDataTextarea) {
+      wifiDataTextarea.addEventListener('input', (e) => {
+        try {
+          this._wifiScanData = JSON.parse(e.target.value);
+          this._scanError = null; // Clear error on valid JSON
+        } catch (error) {
+          // Invalid JSON, show better error message
+          console.warn('Invalid JSON in Wi-Fi scan data. Expected array of objects with channel and rssi fields.');
+        }
+      });
+    }
+    
+    // Trigger scan button
+    const triggerScanBtn = this.shadowRoot.getElementById('trigger-scan');
+    if (triggerScanBtn) {
+      triggerScanBtn.addEventListener('click', () => {
+        this._scanError = null; // Clear previous errors
+        this.triggerWifiScan();
+      });
+    }
+  }
+
+  getRecommendationsStyles() {
+    return `
+      .recommendation-section {
+        margin-bottom: 32px;
+      }
+      
+      .section-title {
+        font-size: 18px;
+        font-weight: 500;
+        margin-bottom: 16px;
+        color: var(--primary-text-color);
+        border-bottom: 2px solid var(--divider-color);
+        padding-bottom: 8px;
+      }
+      
+      .scan-controls {
+        background: var(--primary-background-color);
+        padding: 20px;
+        border-radius: 8px;
+      }
+      
+      .scan-controls p {
+        margin-bottom: 16px;
+        color: var(--secondary-text-color);
+      }
+      
+      .scan-options {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      
+      .scan-mode-selector {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 12px;
+      }
+      
+      .scan-mode-selector label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      
+      .scan-mode-selector input[type="radio"] {
+        cursor: pointer;
+      }
+      
+      .manual-scan-input {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      
+      .manual-scan-input label {
+        font-weight: 500;
+        color: var(--primary-text-color);
+      }
+      
+      .manual-scan-input textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--divider-color);
+        border-radius: 4px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        resize: vertical;
+      }
+      
+      .input-help {
+        font-size: 12px;
+        color: var(--secondary-text-color);
+        padding: 8px;
+        background: var(--secondary-background-color);
+        border-radius: 4px;
+      }
+      
+      .input-help code {
+        background: var(--card-background-color);
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: 'Courier New', monospace;
+      }
+      
+      .recommendation-result {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      
+      .recommendation-summary {
+        background: var(--primary-background-color);
+        padding: 20px;
+        border-radius: 8px;
+        display: flex;
+        gap: 24px;
+        align-items: center;
+      }
+      
+      .recommended-channel-display {
+        flex-shrink: 0;
+        text-align: center;
+        padding: 20px;
+        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        color: white;
+        border-radius: 12px;
+        min-width: 180px;
+      }
+      
+      .channel-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        opacity: 0.9;
+        margin-bottom: 8px;
+      }
+      
+      .channel-value {
+        font-size: 64px;
+        font-weight: bold;
+        line-height: 1;
+      }
+      
+      .current-channel {
+        font-size: 14px;
+        margin-top: 8px;
+        opacity: 0.9;
+      }
+      
+      .recommendation-explanation {
+        flex: 1;
+      }
+      
+      .recommendation-explanation p {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--primary-text-color);
+        margin: 0;
+      }
+      
+      .channel-visualization,
+      .channel-scores {
+        background: var(--primary-background-color);
+        padding: 20px;
+        border-radius: 8px;
+      }
+      
+      .channel-visualization h3,
+      .channel-scores h3 {
+        font-size: 16px;
+        font-weight: 500;
+        margin-bottom: 16px;
+        color: var(--primary-text-color);
+      }
+      
+      .spectrum-diagram {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      
+      .spectrum-track {
+        position: relative;
+        height: 200px;
+        background: var(--card-background-color);
+        border-radius: 8px;
+        padding: 20px;
+      }
+      
+      .wifi-channels,
+      .zigbee-channels {
+        position: absolute;
+        width: 100%;
+        height: 80px;
+      }
+      
+      .wifi-channels {
+        top: 10px;
+      }
+      
+      .zigbee-channels {
+        top: 100px;
+      }
+      
+      .channel-label {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--secondary-text-color);
+        margin-bottom: 8px;
+      }
+      
+      .wifi-channel,
+      .zigbee-channel {
+        position: absolute;
+        transform: translateX(-50%);
+      }
+      
+      .channel-marker {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        text-align: center;
+        white-space: nowrap;
+      }
+      
+      .wifi-marker {
+        background: #FF9800;
+        color: white;
+      }
+      
+      .zigbee-marker {
+        background: #2196F3;
+        color: white;
+      }
+      
+      .zigbee-marker.low {
+        background: #4CAF50;
+      }
+      
+      .zigbee-marker.medium {
+        background: #FF9800;
+      }
+      
+      .zigbee-marker.high {
+        background: #f44336;
+      }
+      
+      .zigbee-marker.recommended {
+        background: #4CAF50;
+        border: 2px solid #FFD700;
+        box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+      }
+      
+      .interference-bar {
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 8px;
+        background: linear-gradient(to top, #f44336, #FF9800);
+        border-radius: 4px 4px 0 0;
+        opacity: 0.6;
+      }
+      
+      .spectrum-legend {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: var(--secondary-text-color);
+      }
+      
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      
+      .legend-item .marker {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-size: 10px;
+      }
+      
+      .scores-chart {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      
+      .score-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      
+      .score-channel {
+        width: 100px;
+        font-weight: 500;
+        color: var(--primary-text-color);
+      }
+      
+      .score-bar-container {
+        flex: 1;
+        height: 24px;
+        background: var(--secondary-background-color);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      
+      .score-bar {
+        height: 100%;
+        transition: width 0.3s ease;
+        border-radius: 4px;
+      }
+      
+      .score-bar.excellent {
+        background: linear-gradient(90deg, #4CAF50, #45a049);
+      }
+      
+      .score-bar.good {
+        background: linear-gradient(90deg, #FF9800, #f57c00);
+      }
+      
+      .score-bar.poor {
+        background: linear-gradient(90deg, #f44336, #d32f2f);
+      }
+      
+      .score-value {
+        width: 60px;
+        text-align: right;
+        font-weight: 500;
+        color: var(--primary-text-color);
+      }
+      
+      .change-guide {
+        background: var(--primary-background-color);
+        padding: 20px;
+        border-radius: 8px;
+      }
+      
+      .warning-box {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        background: #fff3e0;
+        border: 1px solid #FF9800;
+        border-radius: 8px;
+        margin-bottom: 20px;
+      }
+      
+      .error-box {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        background: #ffebee;
+        border: 1px solid #f44336;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        position: relative;
+      }
+      
+      .warning-icon,
+      .error-icon {
+        font-size: 24px;
+        flex-shrink: 0;
+      }
+      
+      .error-box strong {
+        color: #c62828;
+      }
+      
+      .dismiss-error {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: transparent;
+        color: var(--secondary-text-color);
+        font-size: 24px;
+        padding: 4px 8px;
+        min-width: auto;
+        cursor: pointer;
+        border: none;
+      }
+      
+      .warning-box strong {
+        color: #f57c00;
+      }
+      
+      .step-by-step h4 {
+        font-size: 16px;
+        font-weight: 500;
+        margin-bottom: 12px;
+        color: var(--primary-text-color);
+      }
+      
+      .step-by-step ol {
+        list-style: none;
+        counter-reset: step-counter;
+        padding-left: 0;
+      }
+      
+      .step-by-step li {
+        counter-increment: step-counter;
+        margin-bottom: 20px;
+        padding-left: 40px;
+        position: relative;
+      }
+      
+      .step-by-step li::before {
+        content: counter(step-counter);
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 28px;
+        height: 28px;
+        background: var(--primary-color);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 14px;
+      }
+      
+      .step-by-step li strong {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--primary-text-color);
+      }
+      
+      .step-by-step li p {
+        margin: 4px 0;
+        font-size: 14px;
+        color: var(--secondary-text-color);
+        line-height: 1.5;
+      }
+      
+      .step-by-step li button {
+        margin-top: 8px;
+      }
+      
+      .documentation-links {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid var(--divider-color);
+      }
+      
+      .documentation-links h4 {
+        font-size: 16px;
+        font-weight: 500;
+        margin-bottom: 12px;
+        color: var(--primary-text-color);
+      }
+      
+      .documentation-links ul {
+        list-style: none;
+        padding-left: 0;
+      }
+      
+      .documentation-links li {
+        margin-bottom: 8px;
+      }
+      
+      .documentation-links a {
+        color: var(--primary-color);
+        text-decoration: none;
+        font-size: 14px;
+      }
+      
+      .documentation-links a:hover {
+        text-decoration: underline;
+      }
+      
+      .history-list {
+        background: var(--primary-background-color);
+        padding: 16px;
+        border-radius: 8px;
+      }
+      
+      .history-entry {
+        padding: 12px;
+        border-bottom: 1px solid var(--divider-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .history-entry:last-child {
+        border-bottom: none;
+      }
+      
+      .history-timestamp {
+        font-size: 12px;
+        color: var(--secondary-text-color);
+      }
+      
+      .history-details {
+        display: flex;
+        gap: 16px;
+        font-size: 13px;
+      }
+      
+      .history-channel {
+        font-weight: 500;
+        color: var(--primary-text-color);
+      }
+      
+      .history-score {
+        color: var(--secondary-text-color);
+      }
+      
+      .history-aps {
+        color: var(--secondary-text-color);
+      }
+      
+      button.primary {
+        background: var(--primary-color);
+        color: white;
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+    `;
   }
 }
 

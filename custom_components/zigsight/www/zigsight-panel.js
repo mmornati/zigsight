@@ -28,6 +28,10 @@ class ZigSightPanel extends HTMLElement {
     this._selectedDevicesForComparison = new Set();
     this._analyticsTimeRange = 24; // hours
     
+    // Constants
+    this.MAX_TREND_DEVICES = 50; // Maximum devices shown in trend selector
+    this.MAX_COMPARISON_DEVICES = 20; // Maximum devices shown in comparison selector
+    
     // Filter state
     this._filters = {
       deviceType: 'all',
@@ -1153,7 +1157,7 @@ class ZigSightPanel extends HTMLElement {
               <label>Select Device:</label>
               <select id="trend-device-select">
                 <option value="">Network-wide Average</option>
-                ${this._devices.slice(0, 50).map(d => `
+                ${this._devices.slice(0, this.MAX_TREND_DEVICES).map(d => `
                   <option value="${d.id}">${d.label}</option>
                 `).join('')}
               </select>
@@ -1298,9 +1302,10 @@ class ZigSightPanel extends HTMLElement {
   }
 
   renderDeviceSelector() {
+    const maxDevices = this.MAX_COMPARISON_DEVICES;
     return `
       <div class="device-list-compact">
-        ${this._devices.slice(0, 20).map(device => `
+        ${this._devices.slice(0, maxDevices).map(device => `
           <label class="device-checkbox">
             <input 
               type="checkbox" 
@@ -1311,7 +1316,7 @@ class ZigSightPanel extends HTMLElement {
             <span>${device.label}</span>
           </label>
         `).join('')}
-        ${this._devices.length > 20 ? `<div class="more-devices">... and ${this._devices.length - 20} more devices</div>` : ''}
+        ${this._devices.length > maxDevices ? `<div class="more-devices">... and ${this._devices.length - maxDevices} more devices</div>` : ''}
       </div>
     `;
   }

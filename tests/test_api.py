@@ -64,7 +64,7 @@ def mock_coordinator():
     }
     coordinator.get_device_history.return_value = [
         {
-            "timestamp": (datetime.now()).isoformat(),
+            "timestamp": datetime.now().isoformat(),
             "metrics": {"battery": 85, "link_quality": 200},
         }
     ]

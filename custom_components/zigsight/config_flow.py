@@ -75,11 +75,10 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-class ZigSightConfigFlow(config_entries.ConfigFlow):
+class ZigsightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for ZigSight."""
 
     VERSION = 1
-    domain = DOMAIN
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

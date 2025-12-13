@@ -1,6 +1,6 @@
 # Makefile for ZigSight integration
 
-.PHONY: help install test lint format clean build docs setup-dev security
+.PHONY: help install test lint format clean build docs setup-dev security package zip test-integration start stop restart logs status
 
 # Virtual environment detection and binary paths
 VENV := .venv
@@ -30,6 +30,14 @@ help:
 	@echo "  test-unit      - Run unit tests only"
 	@echo "  test-quick     - Run tests quickly (no coverage)"
 	@echo "  test-coverage  - Run tests with HTML coverage report"
+	@echo "  test-integration - Start integration testing environment"
+	@echo ""
+	@echo "Integration Testing:"
+	@echo "  start          - Start Home Assistant for testing"
+	@echo "  stop           - Stop Home Assistant"
+	@echo "  restart        - Restart Home Assistant"
+	@echo "  logs           - Show Home Assistant logs"
+	@echo "  status         - Check Home Assistant status"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  lint           - Run Ruff (lint) + mypy"
@@ -40,7 +48,11 @@ help:
 	@echo "  install        - Install dependencies"
 	@echo "  install-dev    - Install development dependencies"
 	@echo "  setup-dev      - Create venv, install dev tools, and install pre-commit hooks"
-	@echo "  clean          - Clean build artifacts"
+	@echo "  clean          - Clean build artifacts and test data"
+	@echo ""
+	@echo "Packaging:"
+	@echo "  package        - Create zip file for Home Assistant upload"
+	@echo "  zip            - Alias for package"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  docs           - Serve MkDocs documentation (when ready)"
@@ -99,8 +111,29 @@ check-format:
 	$(RUFF) format --check .
 	$(RUFF) check .
 
-# Clean build artifacts
+# Integration Testing
+test-integration:
+	@echo "Starting integration testing environment..."
+	./scripts/integration-test.sh start
+
+start:
+	./scripts/integration-test.sh start
+
+stop:
+	./scripts/integration-test.sh stop
+
+restart:
+	./scripts/integration-test.sh restart
+
+logs:
+	./scripts/integration-test.sh logs
+
+status:
+	./scripts/integration-test.sh status
+
+# Clean build artifacts and test data
 clean:
+	@echo "Cleaning build artifacts..."
 	rm -rf build/
 	rm -rf dist/
 	rm -rf *.egg-info/
@@ -112,6 +145,8 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
 	find . -type f -name "*.pyo" -delete
+	@echo "Cleaning test data..."
+	./scripts/integration-test.sh clean 2>/dev/null || true
 
 # Build package
 build: clean
@@ -139,3 +174,15 @@ version:
 	@$(PYTHON) -c "import json; print('Version:', json.load(open('custom_components/zigsight/manifest.json'))['version'])"
 	@echo "Python: $$($(PYTHON) --version)"
 	@echo "Pytest: $$($(PYTEST) --version 2>/dev/null || echo 'Not installed')"
+
+# Package for Home Assistant upload
+package:
+	@echo "Creating Home Assistant package..."
+	@VERSION=$$($(PYTHON) -c "import json; print(json.load(open('custom_components/zigsight/manifest.json'))['version'])") && \
+	ZIP_NAME="zigsight-$$VERSION.zip" && \
+	rm -f $$ZIP_NAME && \
+	cd custom_components && zip -r ../$$ZIP_NAME zigsight/ -x "*.pyc" -x "*__pycache__*" -x "*.pyo" -x "*.DS_Store" && \
+	echo "Package created: $$ZIP_NAME"
+
+# Alias for package
+zip: package

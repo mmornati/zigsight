@@ -9,6 +9,7 @@ from homeassistant import config_entries
 
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
+    CONF_ENABLE_ZHA,
     CONF_MQTT_BROKER,
     CONF_MQTT_PASSWORD,
     CONF_MQTT_PORT,
@@ -19,6 +20,7 @@ from .const import (
     CONF_RECONNECT_THRESHOLD,
     CONF_RETENTION_DAYS,
     DEFAULT_BATTERY_DRAIN_THRESHOLD,
+    DEFAULT_ENABLE_ZHA,
     DEFAULT_MQTT_BROKER,
     DEFAULT_MQTT_PORT,
     DEFAULT_MQTT_TOPIC_PREFIX,
@@ -65,6 +67,10 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
             CONF_RECONNECT_RATE_WINDOW_HOURS,
             default=DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
         ): vol.All(vol.Coerce(int), vol.Range(min=1, max=168)),
+        vol.Optional(
+            CONF_ENABLE_ZHA,
+            default=DEFAULT_ENABLE_ZHA,
+        ): bool,
     }
 )
 
@@ -124,6 +130,10 @@ class ZigSightConfigFlow(config_entries.ConfigFlow):
                 CONF_RECONNECT_RATE_WINDOW_HOURS: user_input.get(
                     CONF_RECONNECT_RATE_WINDOW_HOURS,
                     DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
+                ),
+                CONF_ENABLE_ZHA: user_input.get(
+                    CONF_ENABLE_ZHA,
+                    DEFAULT_ENABLE_ZHA,
                 ),
             },
         )

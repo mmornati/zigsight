@@ -64,7 +64,7 @@ async def test_coordinator_with_zha_enabled(
         )
 
         # Trigger update
-        data = await coordinator._async_update_data()
+        await coordinator._async_update_data()
 
         # Verify ZHA device was collected
         assert len(coordinator._devices) == 1
@@ -97,7 +97,7 @@ async def test_coordinator_with_zha_disabled(mock_hass: MagicMock) -> None:
         )
 
         # Trigger update
-        data = await coordinator._async_update_data()
+        await coordinator._async_update_data()
 
         # Verify no ZHA devices collected
         assert len(coordinator._devices) == 0

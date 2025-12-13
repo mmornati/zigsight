@@ -279,7 +279,6 @@ class ZigSightPanel extends HTMLElement {
       this.renderRecommendationsView();
       return;
     }
-    }
 
     // Otherwise render list view
     this.renderListView();

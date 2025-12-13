@@ -22,6 +22,14 @@ The ZigSight Device Management Panel provides a comprehensive interface for mana
 - **Performance Optimized**: Handles networks with 100+ devices efficiently
 - **Problem Highlighting**: Quickly identify devices with connectivity or health issues
 
+### Analytics View (New!)
+- **Network Overview Dashboard**: Key metrics including total devices, average health score, and warning counts
+- **Distribution Charts**: Battery level and link quality distribution visualizations
+- **Historical Trends**: Time-series charts showing health score, battery, link quality, and reconnect rate trends
+- **Device Comparison**: Side-by-side comparison of multiple devices
+- **Alert Insights**: Devices requiring immediate attention with predictive warnings
+- **Data Export**: Export analytics data in CSV or JSON format for external analysis
+
 ## Installation
 
 ### Step 1: Add the Panel Resource
@@ -75,10 +83,11 @@ type: custom:zigsight-panel
 
 ## Switching Between Views
 
-The panel supports two view modes that you can switch between using the toggle buttons in the header:
+The panel supports three view modes that you can switch between using the toggle buttons in the header:
 
 - **📋 List View**: Traditional table view with filtering, sorting, and bulk actions
 - **🔗 Topology View**: Interactive network graph visualization
+- **📊 Analytics View**: Comprehensive analytics dashboard with charts and insights
 
 Simply click the corresponding button to switch between views. Your filter settings and selections are preserved when switching views.
 
@@ -569,6 +578,147 @@ The panel works best with modern browsers:
 3. **Refresh Data**: Click refresh to reload from API
 4. **Check API Response**: Verify `/api/zigsight/topology` returns nodes and edges
 
+## Analytics View Features
+
+The Analytics View provides a comprehensive dashboard for monitoring network health, analyzing trends, and identifying issues across your Zigbee network.
+
+### 1. Network Overview Dashboard
+
+At the top of the analytics view, you'll see key network metrics:
+
+- **Total Devices**: Complete count of devices in your network
+- **Average Health Score**: Network-wide average health score (0-100)
+- **Devices with Warnings**: Number of devices with battery drain or connectivity warnings
+
+These metrics provide a quick snapshot of overall network health.
+
+### 2. Distribution Analysis
+
+Visual representation of device metrics across your network:
+
+#### Battery Level Distribution Chart
+- Displays how many devices fall into each battery range:
+  - 0-20%: Critical battery level
+  - 21-40%: Low battery
+  - 41-60%: Medium battery
+  - 61-80%: Good battery
+  - 81-100%: Excellent battery
+- Helps identify how many devices need attention
+- Only includes battery-powered devices
+
+#### Link Quality Distribution Chart
+- Shows distribution of link quality (LQI) across devices:
+  - Poor (0-99): Weak connections needing attention
+  - Fair (100-149): Acceptable but could be improved
+  - Good (150-199): Solid connections
+  - Excellent (200-255): Strong, reliable connections
+- Helps assess overall network connectivity health
+
+### 3. Historical Trends
+
+Time-series charts showing how metrics change over time:
+
+#### Controls
+- **Select Device**: Choose a specific device or view network-wide average
+- **Time Range**: Select from 6 hours to 1 week of historical data
+- **Load Trends Button**: Click to load and display trend data
+
+#### Available Trend Charts
+1. **Health Score Trend**: Track device or network health over time
+2. **Battery Level Trend**: Monitor battery drain patterns
+3. **Link Quality Trend**: Observe connection stability
+4. **Reconnect Rate Trend**: Identify connectivity issues
+
+**Use Cases**:
+- Identify devices with declining health scores
+- Predict when batteries need replacement
+- Spot connectivity degradation before it causes problems
+- Validate improvements after network changes
+
+### 4. Alerts & Insights
+
+Real-time alerts for devices requiring attention:
+
+#### Alert Types
+- **Low Battery**: Devices below 20% battery
+- **Rapid Battery Drain**: Devices with abnormal battery consumption patterns
+- **Connectivity Issues**: Devices with frequent reconnections
+- **Critical Health Score**: Devices with health scores below 50
+
+#### Healthy Status
+- When no issues are detected, you'll see a green "All Systems Healthy" indicator
+- Provides confidence that your network is operating optimally
+
+#### Alert Actions
+- Each alert shows the device name and specific warnings
+- Click on device names (in future versions) to jump to device details
+- Use alerts to prioritize maintenance tasks
+
+### 5. Device Comparison
+
+Compare multiple devices side-by-side to identify best and worst performers:
+
+#### How to Use
+1. **Select Devices**: Check boxes next to devices you want to compare (up to 20 shown)
+2. **View Comparison Table**: See all selected devices in a comparison table
+
+#### Comparison Metrics
+- **Health Score**: Color-coded (green = healthy, yellow = warning, red = critical)
+- **Battery Level**: Current battery percentage
+- **Link Quality**: Current LQI value with color coding
+- **Reconnect Rate**: Events per hour
+- **Last Seen**: Most recent communication timestamp
+
+**Use Cases**:
+- Compare similar devices to identify problematic ones
+- Find the best-performing devices for reference
+- Validate that similar devices have similar metrics
+- Identify outliers that may need attention or repositioning
+
+### 6. Export Analytics
+
+Download analytics data for external analysis, reporting, or archival:
+
+#### Export Formats
+
+**JSON Export**
+- Complete device analytics in JSON format
+- Includes all metrics and computed analytics
+- Easy to process programmatically
+- Filename: `zigsight-analytics-YYYY-MM-DD.json`
+
+**CSV Export**
+- Spreadsheet-compatible format
+- Opens directly in Excel, Google Sheets, etc.
+- Includes key metrics in columns
+- Filename: `zigsight-analytics-YYYY-MM-DD.csv`
+
+#### Exported Data Fields
+- Device ID and friendly name
+- Last update timestamp
+- Link quality, battery level
+- Health score
+- Reconnect rate and battery trend
+- Warning flags (battery drain, connectivity)
+- Reconnect count
+
+**Use Cases**:
+- Create custom reports for network documentation
+- Track historical network health over months
+- Share data with support teams
+- Analyze trends in external tools (Python, R, Tableau, etc.)
+- Backup device state for comparison after changes
+
+### 7. Performance Tips
+
+The Analytics View is optimized for real-time insights:
+
+- **Auto-refresh**: Click the Refresh button to reload latest data
+- **Lazy Loading**: Charts load only when switching to Analytics view
+- **CDN Resources**: Chart.js loaded from CDN for fast initial load
+- **Client-side Processing**: All filtering and calculations happen in your browser
+- **Responsive Charts**: Charts adapt to screen size automatically
+
 ## Advanced Usage
 
 ### Combining Filters
@@ -607,24 +757,57 @@ Example: Find all battery-powered end devices in the bedroom with low battery
 
 ## API Integration
 
-The panel uses the ZigSight topology API:
+The panel uses the ZigSight API endpoints:
 
+### Topology API
 ```
 GET /api/zigsight/topology
 ```
 
-This returns device and network data including:
+Returns device and network data including:
 - **nodes**: Array of device objects with metrics and analytics
 - **edges**: Array of connection objects with link quality
 - **device_count**: Total number of devices
 - **coordinator_count**, **router_count**, **end_device_count**: Device type counts
 
-The panel processes this data client-side for both list and topology views. Future versions may include additional endpoints for:
+### Analytics APIs (New!)
 
-- Server-side filtering (for very large networks)
-- Historical device data
-- Custom sorting algorithms
-- Network path analysis
+#### Analytics Overview
+```
+GET /api/zigsight/analytics/overview
+```
+
+Returns network-wide analytics including:
+- Total devices and average health score
+- Devices with warnings count
+- Battery level distribution
+- Link quality distribution
+- Device counts by type
+
+#### Analytics Trends
+```
+GET /api/zigsight/analytics/trends?device_id=xxx&metric=health_score&hours=24
+```
+
+Query Parameters:
+- `device_id` (optional): Specific device ID or omit for network-wide
+- `metric`: One of `health_score`, `battery`, `link_quality`, `reconnect_rate`
+- `hours`: Time window (6, 12, 24, 48, 168)
+
+Returns time-series data for the specified metric.
+
+#### Analytics Export
+```
+GET /api/zigsight/analytics/export?format=csv&devices=device1,device2
+```
+
+Query Parameters:
+- `format`: `json` or `csv`
+- `devices` (optional): Comma-separated device IDs or omit for all
+
+Returns analytics data in the specified format.
+
+The panel processes this data client-side for all three views.
 
 ## Technology Stack
 
@@ -639,6 +822,13 @@ The panel processes this data client-side for both list and topology views. Futu
 - Canvas-based rendering for performance
 - Physics engine for force-directed layout
 - Dynamic script loading from CDN
+
+### Analytics View
+- **Chart.js v4.4.0**: Chart visualization library
+- Doughnut charts for distribution analysis
+- Line charts for time-series trends
+- Dynamic script loading from CDN
+- Client-side data processing and aggregation
 
 ## Future Enhancements
 
@@ -670,6 +860,22 @@ Planned features for future releases:
 - [ ] Mesh quality heatmap
 - [ ] Export topology as image (PNG/SVG)
 - [ ] Web Workers for layout calculations (very large networks)
+
+### Analytics View
+- [x] Network overview dashboard ✅
+- [x] Battery and link quality distribution charts ✅
+- [x] Time-series trend charts ✅
+- [x] Device comparison functionality ✅
+- [x] Alert insights with predictive warnings ✅
+- [x] Export to JSON and CSV ✅
+- [ ] Custom date range selection for trends
+- [ ] Downloadable PDF reports
+- [ ] Trend anomaly detection
+- [ ] Performance benchmarking against network averages
+- [ ] Historical comparison (compare current vs. past periods)
+- [ ] Custom alert thresholds
+- [ ] Scheduled email reports
+- [ ] Integration with Home Assistant notifications
 
 ### General
 - [ ] Dark mode optimization

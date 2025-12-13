@@ -1145,6 +1145,51 @@ class ZigSightPanel extends HTMLElement {
           </div>
         </div>
         
+        <!-- Time Series Trends Section -->
+        <div class="analytics-section">
+          <h2 class="section-title">Historical Trends</h2>
+          <div class="trends-controls">
+            <div class="control-group">
+              <label>Select Device:</label>
+              <select id="trend-device-select">
+                <option value="">Network-wide Average</option>
+                ${this._devices.slice(0, 50).map(d => `
+                  <option value="${d.id}">${d.label}</option>
+                `).join('')}
+              </select>
+            </div>
+            <div class="control-group">
+              <label>Time Range:</label>
+              <select id="trend-time-range">
+                <option value="6">Last 6 hours</option>
+                <option value="12">Last 12 hours</option>
+                <option value="24" selected>Last 24 hours</option>
+                <option value="48">Last 48 hours</option>
+                <option value="168">Last week</option>
+              </select>
+            </div>
+            <button id="load-trends" class="secondary">Load Trends</button>
+          </div>
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3 class="chart-title">Health Score Trend</h3>
+              <canvas id="health-trend-chart"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Battery Level Trend</h3>
+              <canvas id="battery-trend-chart"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Link Quality Trend</h3>
+              <canvas id="lqi-trend-chart"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Reconnect Rate Trend</h3>
+              <canvas id="reconnect-trend-chart"></canvas>
+            </div>
+          </div>
+        </div>
+        
         <!-- Device Alerts Section -->
         <div class="analytics-section">
           <h2 class="section-title">Alerts & Insights</h2>
@@ -1357,6 +1402,120 @@ class ZigSightPanel extends HTMLElement {
         this.render();
       });
     });
+    
+    // Trend loading button
+    const loadTrendsBtn = this.shadowRoot.getElementById('load-trends');
+    if (loadTrendsBtn) {
+      loadTrendsBtn.addEventListener('click', () => this.loadTrends());
+    }
+  }
+  
+  async loadTrends() {
+    const deviceSelect = this.shadowRoot.getElementById('trend-device-select');
+    const timeRangeSelect = this.shadowRoot.getElementById('trend-time-range');
+    
+    if (!deviceSelect || !timeRangeSelect) return;
+    
+    const deviceId = deviceSelect.value;
+    const hours = parseInt(timeRangeSelect.value);
+    
+    try {
+      // Load trends for each metric
+      const metrics = ['health_score', 'battery', 'link_quality', 'reconnect_rate'];
+      const trendsData = {};
+      
+      for (const metric of metrics) {
+        let url = `/api/zigsight/analytics/trends?metric=${metric}&hours=${hours}`;
+        if (deviceId) {
+          url += `&device_id=${deviceId}`;
+        }
+        
+        const response = await this._hass.callApi('GET', url);
+        trendsData[metric] = response.data || [];
+      }
+      
+      // Update charts with trends data
+      this.updateTrendCharts(trendsData);
+    } catch (error) {
+      console.error('Failed to load trends:', error);
+      alert('Failed to load trend data. Please try again.');
+    }
+  }
+  
+  updateTrendCharts(trendsData) {
+    // Destroy existing trend charts if they exist
+    if (this._trendCharts) {
+      Object.values(this._trendCharts).forEach(chart => chart.destroy());
+    }
+    this._trendCharts = {};
+    
+    const chartConfigs = {
+      'health-trend-chart': {
+        metric: 'health_score',
+        label: 'Health Score',
+        color: '#2196F3',
+        yMax: 100
+      },
+      'battery-trend-chart': {
+        metric: 'battery',
+        label: 'Battery %',
+        color: '#4CAF50',
+        yMax: 100
+      },
+      'lqi-trend-chart': {
+        metric: 'link_quality',
+        label: 'Link Quality',
+        color: '#FF9800',
+        yMax: 255
+      },
+      'reconnect-trend-chart': {
+        metric: 'reconnect_rate',
+        label: 'Reconnects/hour',
+        color: '#f44336',
+        yMax: null
+      }
+    };
+    
+    for (const [canvasId, config] of Object.entries(chartConfigs)) {
+      const canvas = this.shadowRoot.getElementById(canvasId);
+      if (!canvas) continue;
+      
+      const data = trendsData[config.metric] || [];
+      
+      const chartData = {
+        labels: data.map(d => new Date(d.timestamp).toLocaleTimeString()),
+        datasets: [{
+          label: config.label,
+          data: data.map(d => d.value),
+          borderColor: config.color,
+          backgroundColor: config.color + '20',
+          tension: 0.4,
+          fill: true
+        }]
+      };
+      
+      const options = {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: config.yMax
+          }
+        }
+      };
+      
+      this._trendCharts[canvasId] = new window.Chart(canvas, {
+        type: 'line',
+        data: chartData,
+        options: options
+      });
+    }
   }
 
   async exportAnalytics(format) {
@@ -1517,6 +1676,39 @@ class ZigSightPanel extends HTMLElement {
       .legend-value {
         color: var(--primary-text-color);
         font-weight: 500;
+      }
+      
+      .trends-controls {
+        display: flex;
+        gap: 16px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+        padding: 16px;
+        background: var(--primary-background-color);
+        border-radius: 8px;
+      }
+      
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      
+      .control-group label {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--secondary-text-color);
+      }
+      
+      .control-group select {
+        padding: 8px 12px;
+        border: 1px solid var(--divider-color);
+        border-radius: 4px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        font-size: 14px;
+        min-width: 200px;
       }
       
       .alerts-container {

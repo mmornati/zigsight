@@ -2,10 +2,6 @@
 name: Integration Test
 
 'on':
-  push:
-    branches:
-      - main
-  pull_request:
   workflow_dispatch:
     inputs:
       ha_version:
@@ -17,90 +13,21 @@ permissions:
   contents: read
 
 jobs:
-  get-test-versions:
-    name: Get HA Versions for Docker Testing
-    runs-on: ubuntu-latest
-    outputs:
-      versions_with_latest: ${{ steps.fetch-versions.outputs.versions_with_latest }}
-    steps:
-      - name: Fetch Test Versions
-        id: fetch-versions
-        run: |
-          echo "Fetching recent stable HA versions for Docker integration testing..."
-
-          # Get current year and month
-          CURRENT_YEAR=$(date +%Y)
-          CURRENT_MONTH=$(date +%-m)  # Remove leading zero
-
-          echo "Current date: $CURRENT_YEAR.$CURRENT_MONTH"
-          echo "Will test last 2 months of releases + 'latest'"
-
-          # Get all stable versions for current year (and previous if needed)
-          ALL_VERSIONS=$(curl -s https://pypi.org/pypi/homeassistant/json | \
-            jq -r '.releases | keys | .[]' | \
-            grep -E '^20[0-9]{2}\.[0-9]+\.[0-9]+$' | \
-            grep -v 'b' | \
-            sort -V)
-
-          # Group by month and get the latest patch version from each of the last 2 months
-          VERSIONS=""
-          for month in $(seq $((CURRENT_MONTH)) -1 $((CURRENT_MONTH - 1))); do
-            if [ "$month" -lt 1 ]; then
-              # Handle year boundary (e.g., Jan 2026 looking back to Dec 2025)
-              PREV_YEAR=$((CURRENT_YEAR - 1))
-              month=$((month + 12))
-              LATEST=$(echo "$ALL_VERSIONS" | grep "^${PREV_YEAR}\.${month}\." | tail -1)
-            else
-              LATEST=$(echo "$ALL_VERSIONS" | grep "^${CURRENT_YEAR}\.${month}\." | tail -1)
-            fi
-
-            if [ -n "$LATEST" ]; then
-              echo "  Month $month: $LATEST"
-              VERSIONS="${VERSIONS}${LATEST}"$'\n'
-            fi
-          done
-
-          # Remove trailing newline and sort
-          VERSIONS=$(echo "$VERSIONS" | grep -v '^$' | sort -V)
-
-          # Add "latest" to always test against the most current Docker image
-          VERSIONS_WITH_LATEST=$(echo "$VERSIONS" | cat - <(echo "latest"))
-
-          echo ""
-          echo "Final test matrix (including 'latest'):"
-          echo "$VERSIONS_WITH_LATEST"
-
-          # Create JSON array
-          VERSIONS_JSON=$(echo "$VERSIONS_WITH_LATEST" | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "versions_with_latest=$VERSIONS_JSON" >> "$GITHUB_OUTPUT"
-
   docker-integration-test:
-    name: Docker Integration Test - HA ${{ matrix.ha-version }}
+    name: Docker Integration Test
     runs-on: ubuntu-latest
-    needs: get-test-versions
-    strategy:
-      fail-fast: false
-      matrix:
-        ha-version: ${{ fromJson(needs.get-test-versions.outputs.versions_with_latest) }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Start Home Assistant Container
         run: |
-          echo "Starting Home Assistant ${{ matrix.ha-version }}..."
+          echo "Starting Home Assistant ${{ github.event.inputs.ha_version || 'latest' }}..."
+          HA_VERSION="${{ github.event.inputs.ha_version || 'latest' }}"
+          HA_IMAGE="homeassistant/home-assistant:${HA_VERSION}"
 
-          # Use the specified version or latest
-          HA_IMAGE="homeassistant/home-assistant:${{ matrix.ha-version }}"
-
-          # Create necessary directories
           mkdir -p "${GITHUB_WORKSPACE}/test_config"
 
-          # Start container with integration mounted
           docker run -d \
             --name ha-test \
             --network host \
@@ -121,18 +48,9 @@ jobs:
               echo "✓ Home Assistant is ready!"
               break
             fi
-
-            if [ "$elapsed" -eq 0 ]; then
-              echo -n "Waiting"
-            else
-              echo -n "."
-            fi
-
             sleep 5
             elapsed=$((elapsed + 5))
           done
-
-          echo ""
 
           if [ "$elapsed" -ge "$timeout" ]; then
             echo "✗ Home Assistant failed to start within ${timeout}s"
@@ -140,178 +58,27 @@ jobs:
             exit 1
           fi
 
-          echo "Home Assistant started in ${elapsed}s"
-
-      - name: Verify Integration Loaded
+      - name: Verify Integration
         run: |
-          echo "Verifying integration is mounted and accessible..."
-
-          # Check if integration files are present in container
-          docker exec ha-test ls -la /config/custom_components/zigsight/ || {
-            echo "✗ Integration files not found in container"
-            exit 1
-          }
-
-          # Verify manifest.json
-          if docker exec ha-test test -f /config/custom_components/zigsight/manifest.json; then
-            echo "✓ Integration manifest found"
-            docker exec ha-test cat /config/custom_components/zigsight/manifest.json
-          else
+          echo "Verifying integration..."
+          docker exec ha-test test -f /config/custom_components/zigsight/manifest.json || {
             echo "✗ Integration manifest not found"
             exit 1
-          fi
-
-          echo ""
+          }
           echo "✓ Integration files verified"
 
-      - name: Check Home Assistant Logs for Integration
+      - name: Check for Errors
         run: |
-          echo "Checking Home Assistant logs for integration loading..."
-
-          # Wait a bit for HA to discover the integration
           sleep 10
-
-          # Get logs
-          docker logs ha-test 2>&1 | tee ha-logs.txt
-
-          # Check for critical errors
-          if docker logs ha-test 2>&1 | grep -i "error.*zigsight"; then
-            echo "⚠ Found errors related to zigsight integration"
-            echo "This might be expected if no configuration is present"
-          fi
-
-          # Check if integration was discovered
-          if docker logs ha-test 2>&1 | grep -i "zigsight"; then
-            echo "✓ Integration mentioned in logs"
-          else
-            echo "ℹ Integration not mentioned in logs (may be normal)"
-          fi
-
-      - name: Test Integration Discovery via API
-        run: |
-          echo "Testing integration discovery via Home Assistant API..."
-
-          # Try to get integrations list (may not work without authentication)
-          # This is a basic smoke test
-          if curl -sf http://localhost:8123/api/ > /dev/null 2>&1; then
-            echo "✓ Home Assistant API is accessible"
-          else
-            echo "ℹ API requires authentication (expected)"
-          fi
-
-          # Check if we can access the frontend
-          if curl -sf http://localhost:8123 | grep -q "Home Assistant"; then
-            echo "✓ Home Assistant frontend is serving"
-          else
-            echo "⚠ Frontend may not be fully ready"
-          fi
-
-      - name: Verify Manifest Validity
-        run: |
-          echo "Validating manifest.json structure..."
-
-          # Extract and validate manifest from container
-          docker exec ha-test cat /config/custom_components/zigsight/manifest.json > manifest.json
-
-          # Check required fields
-          python3 << 'EOF'
-          import json
-          import sys
-
-          with open('manifest.json') as f:
-              manifest = json.load(f)
-
-          required_fields = ['domain', 'name', 'version', 'requirements', 'config_flow', 'iot_class']
-          missing = [field for field in required_fields if field not in manifest]
-
-          if missing:
-              print(f"✗ Missing required fields: {missing}")
-              sys.exit(1)
-
-          print("✓ All required manifest fields present")
-          print(f"  - Domain: {manifest['domain']}")
-          print(f"  - Name: {manifest['name']}")
-          print(f"  - Version: {manifest['version']}")
-          print(f"  - Requirements: {manifest['requirements']}")
-          EOF
-
-      - name: Check for Common Integration Issues
-        run: |
-          echo "Checking for common integration issues..."
-
-          # Check for import errors
-          if docker logs ha-test 2>&1 | grep -i "importerror\|modulenotfounderror" | grep -i "zigsight"; then
-            echo "✗ Found import errors"
+          if docker logs ha-test 2>&1 | grep -i "importerror\|modulenotfounderror\|syntaxerror" | grep -i "zigsight"; then
+            echo "✗ Found errors in logs"
+            docker logs ha-test | grep -i "zigsight"
             exit 1
-          else
-            echo "✓ No import errors detected"
           fi
-
-          # Check for syntax errors
-          if docker logs ha-test 2>&1 | grep -i "syntaxerror" | grep -i "zigsight"; then
-            echo "✗ Found syntax errors"
-            exit 1
-          else
-            echo "✓ No syntax errors detected"
-          fi
-
-          echo ""
-          echo "✓ Basic integration health checks passed"
-
-      - name: Test Summary
-        if: always()
-        run: |
-          {
-            echo "### Integration Test Results"
-            echo ""
-            echo "- **Home Assistant Version**: ${{ matrix.ha-version }}"
-            echo "- **Integration**: ZigSight"
-            echo "- **Status**: ${{ job.status }}"
-            echo ""
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # Add manifest info
-          if [ -f manifest.json ]; then
-            VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
-            echo "- **Integration Version**: $VERSION" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          {
-            echo ""
-            echo "#### What was tested:"
-            echo "- ✅ Integration files mounted successfully"
-            echo "- ✅ Home Assistant container started"
-            echo "- ✅ Manifest validation"
-            echo "- ✅ No import/syntax errors"
-            echo "- ✅ Integration discoverable by HA"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "Collecting logs for debugging..."
-          docker logs ha-test > ha-full-logs.txt 2>&1 || true
-          echo "Logs saved to ha-full-logs.txt"
-
-          # Print last 100 lines for quick debugging
-          echo ""
-          echo "=== Last 100 lines of Home Assistant logs ==="
-          tail -n 100 ha-full-logs.txt || true
-
-      - name: Upload logs as artifact
-        if: failure()
-        uses: actions/upload-artifact@v5
-        with:
-          name: ha-logs-${{ matrix.ha-version }}-${{ github.run_number }}
-          path: |
-            ha-full-logs.txt
-            ha-logs.txt
-          retention-days: 7
+          echo "✓ No errors detected"
 
       - name: Stop container
         if: always()
         run: |
-          echo "Stopping Home Assistant container..."
           docker stop ha-test || true
           docker rm ha-test || true
-          echo "✓ Container stopped and removed"

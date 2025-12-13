@@ -2661,8 +2661,9 @@ class ZigSightPanel extends HTMLElement {
       const result = await response.json();
       this._recommendation = result;
       
-      // Reload history
-      await this.loadRecommendations();
+      // Load history only (don't reload the recommendation we just received)
+      const historyResponse = await this._hass.callApi('GET', '/api/zigsight/recommendation-history');
+      this._recommendationHistory = historyResponse.history || [];
       
       this.render();
     } catch (error) {
@@ -2825,7 +2826,7 @@ class ZigSightPanel extends HTMLElement {
                 <ul>
                   <li><a href="https://www.home-assistant.io/integrations/zha/#changing-the-channel" target="_blank">ZHA Channel Change Guide</a></li>
                   <li><a href="https://www.zigbee2mqtt.io/guide/configuration/zigbee-network.html#changing-the-network-channel" target="_blank">Zigbee2MQTT Channel Change</a></li>
-                  <li><a href="#" onclick="alert('See Zigbee network best practices documentation'); return false;">Zigbee Network Best Practices</a></li>
+                  <li><a href="https://zigbee.blakadder.com/getting-started.html" target="_blank">Zigbee Network Best Practices</a></li>
                 </ul>
               </div>
             </div>

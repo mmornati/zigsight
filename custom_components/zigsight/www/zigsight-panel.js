@@ -33,6 +33,7 @@ class ZigSightPanel extends HTMLElement {
     this._recommendationHistory = [];
     this._wifiScanData = null;
     this._scanMode = 'manual';
+    this._scanError = null;
     
     // Constants
     this.MAX_TREND_DEVICES = 50; // Maximum devices shown in trend selector
@@ -2666,7 +2667,9 @@ class ZigSightPanel extends HTMLElement {
       this.render();
     } catch (error) {
       console.error('Failed to trigger Wi-Fi scan:', error);
-      alert('Failed to perform Wi-Fi scan and recommendation. Please check the console for details.');
+      // Store error for display in the UI
+      this._scanError = `Failed to perform Wi-Fi scan and recommendation: ${error.message}`;
+      this.render();
     }
   }
 
@@ -2694,6 +2697,17 @@ class ZigSightPanel extends HTMLElement {
         <!-- Wi-Fi Scan Section -->
         <div class="recommendation-section">
           <h2 class="section-title">Wi-Fi Network Scan</h2>
+          
+          ${this._scanError ? `
+            <div class="error-box">
+              <span class="error-icon">❌</span>
+              <div>
+                <strong>Scan Error:</strong> ${this._scanError}
+              </div>
+              <button class="dismiss-error" id="dismiss-error">×</button>
+            </div>
+          ` : ''}
+          
           <div class="scan-controls">
             <p>Scan your Wi-Fi environment to get accurate channel recommendations that avoid interference.</p>
             <div class="scan-options">
@@ -2949,6 +2963,15 @@ class ZigSightPanel extends HTMLElement {
   }
 
   attachRecommendationsEventListeners() {
+    // Dismiss error button
+    const dismissErrorBtn = this.shadowRoot.getElementById('dismiss-error');
+    if (dismissErrorBtn) {
+      dismissErrorBtn.addEventListener('click', () => {
+        this._scanError = null;
+        this.render();
+      });
+    }
+    
     // Scan mode radio buttons
     const scanModeInputs = this.shadowRoot.querySelectorAll('input[name="scan-mode"]');
     scanModeInputs.forEach(input => {
@@ -2964,9 +2987,10 @@ class ZigSightPanel extends HTMLElement {
       wifiDataTextarea.addEventListener('input', (e) => {
         try {
           this._wifiScanData = JSON.parse(e.target.value);
+          this._scanError = null; // Clear error on valid JSON
         } catch (error) {
-          // Invalid JSON, ignore
-          console.warn('Invalid JSON in Wi-Fi scan data');
+          // Invalid JSON, show better error message
+          console.warn('Invalid JSON in Wi-Fi scan data. Expected array of objects with channel and rssi fields.');
         }
       });
     }
@@ -2974,7 +2998,10 @@ class ZigSightPanel extends HTMLElement {
     // Trigger scan button
     const triggerScanBtn = this.shadowRoot.getElementById('trigger-scan');
     if (triggerScanBtn) {
-      triggerScanBtn.addEventListener('click', () => this.triggerWifiScan());
+      triggerScanBtn.addEventListener('click', () => {
+        this._scanError = null; // Clear previous errors
+        this.triggerWifiScan();
+      });
     }
   }
 
@@ -3313,9 +3340,38 @@ class ZigSightPanel extends HTMLElement {
         margin-bottom: 20px;
       }
       
-      .warning-icon {
+      .error-box {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        background: #ffebee;
+        border: 1px solid #f44336;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        position: relative;
+      }
+      
+      .warning-icon,
+      .error-icon {
         font-size: 24px;
         flex-shrink: 0;
+      }
+      
+      .error-box strong {
+        color: #c62828;
+      }
+      
+      .dismiss-error {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: transparent;
+        color: var(--secondary-text-color);
+        font-size: 24px;
+        padding: 4px 8px;
+        min-width: auto;
+        cursor: pointer;
+        border: none;
       }
       
       .warning-box strong {

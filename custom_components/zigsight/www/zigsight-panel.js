@@ -636,10 +636,10 @@ class ZigSightPanel extends HTMLElement {
         
         <div class="actions-bar">
           <div class="bulk-actions">
-            <button class="secondary" ${this._selectedDevices.size === 0 ? 'disabled' : ''}>
+            <button class="secondary" ${this._selectedDevices.size === 0 ? 'disabled="disabled"' : ''} data-action="export-selected">
               Export Selected (${this._selectedDevices.size})
             </button>
-            <button class="secondary">Export All</button>
+            <button class="secondary" data-action="export-all">Export All</button>
           </div>
           <div>
             ${this._filteredDevices.length} devices
@@ -669,11 +669,11 @@ class ZigSightPanel extends HTMLElement {
           
           ${totalPages > 1 ? `
             <div class="pagination">
-              <button ${this._currentPage === 1 ? 'disabled' : ''}>First</button>
-              <button ${this._currentPage === 1 ? 'disabled' : ''}>Previous</button>
+              <button ${this._currentPage === 1 ? 'disabled="disabled"' : ''} data-page="first">First</button>
+              <button ${this._currentPage === 1 ? 'disabled="disabled"' : ''} data-page="prev">Previous</button>
               <span class="page-info">Page ${this._currentPage} of ${totalPages}</span>
-              <button ${this._currentPage === totalPages ? 'disabled' : ''}>Next</button>
-              <button ${this._currentPage === totalPages ? 'disabled' : ''}>Last</button>
+              <button ${this._currentPage === totalPages ? 'disabled="disabled"' : ''} data-page="next">Next</button>
+              <button ${this._currentPage === totalPages ? 'disabled="disabled"' : ''} data-page="last">Last</button>
             </div>
           ` : ''}
         `}
@@ -814,41 +814,38 @@ class ZigSightPanel extends HTMLElement {
       });
     }
     
-    // Bulk action buttons
-    const buttons = this.shadowRoot.querySelectorAll('.bulk-actions button');
-    if (buttons[0]) {
-      buttons[0].addEventListener('click', () => {
-        this.exportSelectedDevices();
-      });
-    }
-    if (buttons[1]) {
-      buttons[1].addEventListener('click', () => {
-        this.exportAllDevices();
+    // Bulk action buttons - using data attributes
+    const bulkActions = this.shadowRoot.querySelector('.bulk-actions');
+    if (bulkActions) {
+      bulkActions.addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') {
+          const action = e.target.dataset.action;
+          if (action === 'export-selected') {
+            this.exportSelectedDevices();
+          } else if (action === 'export-all') {
+            this.exportAllDevices();
+          }
+        }
       });
     }
     
-    // Pagination buttons
-    const paginationButtons = this.shadowRoot.querySelectorAll('.pagination button');
-    if (paginationButtons.length > 0) {
-      paginationButtons[0].addEventListener('click', () => {
-        this._currentPage = 1;
-        this.render();
-      });
-      paginationButtons[1].addEventListener('click', () => {
-        if (this._currentPage > 1) {
-          this._currentPage--;
+    // Pagination buttons - using data attributes
+    const pagination = this.shadowRoot.querySelector('.pagination');
+    if (pagination) {
+      pagination.addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') {
+          const page = e.target.dataset.page;
+          if (page === 'first') {
+            this._currentPage = 1;
+          } else if (page === 'prev' && this._currentPage > 1) {
+            this._currentPage--;
+          } else if (page === 'next' && this._currentPage < this.getTotalPages()) {
+            this._currentPage++;
+          } else if (page === 'last') {
+            this._currentPage = this.getTotalPages();
+          }
           this.render();
         }
-      });
-      paginationButtons[2].addEventListener('click', () => {
-        if (this._currentPage < this.getTotalPages()) {
-          this._currentPage++;
-          this.render();
-        }
-      });
-      paginationButtons[3].addEventListener('click', () => {
-        this._currentPage = this.getTotalPages();
-        this.render();
       });
     }
     

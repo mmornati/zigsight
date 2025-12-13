@@ -1,186 +1,176 @@
-# ZHA Integration Support
+# ZHA Integration
 
-ZigSight can collect device diagnostics and metrics from the Zigbee Home Automation (ZHA) integration in Home Assistant.
+This guide explains how to configure ZigSight with Zigbee Home Automation (ZHA).
 
 ## Overview
 
-When ZHA support is enabled, ZigSight automatically discovers ZHA devices and collects the following metrics:
+[ZHA](https://www.home-assistant.io/integrations/zha/) is Home Assistant's native Zigbee integration. It provides direct communication with Zigbee devices without requiring external bridges. ZigSight integrates with ZHA to provide enhanced analytics and monitoring capabilities.
 
-- **Link Quality (LQI)**: Signal quality indicator (0-255)
-- **RSSI**: Received Signal Strength Indicator (in dBm)
-- **Last Seen**: Timestamp of last communication
-- **Battery Level**: Battery percentage for battery-powered devices
+## Prerequisites
 
-These metrics are normalized to match the Zigbee2MQTT format, ensuring consistent monitoring regardless of your Zigbee integration.
+Before configuring ZigSight with ZHA, ensure you have:
 
-## Enabling ZHA Support
+- **ZHA integration** configured and running in Home Assistant
+- **Zigbee coordinator** connected (e.g., Sonoff Zigbee 3.0 USB, ConBee II, CC2652)
+- Devices paired with your ZHA network
+- Home Assistant 2025.10.0 or later
 
-### During Initial Setup
+## Configuration
 
-1. Go to **Settings > Devices & Services** in Home Assistant
-2. Click **Add Integration** and search for "ZigSight"
-3. In the configuration form, check the **Enable ZHA** option
-4. Complete the rest of the configuration
+### Step 1: Add ZigSight Integration
 
-### For Existing Installations
+1. Go to **Settings** > **Devices & Services**
+2. Click **Add Integration**
+3. Search for "ZigSight"
+4. Select **ZHA** as the integration type
 
-1. Go to **Settings > Devices & Services**
-2. Find your ZigSight integration
-3. Click **Configure**
-4. Check the **Enable ZHA** option
-5. Click **Submit**
+### Step 2: Configure Analytics (Optional)
+
+Customize the analytics thresholds:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Battery Drain Threshold | Minimum drain rate (%/hour) to trigger warning | 10.0 |
+| Reconnect Rate Threshold | Maximum reconnect rate (events/hour) before warning | 5.0 |
+| Reconnect Rate Window | Time window in hours for calculations | 24 |
+| Reconnect Threshold | Number of reconnections to track | 5 |
+| Data Retention | Number of days to keep device history | 30 |
 
 ## How It Works
 
 ### Device Discovery
 
-ZigSight discovers ZHA devices through the following process:
+ZigSight uses the ZHA device registry to discover devices. It accesses:
 
-1. **Integration Detection**: Checks if ZHA integration is loaded (`hass.data.get("zha")`)
-2. **Gateway Access**: Accesses the ZHA gateway to retrieve device list
-3. **Device Iteration**: Iterates through all paired ZHA devices
-4. **Metric Collection**: Collects metrics from both device attributes and diagnostic entities
+- Device entities from Home Assistant
+- ZHA device attributes
+- Device state changes via events
 
-### Metric Sources
+### Data Collected
 
-ZigSight collects metrics from two sources:
+For each device, ZigSight collects:
 
-#### 1. Device Attributes
+- **Device Name**: Friendly name from ZHA
+- **Device Type**: Coordinator, Router, or EndDevice
+- **IEEE Address**: Unique 64-bit device identifier
+- **Link Quality (LQI)**: Signal strength (0-255) when available
+- **Battery Level**: Current battery percentage
+- **Last Seen**: Timestamp of last communication
+- **Manufacturer**: Device manufacturer name
+- **Model**: Device model identifier
 
-Metrics are read directly from ZHA device objects:
-- `zha_device.lqi` → `link_quality`
-- `zha_device.rssi` → `rssi`
-- `zha_device.last_seen` → `last_seen`
+### ZHA Events
 
-#### 2. Diagnostic Entities
+ZigSight listens to ZHA events for real-time updates:
 
-ZHA creates diagnostic entities for some devices:
-- `sensor.<device>_rssi` → RSSI value
-- `sensor.<device>_lqi` → Link quality value
-- `sensor.<device>_battery` → Battery percentage
+| Event | Usage |
+|-------|-------|
+| `zha_event` | Device interactions and updates |
+| `device_registry_updated` | New/removed devices |
+| `state_changed` | Entity state updates |
 
-ZigSight reads these entities when available to supplement device attributes.
+## Entities Created
 
-### Metric Normalization
+ZigSight creates sensors for each Zigbee device:
 
-ZHA metrics are normalized to match Zigbee2MQTT format:
+### Sensors
 
-| ZHA Metric | ZigSight Metric | Notes |
-|------------|-----------------|-------|
-| `lqi` (0-255) | `link_quality` | Direct mapping |
-| `rssi` (dBm) | `rssi` | Direct mapping |
-| `last_seen` | `last_seen` | ISO 8601 timestamp |
-| Battery % | `battery` | Direct mapping |
+- `sensor.{device}_health_score` - Overall health (0-100)
+- `sensor.{device}_reconnect_rate` - Reconnection frequency (events/hour)
+- `sensor.{device}_battery_trend` - Battery drain rate (%/hour)
 
-## Fallback Behavior
+### Binary Sensors
 
-If diagnostic entities are not available, ZigSight falls back to:
+- `binary_sensor.{device}_connectivity_warning` - Connectivity issue alert
+- `binary_sensor.{device}_battery_drain_warning` - Battery drain alert
 
-1. Reading device attributes directly
-2. Using `datetime.now()` for `last_seen` if not available
-3. Omitting metrics that cannot be determined
+## Channel Recommendation
 
-This ensures ZigSight works even when:
-- ZHA hasn't created diagnostic entities
-- Devices don't report all metrics
-- Network connectivity is intermittent
+ZHA supports channel changes directly in Home Assistant. To optimize your channel:
 
-## Permissions
+1. Run the ZigSight Wi-Fi scan service
+2. Get the recommended channel
+3. In Home Assistant, go to **Settings** > **Devices & Services** > **ZHA**
+4. Click **Configure** > **Change channel**
+5. Enter the recommended channel
 
-ZigSight requires the following permissions to access ZHA:
-
-- **Read access** to `hass.data["zha"]`
-- **Read access** to Home Assistant device registry
-- **Read access** to Home Assistant entity registry
-- **Read access** to entity states
-
-No special permissions or API keys are required. ZigSight uses standard Home Assistant APIs.
+See [Wi-Fi Recommendation](../wifi_recommendation.md) for detailed instructions.
 
 ## Troubleshooting
 
-### ZHA Devices Not Showing Up
+### Devices Not Appearing
 
-1. **Verify ZHA is loaded**: Check that ZHA integration is configured and running
-2. **Check ZigSight logs**: Look for ZHA-related errors in Home Assistant logs
-3. **Enable debug logging**:
-   ```yaml
-   logger:
-     default: info
-     logs:
-       custom_components.zigsight.zha_collector: debug
-   ```
+1. **Verify ZHA is running**: Check the ZHA integration status
+2. **Check device pairing**: Ensure devices are paired in ZHA
+3. **Restart integration**: Try removing and re-adding ZigSight
+4. **Review logs**: Enable debug logging for `custom_components.zigsight`
 
-### Missing Metrics
+### Missing Device Attributes
 
-If some metrics are missing:
+Some devices don't report all attributes:
 
-1. **Check device capabilities**: Not all devices report all metrics
-2. **Verify diagnostic entities**: Some ZHA devices may not have diagnostic entities
-3. **Check entity states**: Entities may be `unavailable` or `unknown`
+- **Battery**: Some mains-powered devices don't report battery
+- **LQI**: Not all devices include link quality in updates
+- **Last Seen**: May not update for sleeping devices
 
-### Performance Issues
+### Device Shows Offline
 
-If ZHA data collection impacts performance:
+1. Check if the device is within range of a router
+2. Verify the device has battery (if applicable)
+3. Try pressing a button on the device to wake it
+4. Check ZHA logs for communication errors
 
-1. **Reduce update frequency**: Adjust the coordinator update interval
-2. **Disable ZHA support**: If you only use Zigbee2MQTT, disable ZHA collection
-3. **Check device count**: Large networks (100+ devices) may require tuning
+### Health Score Seems Wrong
 
-## Limitations
+The health score uses multiple factors. Check individual components:
 
-### Current Limitations
+- View `sensor.{device}_reconnect_rate` for connectivity issues
+- Check battery level directly
+- Review link quality in ZHA device info
 
-- **No device commands**: ZigSight is read-only, it cannot control ZHA devices
-- **No network map**: ZHA network topology is not currently collected
-- **No routing table**: Routing information is not available through ZHA APIs
+## Best Practices
 
-### ZHA API Stability
+### Coordinator Placement
 
-ZigSight uses public ZHA APIs where possible:
-- Device registry API (stable)
-- Entity registry API (stable)
-- Entity state API (stable)
-- ZHA gateway access (internal, may change)
+- Place the coordinator centrally in your home
+- Keep it away from USB 3.0 devices (interference)
+- Elevate it if possible for better coverage
 
-If ZHA internals change in future Home Assistant releases, the collector may need updates.
+### Router Distribution
 
-## Comparison with Zigbee2MQTT
+- Add mains-powered devices (routers) throughout your space
+- Routers extend the network and improve reliability
+- Good router coverage reduces reconnection issues
 
-| Feature | Zigbee2MQTT | ZHA |
-|---------|-------------|-----|
-| Real-time updates | ✅ MQTT | ⏱️ Polling |
-| Link quality | ✅ | ✅ |
-| RSSI | ✅ | ✅ |
-| Last seen | ✅ | ✅ |
-| Battery | ✅ | ✅ |
-| Network map | ✅ | ❌ |
-| Routing table | ✅ | ❌ |
+### Regular Maintenance
 
-ZHA support in ZigSight provides core metrics but does not include all features available with Zigbee2MQTT.
+- Check device health scores weekly
+- Replace batteries in devices with drain warnings
+- Re-interview devices that show persistent issues
 
-## Examples
+## ZHA-Specific Features
 
-### Configuration Example
+### Device Interview
 
-```yaml
-# In Home Assistant UI configuration:
-- Enable ZHA: true
-- MQTT Broker: localhost (optional, for Zigbee2MQTT)
-- MQTT Port: 1883 (optional)
-```
+If a device is misbehaving:
 
-### Using Both ZHA and Zigbee2MQTT
+1. Go to **Settings** > **Devices & Services** > **ZHA**
+2. Click on the problematic device
+3. Select **Reconfigure Device** to re-interview
 
-ZigSight can collect from both integrations simultaneously:
+### Network Visualization
 
-1. Enable ZHA support in ZigSight configuration
-2. Configure MQTT settings for Zigbee2MQTT
-3. ZigSight will merge devices from both sources
+ZHA provides its own network visualization:
 
-Devices are identified by IEEE address to avoid duplicates.
+1. Go to **Settings** > **Devices & Services** > **ZHA**
+2. Click **Configure**
+3. Select **Visualize** to see the network graph
 
-## Further Reading
+This complements ZigSight's topology card with additional route information.
 
-- [ZHA Integration Documentation](https://www.home-assistant.io/integrations/zha/)
-- [Home Assistant Device Registry](https://developers.home-assistant.io/docs/device_registry_index/)
-- [ZigSight Developer README](../DEVELOPER_README.md)
+## Related Documentation
+
+- [ZHA Official Documentation](https://www.home-assistant.io/integrations/zha/)
+- [ZigSight Analytics](../analytics.md)
+- [ZigSight Wi-Fi Recommendation](../wifi_recommendation.md)
+- [ZigSight Automations](../automations.md)

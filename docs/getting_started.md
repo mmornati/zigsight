@@ -30,50 +30,41 @@ config/
 
 After installation, ZigSight can be configured through the Home Assistant UI via **Settings > Devices & Services**.
 
-Currently, the integration creates a basic scaffold. Future releases will add support for:
-- Zigbee2MQTT integration
-- ZHA integration
-- deCONZ integration
-- Network topology visualization
-- Analytics and health monitoring
+### Step 1: Select Integration Type
 
-## How to Enable CI
+When adding the integration, you'll first choose your Zigbee coordinator:
 
-This project uses GitHub Actions for continuous integration. The CI pipeline runs automatically on every push and pull request to the main branch.
+- **Zigbee2MQTT**: If you use Zigbee2MQTT as your Zigbee bridge
+- **ZHA**: If you use Home Assistant's native ZHA integration
 
-### CI Checks
+### Step 2: Configure Integration-Specific Settings
 
-The following checks are performed:
+**For Zigbee2MQTT:**
+- **MQTT Broker**: Hostname or IP of your MQTT broker (leave as `localhost` to use Home Assistant's MQTT integration)
+- **MQTT Port**: Port number (default: 1883)
+- **MQTT Username/Password**: Optional, if your broker requires authentication
+- **MQTT Topic Prefix**: Base topic for Zigbee2MQTT (default: `zigbee2mqtt`)
 
-1. **Linting**: Ruff is used to check code style and format
-2. **Type Checking**: Mypy is used for static type analysis
-3. **Tests**: Pytest runs the test suite with coverage reporting
-4. **Coverage**: Code coverage is uploaded to Codecov
+**For ZHA:**
+- No additional configuration needed - ZigSight automatically detects your ZHA devices
 
-### Opening a Pull Request
+### Step 3: Configure Analytics Settings (Optional)
 
-When opening a PR, ensure that:
+Customize the analytics thresholds:
 
-1. All linting checks pass
-2. Type checking passes (warnings are acceptable)
-3. All tests pass
-4. Code coverage is maintained or improved
+- **Battery Drain Threshold**: Minimum drain rate (%/hour) to trigger warning (default: 10.0)
+- **Reconnect Rate Threshold**: Maximum reconnect rate (events/hour) before warning (default: 5.0)
+- **Reconnect Rate Window**: Time window in hours for calculations (default: 24)
+- **Reconnect Threshold**: Number of reconnections to track (default: 5)
+- **Data Retention**: Number of days to keep device history (default: 30)
 
-You can run these checks locally before pushing:
+## What's Next?
 
-```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
+After configuration, ZigSight will:
 
-# Run linting
-ruff check custom_components/ tests/
-ruff format --check custom_components/ tests/
+1. **Discover your devices** - Automatically detect all Zigbee devices from your coordinator
+2. **Create sensors** - Generate health scores, reconnect rates, and battery trends for each device
+3. **Monitor your network** - Track device connectivity and battery health
+4. **Provide recommendations** - Use the Wi-Fi channel recommendation service to optimize your Zigbee channel
 
-# Run type checking
-mypy custom_components/
-
-# Run tests
-pytest tests/
-```
-
-For more information, see the [Developer README](../docs/DEVELOPER_README.md).
+See the [Integrations](integrations/zigbee2mqtt.md) guides for detailed setup instructions for your specific coordinator.

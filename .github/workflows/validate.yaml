@@ -34,29 +34,8 @@ jobs:
           ignore: brands
           category: integration
 
-  style:
-    name: Check Code Style
-    runs-on: "ubuntu-latest"
-    steps:
-      - name: Checkout
-        uses: "actions/checkout@v5"
-
-      - name: Setup Python
-        uses: "actions/setup-python@v6"
-        with:
-          python-version: "3.13"
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements-dev.txt
-
-      - name: Check formatting with Ruff
-        run: ruff format --check .
-
   lint:
-    name: Lint (Ruff + Mypy)
+    name: Lint and Format Check
     runs-on: "ubuntu-latest"
     steps:
       - name: Checkout
@@ -73,8 +52,8 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements-dev.txt
 
-      - name: Run lint checks
-        run: make lint
+      - name: Check formatting and lint
+        run: make check-format
 
   # Note: pytest removed due to josepy dependency conflicts in isolated pip installs
   # Docker integration tests provide comprehensive validation in real HA environment

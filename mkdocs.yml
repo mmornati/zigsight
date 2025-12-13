@@ -1,0 +1,43 @@
+site_name: ZigSight Documentation
+site_description: Home Assistant diagnostics and optimization toolkit for Zigbee networks
+site_author: Marco Mornati
+site_url: https://mmornati.github.io/zigsight/
+
+repo_name: mmornati/zigsight
+repo_url: https://github.com/mmornati/zigsight
+
+theme:
+  name: readthedocs
+  locale: en
+  highlightjs: true
+  hljs_languages:
+    - yaml
+    - python
+    - bash
+    - json
+
+nav:
+  - Home: index.md
+  - Getting Started: getting_started.md
+  - Integrations:
+      - Zigbee2MQTT: integrations/zigbee2mqtt.md
+      - ZHA: integrations/zha.md
+      - deCONZ: integrations/deconz.md
+  - Analytics: analytics.md
+  - Wi-Fi Recommendation: wifi_recommendation.md
+  - UI: ui.md
+  - Automations: automations.md
+  - FAQ: faq.md
+  - Developer Guide: DEVELOPER_README.md
+
+markdown_extensions:
+  - tables
+  - fenced_code
+  - codehilite:
+      guess_lang: false
+  - toc:
+      permalink: true
+  - admonition
+
+plugins:
+  - search

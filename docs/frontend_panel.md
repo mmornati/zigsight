@@ -1,10 +1,10 @@
-# ZigSight Device Management Panel
+# ZigSight Frontend Panel
 
-This document describes how to use the ZigSight Device Management Panel to manage and monitor your Zigbee devices with advanced filtering, sorting, search capabilities, and interactive network topology visualization.
+The ZigSight frontend panel provides a comprehensive full-screen interface for managing and visualizing your Zigbee network. It appears in the Home Assistant sidebar and gives you access to all ZigSight functionalities through an intuitive tab-based interface.
 
 ## Overview
 
-The ZigSight Device Management Panel provides a comprehensive interface for managing large Zigbee networks with four powerful view modes:
+The ZigSight Frontend Panel provides a comprehensive interface for managing large Zigbee networks with four powerful view modes:
 
 ### List View
 - **Advanced Filtering**: Filter devices by type, health status, battery level, link quality, and integration source
@@ -41,65 +41,76 @@ The ZigSight Device Management Panel provides a comprehensive interface for mana
 
 ## Installation
 
-### Step 1: Add the Panel Resource
+### Step 1: Ensure Panel File is Available
 
-The device list panel is automatically included with ZigSight. To use it, you need to register it as a Lovelace resource.
+The panel file (`zigsight-panel.js`) is included with ZigSight. For HACS installations, it's automatically available. For manual installations, ensure the file exists at:
 
-#### Option A: Using the UI (Recommended)
+```
+custom_components/zigsight/www/zigsight-panel.js
+```
 
-1. Navigate to **Settings** → **Dashboards** → **Resources** (click the three-dot menu in the top right)
-2. Click **Add Resource**
-3. Enter the URL: `/local/community/zigsight/zigsight-panel.js`
-4. Set Resource type to **JavaScript Module**
-5. Click **Create**
-
-#### Option B: Using YAML Configuration
+### Step 2: Register the Panel
 
 Add the following to your `configuration.yaml`:
 
 ```yaml
-lovelace:
-  mode: yaml
-  resources:
-    - url: /local/community/zigsight/zigsight-panel.js
-      type: module
+panel_custom:
+  - name: zigsight
+    sidebar_title: ZigSight
+    sidebar_icon: mdi:zigbee
+    url_path: zigsight
+    module_url: /hacsfiles/zigsight/zigsight-panel.js
+    require_admin: false
 ```
 
-**Note**: You'll need to copy the `zigsight-panel.js` file from `custom_components/zigsight/www/` to your `www/community/zigsight/` directory:
-
-```bash
-mkdir -p config/www/community/zigsight
-cp custom_components/zigsight/www/zigsight-panel.js config/www/community/zigsight/
-```
-
-### Step 2: Add the Panel to Your Dashboard
-
-#### Using the UI
-
-1. Open the dashboard where you want to add the panel
-2. Click **Edit Dashboard** (three-dot menu → **Edit Dashboard**)
-3. Click **Add Card**
-4. Search for "ZigSight Device List Panel"
-5. Click to add the card
-
-#### Using YAML
-
-Add the following to your dashboard configuration:
+**Note**: If you installed ZigSight manually (not via HACS), use:
 
 ```yaml
-type: custom:zigsight-panel
+panel_custom:
+  - name: zigsight
+    sidebar_title: ZigSight
+    sidebar_icon: mdi:zigbee
+    url_path: zigsight
+    module_url: /local/zigsight/zigsight-panel.js
+    require_admin: false
 ```
+
+For manual installations, you'll need to copy the panel file to your `www` directory:
+
+```bash
+mkdir -p config/www/zigsight
+cp custom_components/zigsight/www/zigsight-panel.js config/www/zigsight/
+```
+
+### Step 3: Restart Home Assistant
+
+After adding the panel configuration, restart Home Assistant to apply the changes.
+
+## Usage
+
+Once installed, you'll see "ZigSight" in your Home Assistant sidebar. Click on it to access the full-screen panel interface.
+
+### Panel Interface
+
+The panel features a tab-based navigation system with four main sections:
+
+1. **Devices** - Device management and monitoring
+2. **Topology** - Network structure visualization
+3. **Analytics** - Network health insights
+4. **Channel Recommendation** - Wi-Fi interference analysis
+
+Each tab provides specialized functionality for managing different aspects of your Zigbee network.
 
 ## Switching Between Views
 
-The panel supports four view modes that you can switch between using the toggle buttons in the header:
+The panel supports four view modes that you can switch between using the tabs:
 
-- **📋 List View**: Traditional table view with filtering, sorting, and bulk actions
-- **🔗 Topology View**: Interactive network graph visualization
-- **📊 Analytics View**: Comprehensive analytics dashboard with charts and insights
-- **📡 Channel View**: Channel recommendation with Wi-Fi interference analysis
+- **📋 Devices Tab**: Device list with filtering, sorting, and bulk actions
+- **🔗 Topology Tab**: Interactive network graph visualization
+- **📊 Analytics Tab**: Comprehensive analytics dashboard with charts and insights
+- **📡 Channel Recommendation Tab**: Channel recommendation with Wi-Fi interference analysis
 
-Simply click the corresponding button to switch between views. Your filter settings and selections are preserved when switching views.
+Simply click the corresponding tab to switch between views. Your filter settings and selections are preserved when switching views.
 
 ## Features
 
@@ -1218,7 +1229,7 @@ Planned features for future releases:
 
 ## Feedback and Support
 
-If you encounter issues or have suggestions for the Device List Panel:
+If you encounter issues or have suggestions for the Frontend Panel:
 
 1. Check the [FAQ](faq.md)
 2. Review existing [GitHub Issues](https://github.com/mmornati/zigsight/issues)
@@ -1228,3 +1239,10 @@ If you encounter issues or have suggestions for the Device List Panel:
    - Steps to reproduce
    - Expected vs actual behavior
    - Screenshots if applicable
+
+## Related Documentation
+
+- [Getting Started Guide](getting_started.md) - Initial setup and configuration
+- [UI Documentation](ui.md) - Network topology card (separate from panel)
+- [Analytics Documentation](analytics.md) - Understanding device metrics
+- [Wi-Fi Recommendation](wifi_recommendation.md) - Channel optimization guide

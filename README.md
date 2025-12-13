@@ -5,6 +5,7 @@ Home Assistant diagnostics and optimization toolkit for Zigbee networks — sign
 ## Features
 
 - **Multi-Platform Support**: Works with Zigbee2MQTT, ZHA, and deCONZ
+- **Frontend Panel**: Comprehensive web interface accessible from Home Assistant sidebar
 - **Network Visualization**: Interactive topology maps showing device relationships
 - **Health Monitoring**: Battery drain detection and device health scoring
 - **Channel Recommendations**: Wi-Fi interference analysis for optimal Zigbee channel selection

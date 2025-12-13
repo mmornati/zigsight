@@ -58,6 +58,18 @@ Customize the analytics thresholds:
 - **Reconnect Threshold**: Number of reconnections to track (default: 5)
 - **Data Retention**: Number of days to keep device history (default: 30)
 
+## Frontend Panel
+
+ZigSight includes a comprehensive frontend panel accessible from the Home Assistant sidebar. The panel provides:
+
+- **Device List**: View all discovered devices with key metrics
+- **Device Details**: Detailed information and analytics for each device
+- **Network Topology**: Visual representation of your Zigbee network
+- **Analytics Dashboard**: Network health overview and insights
+- **Channel Recommendation**: Wi-Fi interference analysis and channel recommendations
+
+To enable the frontend panel, see [Frontend Panel Documentation](frontend_panel.md).
+
 ## What's Next?
 
 After configuration, ZigSight will:

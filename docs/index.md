@@ -10,6 +10,7 @@ ZigSight helps you monitor, analyze, and optimize your Zigbee network by providi
 - **Analytics Engine**: Compute metrics like reconnect rates, battery trends, and health scores
 - **Wi-Fi Interference Analysis**: Get recommendations for the optimal Zigbee channel based on your Wi-Fi environment
 - **Network Topology Visualization**: See your entire Zigbee network in an interactive dashboard card
+- **Frontend Panel**: Comprehensive web interface for managing and visualizing your Zigbee network
 - **Automation Blueprints**: Pre-built automations for common monitoring scenarios
 
 ## Features
@@ -27,6 +28,16 @@ ZigSight tracks key metrics for each device in your network:
 ### Wi-Fi Channel Recommendation
 
 Zigbee and Wi-Fi both operate in the 2.4 GHz spectrum, which can cause interference. ZigSight can analyze your Wi-Fi environment and recommend the best Zigbee channel (11, 15, 20, or 25) to minimize interference.
+
+### Frontend Panel
+
+A comprehensive full-screen panel accessible from the Home Assistant sidebar provides:
+
+- **Device Management**: View all devices with filtering, sorting, and detailed device information
+- **Network Topology**: Visual representation of your Zigbee network structure and statistics
+- **Analytics Dashboard**: Network-wide health overview, average health scores, and devices requiring attention
+- **Channel Recommendation**: Interactive interface for Wi-Fi interference analysis and channel recommendations
+- **Real-time Updates**: Automatic data refresh every 30 seconds
 
 ### Network Topology Card
 
@@ -71,6 +82,7 @@ For detailed installation instructions, see the [Getting Started](getting_starte
 | [Integrations](integrations/zigbee2mqtt.md) | Setting up Zigbee2MQTT or ZHA |
 | [Analytics](analytics.md) | Understanding device metrics and health scores |
 | [Wi-Fi Recommendation](wifi_recommendation.md) | Channel optimization for minimal interference |
+| [Frontend Panel](frontend_panel.md) | Comprehensive web interface for network management |
 | [UI](ui.md) | Network topology visualization card |
 | [Automations](automations.md) | Using the automation blueprints |
 | [FAQ](faq.md) | Frequently asked questions |

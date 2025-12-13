@@ -1,10 +1,12 @@
 # ZigSight UI - Network Topology Visualization
 
-This document describes how to use the ZigSight Network Topology card to visualize your Zigbee network.
+This document describes how to use the ZigSight Network Topology card to visualize your Zigbee network in a Lovelace dashboard card.
 
 ## Overview
 
-The ZigSight Network Topology card provides an interactive visualization of your Zigbee network, showing:
+The ZigSight Network Topology card is a **Lovelace dashboard card** that provides an interactive visualization of your Zigbee network, showing:
+
+> **Note**: ZigSight also includes a comprehensive [Frontend Panel](frontend_panel.md) accessible from the Home Assistant sidebar. The panel provides a full-screen interface with device management, topology visualization, analytics, and channel recommendations. The topology card described here is a separate component for use in Lovelace dashboards.
 
 - **Coordinator**: The Zigbee coordinator (typically your Zigbee2MQTT bridge)
 - **Routers**: Devices that can route messages (typically powered devices)
@@ -241,10 +243,10 @@ cards:
     content: |
       ## Network Overview
       Monitor your Zigbee network health and topology.
-  
+
   - type: custom:zigsight-topology-card
     title: Zigbee Network
-  
+
   - type: entities
     entities:
       - sensor.zigsight_network_health
@@ -260,7 +262,7 @@ type: horizontal-stack
 cards:
   - type: custom:zigsight-topology-card
     title: Network Topology
-  
+
   - type: vertical-stack
     cards:
       - type: gauge
@@ -268,7 +270,7 @@ cards:
         name: Network Health
         min: 0
         max: 100
-      
+
       - type: entities
         entities:
           - sensor.zigsight_coordinator
@@ -294,8 +296,34 @@ A: The topology data is loaded when the card is first displayed. Click the "Refr
 
 A: You can access the raw JSON data by visiting `/api/zigsight/topology` in your browser. Copy and save the JSON response for analysis or backup.
 
+## Frontend Panel vs. Topology Card
+
+ZigSight provides two different UI components for network visualization:
+
+### Topology Card (This Document)
+
+- **Type**: Lovelace dashboard card
+- **Location**: Embedded in your Lovelace dashboards
+- **Use Case**: Quick network overview on a dashboard
+- **Features**: Device cards with basic information, statistics, device details dialog
+
+### Frontend Panel
+
+- **Type**: Full-screen panel accessible from sidebar
+- **Location**: Home Assistant sidebar → ZigSight
+- **Use Case**: Comprehensive network management and monitoring
+- **Features**:
+  - Device management with filtering and sorting
+  - Network topology with statistics
+  - Analytics dashboard
+  - Channel recommendation interface
+  - Real-time updates
+
+For more information about the frontend panel, see the [Frontend Panel Documentation](frontend_panel.md).
+
 ## See Also
 
+- [Frontend Panel](frontend_panel.md) - Comprehensive web interface for network management
 - [Getting Started Guide](getting_started.md)
 - [Analytics Documentation](analytics.md)
 - [Wi-Fi Recommendations](wifi_recommendation.md)

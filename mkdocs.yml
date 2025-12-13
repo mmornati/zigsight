@@ -25,6 +25,7 @@ nav:
       - deCONZ: integrations/deconz.md
   - Analytics: analytics.md
   - Wi-Fi Recommendation: wifi_recommendation.md
+  - Frontend Panel: frontend_panel.md
   - UI: ui.md
   - Automations: automations.md
   - FAQ: faq.md

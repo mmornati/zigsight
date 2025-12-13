@@ -111,10 +111,24 @@ Changing channels requires all devices to rejoin the network. Most devices will 
 
 ## UI and Visualization
 
+### What's the difference between the Frontend Panel and the Topology Card?
+
+ZigSight provides two UI components:
+
+- **Frontend Panel**: A full-screen panel accessible from the Home Assistant sidebar. Provides comprehensive device management, topology visualization, analytics dashboard, and channel recommendations. See [Frontend Panel Documentation](frontend_panel.md).
+
+- **Topology Card**: A Lovelace dashboard card for embedding in your dashboards. Provides a quick network overview. See [UI Documentation](ui.md).
+
 ### How do I add the topology card?
 
 1. Register the card as a Lovelace resource (see [UI documentation](ui.md))
 2. Add `type: custom:zigsight-topology-card` to your dashboard
+
+### How do I enable the frontend panel?
+
+1. Add the panel configuration to `configuration.yaml` (see [Frontend Panel Documentation](frontend_panel.md))
+2. Restart Home Assistant
+3. Access "ZigSight" from the sidebar
 
 ### The topology card shows "No data" - what's wrong?
 

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Marco Mornati" /><link rel="canonical" href="https://mmornati.github.io/zigsight/getting_started/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Getting Started - ZigSight Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Getting Started";
+        var mkdocs_page_input_path = "getting_started.md";
+        var mkdocs_page_url = "/zigsight/getting_started/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/bash.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> ZigSight Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Getting Started</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#step-1-select-integration-type">Step 1: Select Integration Type</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#step-2-configure-integration-specific-settings">Step 2: Configure Integration-Specific Settings</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#step-3-configure-analytics-settings-optional">Step 3: Configure Analytics Settings (Optional)</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#whats-next">What's Next?</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Integrations</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zigbee2mqtt/">Zigbee2MQTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zha/">ZHA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/deconz/">deCONZ</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../analytics/">Analytics</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../wifi_recommendation/">Wi-Fi Recommendation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ui/">UI</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../automations/">Automations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../faq/">FAQ</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../DEVELOPER_README/">Developer Guide</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">ZigSight Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Getting Started</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/mmornati/zigsight/edit/master/docs/getting_started.md">Edit on mmornati/zigsight</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="getting-started-with-zigsight">Getting Started with ZigSight<a class="headerlink" href="#getting-started-with-zigsight" title="Permanent link">&para;</a></h1>
+<p>ZigSight is a Home Assistant custom component that provides diagnostics and optimization tools for Zigbee networks.</p>
+<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
+<p>To install ZigSight, copy the <code>custom_components/zigsight/</code> directory into your Home Assistant <code>custom_components/</code> folder.</p>
+<ol>
+<li>Navigate to your Home Assistant configuration directory (usually <code>.homeassistant/</code> or <code>config/</code>)</li>
+<li>Create a <code>custom_components/</code> directory if it doesn't exist</li>
+<li>Copy the entire <code>zigsight/</code> folder into <code>custom_components/</code></li>
+<li>Restart Home Assistant</li>
+<li>Go to <strong>Settings &gt; Devices &amp; Services</strong> and click <strong>Add Integration</strong></li>
+<li>Search for "ZigSight" and follow the setup wizard</li>
+</ol>
+<p>Your directory structure should look like this:</p>
+<pre class="codehilite"><code>config/
+├── configuration.yaml
+└── custom_components/
+    └── zigsight/
+        ├── __init__.py
+        ├── manifest.json
+        ├── config_flow.py
+        └── ...
+</code></pre>
+
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<p>After installation, ZigSight can be configured through the Home Assistant UI via <strong>Settings &gt; Devices &amp; Services</strong>.</p>
+<h3 id="step-1-select-integration-type">Step 1: Select Integration Type<a class="headerlink" href="#step-1-select-integration-type" title="Permanent link">&para;</a></h3>
+<p>When adding the integration, you'll first choose your Zigbee coordinator:</p>
+<ul>
+<li><strong>Zigbee2MQTT</strong>: If you use Zigbee2MQTT as your Zigbee bridge</li>
+<li><strong>ZHA</strong>: If you use Home Assistant's native ZHA integration</li>
+</ul>
+<h3 id="step-2-configure-integration-specific-settings">Step 2: Configure Integration-Specific Settings<a class="headerlink" href="#step-2-configure-integration-specific-settings" title="Permanent link">&para;</a></h3>
+<p><strong>For Zigbee2MQTT:</strong>
+- <strong>MQTT Broker</strong>: Hostname or IP of your MQTT broker (leave as <code>localhost</code> to use Home Assistant's MQTT integration)
+- <strong>MQTT Port</strong>: Port number (default: 1883)
+- <strong>MQTT Username/Password</strong>: Optional, if your broker requires authentication
+- <strong>MQTT Topic Prefix</strong>: Base topic for Zigbee2MQTT (default: <code>zigbee2mqtt</code>)</p>
+<p><strong>For ZHA:</strong>
+- No additional configuration needed - ZigSight automatically detects your ZHA devices</p>
+<h3 id="step-3-configure-analytics-settings-optional">Step 3: Configure Analytics Settings (Optional)<a class="headerlink" href="#step-3-configure-analytics-settings-optional" title="Permanent link">&para;</a></h3>
+<p>Customize the analytics thresholds:</p>
+<ul>
+<li><strong>Battery Drain Threshold</strong>: Minimum drain rate (%/hour) to trigger warning (default: 10.0)</li>
+<li><strong>Reconnect Rate Threshold</strong>: Maximum reconnect rate (events/hour) before warning (default: 5.0)</li>
+<li><strong>Reconnect Rate Window</strong>: Time window in hours for calculations (default: 24)</li>
+<li><strong>Reconnect Threshold</strong>: Number of reconnections to track (default: 5)</li>
+<li><strong>Data Retention</strong>: Number of days to keep device history (default: 30)</li>
+</ul>
+<h2 id="whats-next">What's Next?<a class="headerlink" href="#whats-next" title="Permanent link">&para;</a></h2>
+<p>After configuration, ZigSight will:</p>
+<ol>
+<li><strong>Discover your devices</strong> - Automatically detect all Zigbee devices from your coordinator</li>
+<li><strong>Create sensors</strong> - Generate health scores, reconnect rates, and battery trends for each device</li>
+<li><strong>Monitor your network</strong> - Track device connectivity and battery health</li>
+<li><strong>Provide recommendations</strong> - Use the Wi-Fi channel recommendation service to optimize your Zigbee channel</li>
+</ol>
+<p>See the <a href="../integrations/zigbee2mqtt/">Integrations</a> guides for detailed setup instructions for your specific coordinator.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href=".." class="btn btn-neutral float-left" title="Home"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../integrations/zigbee2mqtt/" class="btn btn-neutral float-right" title="Zigbee2MQTT">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/mmornati/zigsight" class="fa fa-code-fork" style="color: #fcfcfc"> mmornati/zigsight</a>
+        </span>
+    
+    
+      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../integrations/zigbee2mqtt/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

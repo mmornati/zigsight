@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Marco Mornati" /><link rel="canonical" href="https://mmornati.github.io/zigsight/analytics/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Analytics - ZigSight Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Analytics";
+        var mkdocs_page_input_path = "analytics.md";
+        var mkdocs_page_url = "/zigsight/analytics/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/bash.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> ZigSight Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../getting_started/">Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Integrations</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zigbee2mqtt/">Zigbee2MQTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zha/">ZHA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/deconz/">deCONZ</a>
+                  </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Analytics</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#metrics">Metrics</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#reconnect-rate">Reconnect Rate</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#battery-trend">Battery Trend</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#health-score">Health Score</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#warnings">Warnings</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#battery-drain-warning">Battery Drain Warning</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#connectivity-warning">Connectivity Warning</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#threshold-configuration">Threshold Configuration</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#tuning-thresholds">Tuning Thresholds</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#worked-examples">Worked Examples</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#example-1-detecting-battery-issues">Example 1: Detecting Battery Issues</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#example-2-identifying-connectivity-problems">Example 2: Identifying Connectivity Problems</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#example-3-health-score-trend-analysis">Example 3: Health Score Trend Analysis</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#metrics-show-unknown">Metrics Show "Unknown"</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#health-score-seems-inaccurate">Health Score Seems Inaccurate</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#warnings-trigger-too-frequently">Warnings Trigger Too Frequently</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#battery-trend-not-available">Battery Trend Not Available</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#data-retention">Data Retention</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#future-enhancements">Future Enhancements</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../wifi_recommendation/">Wi-Fi Recommendation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ui/">UI</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../automations/">Automations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../faq/">FAQ</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../DEVELOPER_README/">Developer Guide</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">ZigSight Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Analytics</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/mmornati/zigsight/edit/master/docs/analytics.md">Edit on mmornati/zigsight</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="zigsight-analytics">ZigSight Analytics<a class="headerlink" href="#zigsight-analytics" title="Permanent link">&para;</a></h1>
+<p>ZigSight provides powerful analytics capabilities to monitor and diagnose Zigbee device health and connectivity issues.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>The analytics engine processes device metrics over time to compute derived insights:</p>
+<ul>
+<li><strong>Reconnect Rate</strong>: Frequency of device reconnections per hour</li>
+<li><strong>Battery Trend</strong>: Rate of battery drain (percentage per hour)</li>
+<li><strong>Health Score</strong>: Aggregated health metric (0-100) combining multiple factors</li>
+<li><strong>Battery Drain Warning</strong>: Binary alert when battery drain exceeds threshold</li>
+<li><strong>Connectivity Warning</strong>: Binary alert when connectivity issues are detected</li>
+</ul>
+<h2 id="metrics">Metrics<a class="headerlink" href="#metrics" title="Permanent link">&para;</a></h2>
+<h3 id="reconnect-rate">Reconnect Rate<a class="headerlink" href="#reconnect-rate" title="Permanent link">&para;</a></h3>
+<p><strong>Sensor</strong>: <code>sensor.&lt;device&gt;_reconnect_rate</code>
+<strong>Unit</strong>: events/hour
+<strong>Description</strong>: Measures how often a device reconnects to the network over a sliding time window.</p>
+<p><strong>Default Window</strong>: 24 hours
+<strong>Calculation</strong>: Counts reconnection events (gaps &gt; 5 minutes between updates) within the window and divides by window duration.</p>
+<p><strong>Example</strong>:
+- A device that reconnects 12 times in 24 hours = 0.5 events/hour
+- A device that reconnects 240 times in 24 hours = 10 events/hour (high, indicates connectivity issues)</p>
+<h3 id="battery-trend">Battery Trend<a class="headerlink" href="#battery-trend" title="Permanent link">&para;</a></h3>
+<p><strong>Sensor</strong>: <code>sensor.&lt;device&gt;_battery_trend</code>
+<strong>Unit</strong>: %/hour
+<strong>Description</strong>: Rate of battery drain computed using linear regression over the last 24 hours.</p>
+<p><strong>Algorithm</strong>:
+- Extracts battery readings from device history
+- Filters readings with battery ≥ 20% (below threshold, readings may be unreliable)
+- Computes linear regression slope to determine trend
+- Returns percentage change per hour (negative = draining)</p>
+<p><strong>Example</strong>:
+- <code>-0.5</code> = Battery draining at 0.5% per hour
+- <code>-2.0</code> = Battery draining at 2% per hour (concerning for low battery devices)
+- <code>None</code> = Insufficient data to compute trend</p>
+<h3 id="health-score">Health Score<a class="headerlink" href="#health-score" title="Permanent link">&para;</a></h3>
+<p><strong>Sensor</strong>: <code>sensor.&lt;device&gt;_health_score</code>
+<strong>Unit</strong>: None (0-100 scale)
+<strong>Description</strong>: Aggregated health metric combining multiple device factors.</p>
+<p><strong>Components</strong> (default weights):
+- <strong>Link Quality</strong> (30%): Normalized signal strength (0-255 → 0-100)
+- <strong>Battery</strong> (20%): Current battery level (0-100%)
+- <strong>Reconnect Rate</strong> (30%): Inverted reconnect rate (lower is better)
+- <strong>Connectivity</strong> (20%): Based on last_seen recency (&lt; 5 min = 100, &gt; 1 hour = 0)</p>
+<p><strong>Score Interpretation</strong>:
+- <strong>90-100</strong>: Excellent health
+- <strong>70-89</strong>: Good health
+- <strong>50-69</strong>: Fair health (monitor closely)
+- <strong>0-49</strong>: Poor health (investigate issues)</p>
+<p><strong>Example</strong>:</p>
+<pre class="codehilite"><code>Device with:
+- Link Quality: 200/255 → 78.4 score
+- Battery: 80%
+- Reconnect Rate: 0.5/hour → 95 score
+- Connectivity: Seen 2 min ago → 100 score
+
+Health Score = (78.4 × 0.3) + (80 × 0.2) + (95 × 0.3) + (100 × 0.2) = 86.6
+</code></pre>
+
+<h2 id="warnings">Warnings<a class="headerlink" href="#warnings" title="Permanent link">&para;</a></h2>
+<h3 id="battery-drain-warning">Battery Drain Warning<a class="headerlink" href="#battery-drain-warning" title="Permanent link">&para;</a></h3>
+<p><strong>Binary Sensor</strong>: <code>binary_sensor.&lt;device&gt;_battery_drain_warning</code>
+<strong>Device Class</strong>: <code>problem</code>
+<strong>Description</strong>: Triggers when battery drain rate exceeds configured threshold.</p>
+<p><strong>Default Threshold</strong>: 10%/hour
+<strong>Configuration</strong>: Set via <code>battery_drain_threshold</code> in integration options</p>
+<p><strong>When It Triggers</strong>:
+- Battery trend &lt; -10%/hour (default)
+- Example: Device battery dropped from 80% to 50% in 3 hours = -10%/hour</p>
+<p><strong>Troubleshooting</strong>:
+- Check device placement (poor signal increases power usage)
+- Verify battery is not defective
+- Review device logs for transmission errors
+- Consider replacing battery if drain persists</p>
+<h3 id="connectivity-warning">Connectivity Warning<a class="headerlink" href="#connectivity-warning" title="Permanent link">&para;</a></h3>
+<p><strong>Binary Sensor</strong>: <code>binary_sensor.&lt;device&gt;_connectivity_warning</code>
+<strong>Device Class</strong>: <code>connectivity</code>
+<strong>Description</strong>: Triggers when connectivity issues are detected.</p>
+<p><strong>Default Threshold</strong>: 5 events/hour
+<strong>Configuration</strong>: Set via <code>reconnect_rate_threshold</code> in integration options</p>
+<p><strong>When It Triggers</strong>:
+- Reconnect rate ≥ 5 events/hour (default)
+- OR device hasn't been seen for &gt; 1 hour</p>
+<p><strong>Troubleshooting</strong>:
+- Check device distance from coordinator
+- Verify Zigbee channel interference
+- Review link quality metrics
+- Check for physical obstructions
+- Verify device firmware is up to date</p>
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<h3 id="threshold-configuration">Threshold Configuration<a class="headerlink" href="#threshold-configuration" title="Permanent link">&para;</a></h3>
+<p>All thresholds are configurable during integration setup or via options flow:</p>
+<ul>
+<li><strong>Battery Drain Threshold</strong>: Minimum drain rate (%/hour) to trigger warning (default: 10.0)</li>
+<li><strong>Reconnect Rate Threshold</strong>: Maximum reconnect rate (events/hour) before warning (default: 5.0)</li>
+<li><strong>Reconnect Rate Window</strong>: Time window in hours for reconnect rate calculation (default: 24)</li>
+</ul>
+<h3 id="tuning-thresholds">Tuning Thresholds<a class="headerlink" href="#tuning-thresholds" title="Permanent link">&para;</a></h3>
+<p><strong>For Stable Networks</strong>:
+- Reduce <code>reconnect_rate_threshold</code> to 2-3 events/hour
+- Reduce <code>battery_drain_threshold</code> to 5-7%/hour for better early detection</p>
+<p><strong>For Noisy Networks</strong>:
+- Increase <code>reconnect_rate_threshold</code> to 10+ events/hour
+- Increase <code>battery_drain_threshold</code> to 15+/hour to avoid false positives</p>
+<p><strong>For Battery-Optimized Monitoring</strong>:
+- Use longer <code>reconnect_rate_window_hours</code> (48-72) for better averaging
+- Adjust <code>battery_drain_threshold</code> based on device type (motion sensors drain faster than door sensors)</p>
+<h2 id="worked-examples">Worked Examples<a class="headerlink" href="#worked-examples" title="Permanent link">&para;</a></h2>
+<h3 id="example-1-detecting-battery-issues">Example 1: Detecting Battery Issues<a class="headerlink" href="#example-1-detecting-battery-issues" title="Permanent link">&para;</a></h3>
+<p><strong>Scenario</strong>: Door sensor battery drains quickly after installation.</p>
+<p><strong>Setup</strong>:</p>
+<pre class="codehilite"><code>battery_drain_threshold: 8.0  # More sensitive
+</code></pre>
+
+<p><strong>Monitoring</strong>:
+1. Check <code>sensor.door_sensor_battery_trend</code> → Shows <code>-2.5 %/hour</code>
+2. Check <code>binary_sensor.door_sensor_battery_drain_warning</code> → <code>ON</code>
+3. Check <code>sensor.door_sensor_battery</code> → Shows 45%</p>
+<p><strong>Action</strong>: Battery is draining at 2.5%/hour, triggering warning. Check device placement and signal quality.</p>
+<h3 id="example-2-identifying-connectivity-problems">Example 2: Identifying Connectivity Problems<a class="headerlink" href="#example-2-identifying-connectivity-problems" title="Permanent link">&para;</a></h3>
+<p><strong>Scenario</strong>: Motion sensor frequently disconnects and reconnects.</p>
+<p><strong>Setup</strong>:</p>
+<pre class="codehilite"><code>reconnect_rate_threshold: 5.0
+reconnect_rate_window_hours: 24
+</code></pre>
+
+<p><strong>Monitoring</strong>:
+1. Check <code>sensor.motion_sensor_reconnect_rate</code> → Shows <code>12.5 events/hour</code>
+2. Check <code>binary_sensor.motion_sensor_connectivity_warning</code> → <code>ON</code>
+3. Check <code>sensor.motion_sensor_health_score</code> → Shows <code>35</code> (poor)</p>
+<p><strong>Action</strong>: High reconnect rate (12.5/hour) indicates connectivity issues. Check signal strength and device placement.</p>
+<h3 id="example-3-health-score-trend-analysis">Example 3: Health Score Trend Analysis<a class="headerlink" href="#example-3-health-score-trend-analysis" title="Permanent link">&para;</a></h3>
+<p><strong>Scenario</strong>: Monitoring overall device health over time.</p>
+<p><strong>Setup</strong>:
+- Track <code>sensor.&lt;device&gt;_health_score</code> in Home Assistant history
+- Create automations based on score thresholds</p>
+<p><strong>Monitoring</strong>:
+- Device starts at 85 (good)
+- Over 1 week, score drops to 60 (fair)
+- Check individual components:
+  - Link quality: Stable at 75
+  - Battery: Dropped from 90% to 65%
+  - Reconnect rate: Increased from 0.2 to 2.0/hour</p>
+<p><strong>Action</strong>: Battery and connectivity are degrading. Investigate root causes.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="metrics-show-unknown">Metrics Show "Unknown"<a class="headerlink" href="#metrics-show-unknown" title="Permanent link">&para;</a></h3>
+<p><strong>Cause</strong>: Insufficient historical data.</p>
+<p><strong>Solution</strong>:
+- Wait for more device updates (analytics needs at least 2-3 data points)
+- Verify MQTT connection is working
+- Check device is sending regular updates</p>
+<h3 id="health-score-seems-inaccurate">Health Score Seems Inaccurate<a class="headerlink" href="#health-score-seems-inaccurate" title="Permanent link">&para;</a></h3>
+<p><strong>Cause</strong>: Default weights may not fit your use case.</p>
+<p><strong>Solution</strong>:
+- Review individual component scores (link quality, battery, reconnect rate, connectivity)
+- Consider your network priorities (battery life vs. connectivity)
+- Note: Weights are currently fixed in code but may be configurable in future versions</p>
+<h3 id="warnings-trigger-too-frequently">Warnings Trigger Too Frequently<a class="headerlink" href="#warnings-trigger-too-frequently" title="Permanent link">&para;</a></h3>
+<p><strong>Cause</strong>: Thresholds too sensitive for your environment.</p>
+<p><strong>Solution</strong>:
+- Increase thresholds via integration options
+- Review device logs to understand normal behavior
+- Adjust based on device type (motion sensors behave differently than door sensors)</p>
+<h3 id="battery-trend-not-available">Battery Trend Not Available<a class="headerlink" href="#battery-trend-not-available" title="Permanent link">&para;</a></h3>
+<p><strong>Cause</strong>: Battery readings below minimum threshold or insufficient data.</p>
+<p><strong>Solution</strong>:
+- Ensure device reports battery level
+- Wait for more historical data points
+- Check if battery is below 20% (trend calculation minimum)</p>
+<h2 id="data-retention">Data Retention<a class="headerlink" href="#data-retention" title="Permanent link">&para;</a></h2>
+<p>Analytics calculations use device history stored in memory:</p>
+<ul>
+<li><strong>Maximum History</strong>: 1000 entries per device (last entries kept)</li>
+<li><strong>Retention Period</strong>: Configurable via <code>retention_days</code> (default: 30 days)</li>
+<li><strong>Memory Usage</strong>: Approximately 10-50 KB per device depending on history size</li>
+</ul>
+<p>For persistent storage and long-term analysis, use Home Assistant's built-in history features to record sensor values.</p>
+<h2 id="future-enhancements">Future Enhancements<a class="headerlink" href="#future-enhancements" title="Permanent link">&para;</a></h2>
+<p>Potential future improvements:</p>
+<ul>
+<li>Configurable health score weights</li>
+<li>Additional metrics (route stability, router load)</li>
+<li>Predictive battery life estimation</li>
+<li>Anomaly detection for unusual patterns</li>
+<li>Historical trend visualization</li>
+<li>Integration with Home Assistant automations for proactive alerts</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../integrations/deconz/" class="btn btn-neutral float-left" title="deCONZ"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../wifi_recommendation/" class="btn btn-neutral float-right" title="Wi-Fi Recommendation">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/mmornati/zigsight" class="fa fa-code-fork" style="color: #fcfcfc"> mmornati/zigsight</a>
+        </span>
+    
+    
+      <span><a href="../integrations/deconz/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../wifi_recommendation/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

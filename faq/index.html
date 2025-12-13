@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Marco Mornati" /><link rel="canonical" href="https://mmornati.github.io/zigsight/faq/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>FAQ - ZigSight Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "FAQ";
+        var mkdocs_page_input_path = "faq.md";
+        var mkdocs_page_url = "/zigsight/faq/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/bash.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> ZigSight Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../getting_started/">Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Integrations</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zigbee2mqtt/">Zigbee2MQTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zha/">ZHA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/deconz/">deCONZ</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../analytics/">Analytics</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../wifi_recommendation/">Wi-Fi Recommendation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ui/">UI</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../automations/">Automations</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">FAQ</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#general">General</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#what-is-zigsight">What is ZigSight?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#which-zigbee-integrations-does-zigsight-support">Which Zigbee integrations does ZigSight support?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#is-zigsight-available-through-hacs">Is ZigSight available through HACS?</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#how-do-i-install-zigsight">How do I install ZigSight?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#does-zigsight-require-mqtt">Does ZigSight require MQTT?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#what-are-the-system-requirements">What are the system requirements?</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#analytics">Analytics</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#how-is-the-health-score-calculated">How is the health score calculated?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#why-does-my-device-show-unknown-for-metrics">Why does my device show "Unknown" for metrics?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#can-i-customize-the-health-score-weights">Can I customize the health score weights?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#what-is-a-normal-reconnect-rate">What is a normal reconnect rate?</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#wi-fi-recommendations">Wi-Fi Recommendations</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#how-do-i-get-a-channel-recommendation">How do I get a channel recommendation?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#which-zigbee-channels-should-i-use">Which Zigbee channels should I use?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#how-often-should-i-check-for-interference">How often should I check for interference?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#is-changing-the-zigbee-channel-safe">Is changing the Zigbee channel safe?</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#ui-and-visualization">UI and Visualization</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#how-do-i-add-the-topology-card">How do I add the topology card?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#the-topology-card-shows-no-data-whats-wrong">The topology card shows "No data" - what's wrong?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#can-i-see-a-graph-visualization-of-my-network">Can I see a graph visualization of my network?</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#automations">Automations</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#how-do-i-import-the-blueprints">How do I import the blueprints?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#can-i-customize-the-blueprint-thresholds">Can I customize the blueprint thresholds?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#how-do-i-get-notifications-on-my-phone">How do I get notifications on my phone?</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#zigsight-isnt-detecting-my-devices">ZigSight isn't detecting my devices</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#im-getting-errors-in-the-home-assistant-logs">I'm getting errors in the Home Assistant logs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#metrics-arent-updating">Metrics aren't updating</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#how-do-i-report-a-bug">How do I report a bug?</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#contributing">Contributing</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#how-can-i-contribute-to-zigsight">How can I contribute to ZigSight?</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#where-can-i-get-help">Where can I get help?</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../DEVELOPER_README/">Developer Guide</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">ZigSight Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">FAQ</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/mmornati/zigsight/edit/master/docs/faq.md">Edit on mmornati/zigsight</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="frequently-asked-questions">Frequently Asked Questions<a class="headerlink" href="#frequently-asked-questions" title="Permanent link">&para;</a></h1>
+<p>This page answers common questions about ZigSight.</p>
+<h2 id="general">General<a class="headerlink" href="#general" title="Permanent link">&para;</a></h2>
+<h3 id="what-is-zigsight">What is ZigSight?<a class="headerlink" href="#what-is-zigsight" title="Permanent link">&para;</a></h3>
+<p>ZigSight is a Home Assistant custom component that provides diagnostics and optimization tools for Zigbee networks. It helps you monitor device health, analyze network performance, and optimize your Zigbee channel selection.</p>
+<h3 id="which-zigbee-integrations-does-zigsight-support">Which Zigbee integrations does ZigSight support?<a class="headerlink" href="#which-zigbee-integrations-does-zigsight-support" title="Permanent link">&para;</a></h3>
+<p>ZigSight currently supports:</p>
+<ul>
+<li><strong>Zigbee2MQTT</strong> - MQTT-based Zigbee bridge</li>
+<li><strong>ZHA</strong> - Zigbee Home Automation (native Home Assistant integration)</li>
+</ul>
+<p><strong>deCONZ</strong> support is planned for a future release.</p>
+<h3 id="is-zigsight-available-through-hacs">Is ZigSight available through HACS?<a class="headerlink" href="#is-zigsight-available-through-hacs" title="Permanent link">&para;</a></h3>
+<p>ZigSight can be installed as a custom repository through HACS. Add <code>https://github.com/mmornati/zigsight</code> as a custom repository in HACS.</p>
+<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
+<h3 id="how-do-i-install-zigsight">How do I install ZigSight?<a class="headerlink" href="#how-do-i-install-zigsight" title="Permanent link">&para;</a></h3>
+<p>See the <a href="../getting_started/">Getting Started</a> guide for detailed installation instructions. In brief:</p>
+<ol>
+<li>Copy <code>custom_components/zigsight/</code> to your Home Assistant <code>custom_components/</code> directory</li>
+<li>Restart Home Assistant</li>
+<li>Add the integration via Settings &gt; Devices &amp; Services</li>
+</ol>
+<h3 id="does-zigsight-require-mqtt">Does ZigSight require MQTT?<a class="headerlink" href="#does-zigsight-require-mqtt" title="Permanent link">&para;</a></h3>
+<p>MQTT is required only if you use Zigbee2MQTT as your Zigbee coordinator. For ZHA, MQTT is not needed. If you're using Home Assistant's built-in MQTT integration, you can leave the MQTT Broker setting as <code>localhost</code> and ZigSight will use it automatically.</p>
+<h3 id="what-are-the-system-requirements">What are the system requirements?<a class="headerlink" href="#what-are-the-system-requirements" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Home Assistant 2025.10.0 or later</li>
+<li>Python 3.11 or later</li>
+<li>One of the supported Zigbee integrations configured</li>
+</ul>
+<h2 id="analytics">Analytics<a class="headerlink" href="#analytics" title="Permanent link">&para;</a></h2>
+<h3 id="how-is-the-health-score-calculated">How is the health score calculated?<a class="headerlink" href="#how-is-the-health-score-calculated" title="Permanent link">&para;</a></h3>
+<p>The health score (0-100) is computed from four weighted factors:</p>
+<ul>
+<li><strong>Link Quality (30%)</strong>: Signal strength normalized from 0-255 to 0-100</li>
+<li><strong>Battery (20%)</strong>: Current battery level percentage</li>
+<li><strong>Reconnect Rate (30%)</strong>: Inverted reconnect rate (lower is better)</li>
+<li><strong>Connectivity (20%)</strong>: Based on how recently the device was seen</li>
+</ul>
+<p>See the <a href="../analytics/">Analytics</a> documentation for detailed algorithm explanations.</p>
+<h3 id="why-does-my-device-show-unknown-for-metrics">Why does my device show "Unknown" for metrics?<a class="headerlink" href="#why-does-my-device-show-unknown-for-metrics" title="Permanent link">&para;</a></h3>
+<p>This typically happens when:</p>
+<ul>
+<li>The device hasn't been seen recently</li>
+<li>There isn't enough historical data to compute metrics</li>
+<li>The device doesn't report the required attributes (e.g., battery level)</li>
+</ul>
+<p>Wait for more data to accumulate, usually 24-48 hours after installation.</p>
+<h3 id="can-i-customize-the-health-score-weights">Can I customize the health score weights?<a class="headerlink" href="#can-i-customize-the-health-score-weights" title="Permanent link">&para;</a></h3>
+<p>Currently, the weights are fixed in code. Configurable weights may be added in a future release.</p>
+<h3 id="what-is-a-normal-reconnect-rate">What is a normal reconnect rate?<a class="headerlink" href="#what-is-a-normal-reconnect-rate" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Excellent</strong>: &lt; 0.5 events/hour</li>
+<li><strong>Good</strong>: 0.5 - 2 events/hour</li>
+<li><strong>Fair</strong>: 2 - 5 events/hour</li>
+<li><strong>Poor</strong>: &gt; 5 events/hour</li>
+</ul>
+<p>High reconnect rates may indicate interference, weak signal, or device issues.</p>
+<h2 id="wi-fi-recommendations">Wi-Fi Recommendations<a class="headerlink" href="#wi-fi-recommendations" title="Permanent link">&para;</a></h2>
+<h3 id="how-do-i-get-a-channel-recommendation">How do I get a channel recommendation?<a class="headerlink" href="#how-do-i-get-a-channel-recommendation" title="Permanent link">&para;</a></h3>
+<p>Use the <code>zigsight.recommend_channel</code> service with one of three modes:</p>
+<ol>
+<li><strong>Manual</strong>: Upload Wi-Fi scan data you've collected</li>
+<li><strong>Router API</strong>: Query your router directly (limited router support)</li>
+<li><strong>Host Scan</strong>: Scan using your Home Assistant host's Wi-Fi adapter</li>
+</ol>
+<p>See <a href="../wifi_recommendation/">Wi-Fi Recommendation</a> for detailed instructions.</p>
+<h3 id="which-zigbee-channels-should-i-use">Which Zigbee channels should I use?<a class="headerlink" href="#which-zigbee-channels-should-i-use" title="Permanent link">&para;</a></h3>
+<p>ZigSight recommends from channels <strong>11, 15, 20, and 25</strong> because they provide the best spacing from common Wi-Fi channels (1, 6, 11).</p>
+<h3 id="how-often-should-i-check-for-interference">How often should I check for interference?<a class="headerlink" href="#how-often-should-i-check-for-interference" title="Permanent link">&para;</a></h3>
+<p>We recommend running a Wi-Fi scan periodically, especially if:</p>
+<ul>
+<li>You notice increased device disconnections</li>
+<li>Your neighbors have set up new Wi-Fi networks</li>
+<li>You've changed your own Wi-Fi configuration</li>
+</ul>
+<h3 id="is-changing-the-zigbee-channel-safe">Is changing the Zigbee channel safe?<a class="headerlink" href="#is-changing-the-zigbee-channel-safe" title="Permanent link">&para;</a></h3>
+<p>Changing channels requires all devices to rejoin the network. Most devices will rejoin automatically within 10-15 minutes, but some battery devices may take longer. Always:</p>
+<ol>
+<li>Backup your Zigbee network configuration first</li>
+<li>Schedule the change during a low-activity period</li>
+<li>Monitor devices for successful rejoining</li>
+</ol>
+<h2 id="ui-and-visualization">UI and Visualization<a class="headerlink" href="#ui-and-visualization" title="Permanent link">&para;</a></h2>
+<h3 id="how-do-i-add-the-topology-card">How do I add the topology card?<a class="headerlink" href="#how-do-i-add-the-topology-card" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Register the card as a Lovelace resource (see <a href="../ui/">UI documentation</a>)</li>
+<li>Add <code>type: custom:zigsight-topology-card</code> to your dashboard</li>
+</ol>
+<h3 id="the-topology-card-shows-no-data-whats-wrong">The topology card shows "No data" - what's wrong?<a class="headerlink" href="#the-topology-card-shows-no-data-whats-wrong" title="Permanent link">&para;</a></h3>
+<p>Check that:</p>
+<ul>
+<li>ZigSight integration is properly configured and running</li>
+<li>Your Zigbee coordinator is connected and responding</li>
+<li>The API endpoint <code>/api/zigsight/topology</code> returns data (test in browser)</li>
+</ul>
+<h3 id="can-i-see-a-graph-visualization-of-my-network">Can I see a graph visualization of my network?<a class="headerlink" href="#can-i-see-a-graph-visualization-of-my-network" title="Permanent link">&para;</a></h3>
+<p>The current version shows devices as cards. A graph/tree visualization using D3.js or vis-network is planned for a future release.</p>
+<h2 id="automations">Automations<a class="headerlink" href="#automations" title="Permanent link">&para;</a></h2>
+<h3 id="how-do-i-import-the-blueprints">How do I import the blueprints?<a class="headerlink" href="#how-do-i-import-the-blueprints" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Go to <strong>Settings</strong> → <strong>Automations &amp; Scenes</strong> → <strong>Blueprints</strong></li>
+<li>Click <strong>Import Blueprint</strong></li>
+<li>Paste the blueprint URL from the <a href="../automations/">Automations</a> documentation</li>
+</ol>
+<h3 id="can-i-customize-the-blueprint-thresholds">Can I customize the blueprint thresholds?<a class="headerlink" href="#can-i-customize-the-blueprint-thresholds" title="Permanent link">&para;</a></h3>
+<p>Yes! When you create an automation from a blueprint, you can customize all the input values including thresholds, notification services, and cooldown periods.</p>
+<h3 id="how-do-i-get-notifications-on-my-phone">How do I get notifications on my phone?<a class="headerlink" href="#how-do-i-get-notifications-on-my-phone" title="Permanent link">&para;</a></h3>
+<p>Set the <code>notify_service</code> input to your mobile app notification service, e.g., <code>notify.mobile_app_your_phone</code>. Make sure the Home Assistant Companion app is installed and configured.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="zigsight-isnt-detecting-my-devices">ZigSight isn't detecting my devices<a class="headerlink" href="#zigsight-isnt-detecting-my-devices" title="Permanent link">&para;</a></h3>
+<p>Check that:</p>
+<ol>
+<li>Your Zigbee coordinator (Zigbee2MQTT or ZHA) is working correctly</li>
+<li>Devices are visible in your coordinator's interface</li>
+<li>The ZigSight integration is configured for the correct coordinator type</li>
+</ol>
+<h3 id="im-getting-errors-in-the-home-assistant-logs">I'm getting errors in the Home Assistant logs<a class="headerlink" href="#im-getting-errors-in-the-home-assistant-logs" title="Permanent link">&para;</a></h3>
+<p>Enable debug logging for more details:</p>
+<pre class="codehilite"><code class="language-yaml">logger:
+  default: info
+  logs:
+    custom_components.zigsight: debug
+</code></pre>
+
+<p>Then check the logs for specific error messages.</p>
+<h3 id="metrics-arent-updating">Metrics aren't updating<a class="headerlink" href="#metrics-arent-updating" title="Permanent link">&para;</a></h3>
+<p>Metrics are computed based on device history. If metrics aren't updating:</p>
+<ol>
+<li>Verify devices are actively sending data</li>
+<li>Check coordinator connectivity</li>
+<li>Restart the ZigSight integration</li>
+</ol>
+<h3 id="how-do-i-report-a-bug">How do I report a bug?<a class="headerlink" href="#how-do-i-report-a-bug" title="Permanent link">&para;</a></h3>
+<p>Open an issue on <a href="https://github.com/mmornati/zigsight/issues">GitHub</a> with:</p>
+<ul>
+<li>Home Assistant version</li>
+<li>ZigSight version</li>
+<li>Zigbee coordinator type and version</li>
+<li>Steps to reproduce the issue</li>
+<li>Relevant log entries</li>
+</ul>
+<h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
+<h3 id="how-can-i-contribute-to-zigsight">How can I contribute to ZigSight?<a class="headerlink" href="#how-can-i-contribute-to-zigsight" title="Permanent link">&para;</a></h3>
+<p>See the <a href="../DEVELOPER_README/">Developer README</a> for development setup and contribution guidelines. We welcome:</p>
+<ul>
+<li>Bug reports and feature requests</li>
+<li>Documentation improvements</li>
+<li>Code contributions</li>
+</ul>
+<h3 id="where-can-i-get-help">Where can I get help?<a class="headerlink" href="#where-can-i-get-help" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Documentation</strong>: Start with this FAQ and the linked guides</li>
+<li><strong>GitHub Issues</strong>: For bugs and feature requests</li>
+<li><strong>GitHub Discussions</strong>: For general questions and community support</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../automations/" class="btn btn-neutral float-left" title="Automations"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../DEVELOPER_README/" class="btn btn-neutral float-right" title="Developer Guide">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/mmornati/zigsight" class="fa fa-code-fork" style="color: #fcfcfc"> mmornati/zigsight</a>
+        </span>
+    
+    
+      <span><a href="../automations/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../DEVELOPER_README/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

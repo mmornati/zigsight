@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Marco Mornati" /><link rel="canonical" href="https://mmornati.github.io/zigsight/automations/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Automations - ZigSight Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Automations";
+        var mkdocs_page_input_path = "automations.md";
+        var mkdocs_page_url = "/zigsight/automations/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/bash.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> ZigSight Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../getting_started/">Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Integrations</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zigbee2mqtt/">Zigbee2MQTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zha/">ZHA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/deconz/">deCONZ</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../analytics/">Analytics</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../wifi_recommendation/">Wi-Fi Recommendation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ui/">UI</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Automations</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#importing-blueprints">Importing Blueprints</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#method-1-home-assistant-ui-recommended">Method 1: Home Assistant UI (Recommended)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#method-2-manual-file-copy">Method 2: Manual File Copy</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#creating-automations-from-blueprints">Creating Automations from Blueprints</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#via-home-assistant-ui">Via Home Assistant UI</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#via-yaml">Via YAML</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#blueprint-configuration-reference">Blueprint Configuration Reference</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#battery-drain-alert">Battery Drain Alert</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#reconnect-flap-alert">Reconnect Flap Alert</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#daily-network-health-report">Daily Network Health Report</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#notification-services">Notification Services</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#customization-tips">Customization Tips</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#multiple-devices">Multiple Devices</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#critical-vs-non-critical-devices">Critical vs Non-Critical Devices</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#combining-with-other-automations">Combining with Other Automations</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#blueprint-not-appearing">Blueprint Not Appearing</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#notifications-not-sending">Notifications Not Sending</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#too-manytoo-few-alerts">Too Many/Too Few Alerts</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../faq/">FAQ</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../DEVELOPER_README/">Developer Guide</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">ZigSight Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Automations</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/mmornati/zigsight/edit/master/docs/automations.md">Edit on mmornati/zigsight</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="zigsight-automations-guide">ZigSight Automations Guide<a class="headerlink" href="#zigsight-automations-guide" title="Permanent link">&para;</a></h1>
+<p>This guide explains how to use the ZigSight automation blueprints to monitor your Zigbee network and receive alerts.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>ZigSight provides three automation blueprints for common monitoring scenarios:</p>
+<ol>
+<li><strong>Battery Drain Alert</strong> - Notifies when device batteries fall below a threshold</li>
+<li><strong>Reconnect Flap Alert</strong> - Detects devices that frequently disconnect/reconnect</li>
+<li><strong>Daily Network Health Report</strong> - Sends a daily summary of your network status</li>
+</ol>
+<h2 id="importing-blueprints">Importing Blueprints<a class="headerlink" href="#importing-blueprints" title="Permanent link">&para;</a></h2>
+<h3 id="method-1-home-assistant-ui-recommended">Method 1: Home Assistant UI (Recommended)<a class="headerlink" href="#method-1-home-assistant-ui-recommended" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Navigate to <strong>Settings</strong> → <strong>Automations &amp; Scenes</strong> → <strong>Blueprints</strong></li>
+<li>Click <strong>Import Blueprint</strong> (bottom right corner)</li>
+<li>Paste the blueprint URL:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Blueprint</th>
+<th>Import URL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Battery Drain</td>
+<td><code>https://raw.githubusercontent.com/mmornati/zigsight/main/automations/battery_drain.yaml</code></td>
+</tr>
+<tr>
+<td>Reconnect Flap</td>
+<td><code>https://raw.githubusercontent.com/mmornati/zigsight/main/automations/reconnect_flap.yaml</code></td>
+</tr>
+<tr>
+<td>Daily Report</td>
+<td><code>https://raw.githubusercontent.com/mmornati/zigsight/main/automations/network_health_daily_report.yaml</code></td>
+</tr>
+</tbody>
+</table>
+<ol>
+<li>Click <strong>Preview Blueprint</strong>, then <strong>Import Blueprint</strong></li>
+</ol>
+<h3 id="method-2-manual-file-copy">Method 2: Manual File Copy<a class="headerlink" href="#method-2-manual-file-copy" title="Permanent link">&para;</a></h3>
+<p>Copy the blueprint files to your Home Assistant configuration:</p>
+<pre class="codehilite"><code class="language-bash"># Create the blueprint directory
+mkdir -p /config/blueprints/automation/zigsight/
+
+# Copy blueprints (from the repository)
+cp automations/battery_drain.yaml /config/blueprints/automation/zigsight/
+cp automations/reconnect_flap.yaml /config/blueprints/automation/zigsight/
+cp automations/network_health_daily_report.yaml /config/blueprints/automation/zigsight/
+</code></pre>
+
+<p>Restart Home Assistant or reload automations to see the new blueprints.</p>
+<h2 id="creating-automations-from-blueprints">Creating Automations from Blueprints<a class="headerlink" href="#creating-automations-from-blueprints" title="Permanent link">&para;</a></h2>
+<h3 id="via-home-assistant-ui">Via Home Assistant UI<a class="headerlink" href="#via-home-assistant-ui" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Go to <strong>Settings</strong> → <strong>Automations &amp; Scenes</strong> → <strong>Automations</strong></li>
+<li>Click <strong>Create Automation</strong> → <strong>Use Blueprint</strong></li>
+<li>Select the ZigSight blueprint you want to use</li>
+<li>Configure the inputs as described below</li>
+<li>Click <strong>Save</strong></li>
+</ol>
+<h3 id="via-yaml">Via YAML<a class="headerlink" href="#via-yaml" title="Permanent link">&para;</a></h3>
+<p>You can also create automations directly in your <code>automations.yaml</code>:</p>
+<pre class="codehilite"><code class="language-yaml"># Example: Battery drain alert for a specific device
+- id: zigsight_battery_alert_motion_sensor
+  alias: &quot;ZigSight: Motion Sensor Battery Alert&quot;
+  use_blueprint:
+    path: zigsight/battery_drain.yaml
+    input:
+      battery_sensor: sensor.motion_sensor_battery
+      battery_threshold: 20
+      notify_service: notify.mobile_app_phone
+      notification_title: &quot;Low Battery Alert&quot;
+      cooldown_hours: 24
+
+# Example: Reconnect flapping detection
+- id: zigsight_flap_alert_door_sensor
+  alias: &quot;ZigSight: Door Sensor Flap Alert&quot;
+  use_blueprint:
+    path: zigsight/reconnect_flap.yaml
+    input:
+      device_availability: binary_sensor.door_sensor_availability
+      reconnect_count_threshold: 5
+      time_window_minutes: 60
+      notify_service: notify.mobile_app_phone
+      cooldown_hours: 6
+
+# Example: Daily network health report
+- id: zigsight_daily_report
+  alias: &quot;ZigSight: Daily Network Report&quot;
+  use_blueprint:
+    path: zigsight/network_health_daily_report.yaml
+    input:
+      report_time: &quot;09:00:00&quot;
+      low_battery_threshold: 30
+      offline_hours_threshold: 24
+      notify_service: notify.mobile_app_phone
+      include_healthy_summary: true
+      weekdays_only: false
+</code></pre>
+
+<h2 id="blueprint-configuration-reference">Blueprint Configuration Reference<a class="headerlink" href="#blueprint-configuration-reference" title="Permanent link">&para;</a></h2>
+<h3 id="battery-drain-alert">Battery Drain Alert<a class="headerlink" href="#battery-drain-alert" title="Permanent link">&para;</a></h3>
+<p>Monitors a battery sensor and sends a notification when the level drops below a threshold.</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>battery_sensor</code></td>
+<td>Battery level sensor entity to monitor</td>
+<td>Required</td>
+</tr>
+<tr>
+<td><code>battery_threshold</code></td>
+<td>Battery percentage trigger threshold</td>
+<td>20%</td>
+</tr>
+<tr>
+<td><code>notify_service</code></td>
+<td>Notification service (e.g., <code>notify.mobile_app</code>)</td>
+<td>Empty (uses persistent notification)</td>
+</tr>
+<tr>
+<td><code>notification_title</code></td>
+<td>Title for the notification</td>
+<td>"ZigSight: Low Battery Alert"</td>
+</tr>
+<tr>
+<td><code>cooldown_hours</code></td>
+<td>Hours between repeated alerts</td>
+<td>24</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example notification:</strong></p>
+<blockquote>
+<p>Motion Sensor battery is low at 15%. Consider replacing the battery soon.</p>
+</blockquote>
+<h3 id="reconnect-flap-alert">Reconnect Flap Alert<a class="headerlink" href="#reconnect-flap-alert" title="Permanent link">&para;</a></h3>
+<p>Detects devices that reconnect too frequently, which may indicate interference or connectivity issues.</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>device_availability</code></td>
+<td>Availability or connectivity entity</td>
+<td>Required</td>
+</tr>
+<tr>
+<td><code>reconnect_count_threshold</code></td>
+<td>Number of reconnects to trigger alert</td>
+<td>5</td>
+</tr>
+<tr>
+<td><code>time_window_minutes</code></td>
+<td>Time window for counting reconnects</td>
+<td>60</td>
+</tr>
+<tr>
+<td><code>notify_service</code></td>
+<td>Notification service</td>
+<td>Empty (uses persistent notification)</td>
+</tr>
+<tr>
+<td><code>notification_title</code></td>
+<td>Title for the notification</td>
+<td>"ZigSight: Device Flapping Detected"</td>
+</tr>
+<tr>
+<td><code>cooldown_hours</code></td>
+<td>Hours between repeated alerts</td>
+<td>6</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example notification:</strong></p>
+<blockquote>
+<p>Door Sensor has reconnected 7 times in the last 60 minutes. This may indicate interference or connectivity issues.</p>
+</blockquote>
+<h3 id="daily-network-health-report">Daily Network Health Report<a class="headerlink" href="#daily-network-health-report" title="Permanent link">&para;</a></h3>
+<p>Sends a scheduled summary of your Zigbee network health.</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>report_time</code></td>
+<td>Time to send the daily report</td>
+<td>09:00:00</td>
+</tr>
+<tr>
+<td><code>low_battery_threshold</code></td>
+<td>Battery level for flagging devices</td>
+<td>30%</td>
+</tr>
+<tr>
+<td><code>offline_hours_threshold</code></td>
+<td>Hours offline to flag device</td>
+<td>24</td>
+</tr>
+<tr>
+<td><code>notify_service</code></td>
+<td>Notification service</td>
+<td>Empty (uses persistent notification)</td>
+</tr>
+<tr>
+<td><code>notification_title</code></td>
+<td>Title for the report</td>
+<td>"ZigSight: Daily Network Health Report"</td>
+</tr>
+<tr>
+<td><code>include_healthy_summary</code></td>
+<td>Include count of healthy devices</td>
+<td>true</td>
+</tr>
+<tr>
+<td><code>weekdays_only</code></td>
+<td>Only send on weekdays</td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example report:</strong></p>
+<pre class="codehilite"><code>📊 Network Health Report for 2024-01-15
+
+**Overview:**
+• Total monitored devices: 25
+• Healthy devices: 23
+• Devices needing attention: 2
+
+⚠️ **Low Battery Devices (&lt; 30%):**
+• Motion Sensor Hallway
+• Contact Sensor Garage
+
+💡 Tip: Consider replacing batteries in flagged devices soon.
+</code></pre>
+
+<h2 id="notification-services">Notification Services<a class="headerlink" href="#notification-services" title="Permanent link">&para;</a></h2>
+<p>The blueprints support any Home Assistant notification service. Common options:</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>notify.mobile_app_&lt;device&gt;</code></td>
+<td>Push notification to mobile app</td>
+</tr>
+<tr>
+<td><code>notify.persistent_notification</code></td>
+<td>Home Assistant UI notification</td>
+</tr>
+<tr>
+<td><code>notify.telegram</code></td>
+<td>Telegram bot notification</td>
+</tr>
+<tr>
+<td><code>notify.pushover</code></td>
+<td>Pushover notification</td>
+</tr>
+<tr>
+<td><code>notify.slack</code></td>
+<td>Slack channel notification</td>
+</tr>
+</tbody>
+</table>
+<p>Leave the <code>notify_service</code> input empty to use persistent notifications (visible in the Home Assistant UI sidebar).</p>
+<h2 id="customization-tips">Customization Tips<a class="headerlink" href="#customization-tips" title="Permanent link">&para;</a></h2>
+<h3 id="multiple-devices">Multiple Devices<a class="headerlink" href="#multiple-devices" title="Permanent link">&para;</a></h3>
+<p>Create multiple automations from the same blueprint for different devices:</p>
+<pre class="codehilite"><code class="language-yaml"># Kitchen motion sensor
+- id: battery_alert_kitchen
+  use_blueprint:
+    path: zigsight/battery_drain.yaml
+    input:
+      battery_sensor: sensor.kitchen_motion_battery
+      battery_threshold: 15
+
+# Bedroom motion sensor
+- id: battery_alert_bedroom
+  use_blueprint:
+    path: zigsight/battery_drain.yaml
+    input:
+      battery_sensor: sensor.bedroom_motion_battery
+      battery_threshold: 20
+</code></pre>
+
+<h3 id="critical-vs-non-critical-devices">Critical vs Non-Critical Devices<a class="headerlink" href="#critical-vs-non-critical-devices" title="Permanent link">&para;</a></h3>
+<p>Use different thresholds and notification services for critical devices:</p>
+<pre class="codehilite"><code class="language-yaml"># Critical: Front door lock (immediate alert)
+- id: battery_critical_front_lock
+  use_blueprint:
+    path: zigsight/battery_drain.yaml
+    input:
+      battery_sensor: sensor.front_door_lock_battery
+      battery_threshold: 30
+      notify_service: notify.mobile_app_phone
+      cooldown_hours: 12
+
+# Non-critical: Outdoor temp sensor (weekly check)
+- id: battery_outdoor_temp
+  use_blueprint:
+    path: zigsight/battery_drain.yaml
+    input:
+      battery_sensor: sensor.outdoor_temp_battery
+      battery_threshold: 10
+      cooldown_hours: 168
+</code></pre>
+
+<h3 id="combining-with-other-automations">Combining with Other Automations<a class="headerlink" href="#combining-with-other-automations" title="Permanent link">&para;</a></h3>
+<p>Use blueprint automations as triggers for more complex workflows:</p>
+<pre class="codehilite"><code class="language-yaml">automation:
+  - alias: &quot;Critical Battery - Turn on Warning Light&quot;
+    trigger:
+      - platform: persistent_notification
+        notification_id: zigsight_battery_*
+    action:
+      - service: light.turn_on
+        target:
+          entity_id: light.warning_indicator
+        data:
+          color_name: red
+</code></pre>
+
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="blueprint-not-appearing">Blueprint Not Appearing<a class="headerlink" href="#blueprint-not-appearing" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Verify the file is in the correct location (<code>blueprints/automation/zigsight/</code>)</li>
+<li>Check for YAML syntax errors in the file</li>
+<li>Reload automations or restart Home Assistant</li>
+</ol>
+<h3 id="notifications-not-sending">Notifications Not Sending<a class="headerlink" href="#notifications-not-sending" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Verify your notification service is correctly configured</li>
+<li>Check the notification service name matches exactly</li>
+<li>Review Home Assistant logs for errors</li>
+</ol>
+<h3 id="too-manytoo-few-alerts">Too Many/Too Few Alerts<a class="headerlink" href="#too-manytoo-few-alerts" title="Permanent link">&para;</a></h3>
+<p>Adjust the threshold and cooldown values:
+- Increase <code>cooldown_hours</code> to reduce alert frequency
+- Adjust <code>battery_threshold</code> to match your preferences
+- For reconnect alerts, increase <code>reconnect_count_threshold</code> or <code>time_window_minutes</code></p>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../getting_started/">Getting Started</a> - ZigSight installation and setup</li>
+<li><a href="../ui/">UI Documentation</a> - Dashboard cards and visualization</li>
+<li><a href="../DEVELOPER_README/">Developer README</a> - Contributing to ZigSight</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../ui/" class="btn btn-neutral float-left" title="UI"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../faq/" class="btn btn-neutral float-right" title="FAQ">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/mmornati/zigsight" class="fa fa-code-fork" style="color: #fcfcfc"> mmornati/zigsight</a>
+        </span>
+    
+    
+      <span><a href="../ui/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../faq/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

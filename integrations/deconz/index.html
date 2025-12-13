@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Marco Mornati" /><link rel="canonical" href="https://mmornati.github.io/zigsight/integrations/deconz/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>deCONZ - ZigSight Documentation</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "deCONZ";
+        var mkdocs_page_input_path = "integrations/deconz.md";
+        var mkdocs_page_url = "/zigsight/integrations/deconz/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/bash.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> ZigSight Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../getting_started/">Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Integrations</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../zigbee2mqtt/">Zigbee2MQTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../zha/">ZHA</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">deCONZ</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#current-status">Current Status</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#planned-features">Planned Features</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#configuration-planned">Configuration (Planned)</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#step-1-obtain-api-key">Step 1: Obtain API Key</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#step-2-add-zigsight-integration">Step 2: Add ZigSight Integration</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#step-3-configure-deconz-connection">Step 3: Configure deCONZ Connection</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#step-4-configure-analytics-optional">Step 4: Configure Analytics (Optional)</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#how-it-works">How It Works</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#device-discovery">Device Discovery</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#data-collected">Data Collected</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#api-endpoints-used">API Endpoints Used</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#entities-created">Entities Created</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#sensors">Sensors</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#binary-sensors">Binary Sensors</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#channel-recommendation">Channel Recommendation</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#connection-errors">Connection Errors</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#api-key-invalid">API Key Invalid</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#devices-not-appearing">Devices Not Appearing</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#missing-link-quality">Missing Link Quality</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#websocket-disconnections">Websocket Disconnections</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#api-key-security">API Key Security</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#deconz-maintenance">deCONZ Maintenance</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#network-optimization">Network Optimization</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#deconz-specific-features">deCONZ-Specific Features</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#network-map">Network Map</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#device-firmware-updates">Device Firmware Updates</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#using-with-home-assistant-add-on">Using with Home Assistant Add-on</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#related-documentation">Related Documentation</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../analytics/">Analytics</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../wifi_recommendation/">Wi-Fi Recommendation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../ui/">UI</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../automations/">Automations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../faq/">FAQ</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../DEVELOPER_README/">Developer Guide</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">ZigSight Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Integrations</li>
+      <li class="breadcrumb-item active">deCONZ</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/mmornati/zigsight/edit/master/docs/integrations/deconz.md">Edit on mmornati/zigsight</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="deconz-integration">deCONZ Integration<a class="headerlink" href="#deconz-integration" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Coming Soon</strong>: deCONZ support is planned for a future release. Currently, ZigSight supports Zigbee2MQTT and ZHA integrations.</p>
+</blockquote>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p><a href="https://phoscon.de/en/conbee/">deCONZ</a> is Dresden Elektronik's software for their ConBee and RaspBee Zigbee gateways. Future versions of ZigSight will integrate with deCONZ to collect device data and compute analytics.</p>
+<h2 id="current-status">Current Status<a class="headerlink" href="#current-status" title="Permanent link">&para;</a></h2>
+<p>deCONZ integration is not yet available in ZigSight. If you're using deCONZ, you can:</p>
+<ol>
+<li><strong>Use Zigbee2MQTT instead</strong>: Many users migrate from deCONZ to Zigbee2MQTT for better features and compatibility</li>
+<li><strong>Wait for deCONZ support</strong>: Follow the <a href="https://github.com/mmornati/zigsight">GitHub repository</a> for updates on deCONZ support</li>
+</ol>
+<h2 id="planned-features">Planned Features<a class="headerlink" href="#planned-features" title="Permanent link">&para;</a></h2>
+<p>When deCONZ support is added, it will include:</p>
+<ul>
+<li>Automatic device discovery from deCONZ</li>
+<li>Device health monitoring and analytics</li>
+<li>Wi-Fi channel recommendations</li>
+<li>Network topology visualization</li>
+<li>Integration with Home Assistant's deCONZ integration</li>
+</ul>
+<h2 id="configuration-planned">Configuration (Planned)<a class="headerlink" href="#configuration-planned" title="Permanent link">&para;</a></h2>
+<h3 id="step-1-obtain-api-key">Step 1: Obtain API Key<a class="headerlink" href="#step-1-obtain-api-key" title="Permanent link">&para;</a></h3>
+<p>If you don't have an API key:</p>
+<ol>
+<li>Open the Phoscon web interface (usually <code>http://your-ip:8080/pwa</code>)</li>
+<li>Go to <strong>Settings</strong> &gt; <strong>Gateway</strong> &gt; <strong>Advanced</strong></li>
+<li>Click <strong>Authenticate app</strong></li>
+<li>In the Phoscon App, go to <strong>Settings</strong> &gt; <strong>API key</strong> and note the key</li>
+</ol>
+<p>Alternatively, generate via API:</p>
+<pre class="codehilite"><code class="language-bash"># Unlock gateway first (press button in Phoscon or call unlock endpoint)
+curl -X POST http://your-ip:8080/api -d '{&quot;devicetype&quot;:&quot;zigsight&quot;}'
+</code></pre>
+
+<h3 id="step-2-add-zigsight-integration">Step 2: Add ZigSight Integration<a class="headerlink" href="#step-2-add-zigsight-integration" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Go to <strong>Settings</strong> &gt; <strong>Devices &amp; Services</strong></li>
+<li>Click <strong>Add Integration</strong></li>
+<li>Search for "ZigSight"</li>
+<li>Select <strong>deCONZ</strong> as the integration type</li>
+</ol>
+<h3 id="step-3-configure-deconz-connection">Step 3: Configure deCONZ Connection<a class="headerlink" href="#step-3-configure-deconz-connection" title="Permanent link">&para;</a></h3>
+<p>Enter the following details:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Host</td>
+<td>deCONZ hostname or IP</td>
+<td><code>192.168.1.100</code> or <code>core-deconz</code></td>
+</tr>
+<tr>
+<td>Port</td>
+<td>deCONZ API port</td>
+<td><code>8080</code> (default)</td>
+</tr>
+<tr>
+<td>API Key</td>
+<td>Your deCONZ API key</td>
+<td><code>ABCDEF1234567890</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="step-4-configure-analytics-optional">Step 4: Configure Analytics (Optional)<a class="headerlink" href="#step-4-configure-analytics-optional" title="Permanent link">&para;</a></h3>
+<p>Customize the analytics thresholds:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Battery Drain Threshold</td>
+<td>Minimum drain rate (%/hour) to trigger warning</td>
+<td>10.0</td>
+</tr>
+<tr>
+<td>Reconnect Rate Threshold</td>
+<td>Maximum reconnect rate (events/hour) before warning</td>
+<td>5.0</td>
+</tr>
+<tr>
+<td>Reconnect Rate Window</td>
+<td>Time window in hours for calculations</td>
+<td>24</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
+<h3 id="device-discovery">Device Discovery<a class="headerlink" href="#device-discovery" title="Permanent link">&para;</a></h3>
+<p>ZigSight queries the deCONZ REST API for device information:</p>
+<pre class="codehilite"><code>GET /api/{api_key}/lights
+GET /api/{api_key}/sensors
+GET /api/{api_key}/config
+</code></pre>
+
+<p>It also connects to the websocket for real-time updates:</p>
+<pre class="codehilite"><code>ws://host:port/ws
+</code></pre>
+
+<h3 id="data-collected">Data Collected<a class="headerlink" href="#data-collected" title="Permanent link">&para;</a></h3>
+<p>For each device, ZigSight collects:</p>
+<ul>
+<li><strong>Device Name</strong>: Name from deCONZ</li>
+<li><strong>Device Type</strong>: Based on device classification</li>
+<li><strong>Unique ID</strong>: MAC address/unique identifier</li>
+<li><strong>Link Quality (LQI)</strong>: Signal strength when available</li>
+<li><strong>Battery Level</strong>: Current battery percentage</li>
+<li><strong>Last Seen</strong>: Timestamp of last update</li>
+<li><strong>Manufacturer</strong>: Device manufacturer</li>
+<li><strong>Model ID</strong>: Device model identifier</li>
+<li><strong>Reachable</strong>: Current reachability status</li>
+</ul>
+<h3 id="api-endpoints-used">API Endpoints Used<a class="headerlink" href="#api-endpoints-used" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/api/{key}/config</code></td>
+<td>Gateway configuration and network info</td>
+</tr>
+<tr>
+<td><code>/api/{key}/lights</code></td>
+<td>Light devices and their states</td>
+</tr>
+<tr>
+<td><code>/api/{key}/sensors</code></td>
+<td>Sensor devices and their states</td>
+</tr>
+<tr>
+<td><code>/api/{key}/groups</code></td>
+<td>Group information</td>
+</tr>
+<tr>
+<td>Websocket</td>
+<td>Real-time state updates</td>
+</tr>
+</tbody>
+</table>
+<h2 id="entities-created">Entities Created<a class="headerlink" href="#entities-created" title="Permanent link">&para;</a></h2>
+<p>ZigSight creates sensors for each Zigbee device:</p>
+<h3 id="sensors">Sensors<a class="headerlink" href="#sensors" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>sensor.{device}_health_score</code> - Overall health (0-100)</li>
+<li><code>sensor.{device}_reconnect_rate</code> - Reconnection frequency (events/hour)</li>
+<li><code>sensor.{device}_battery_trend</code> - Battery drain rate (%/hour)</li>
+</ul>
+<h3 id="binary-sensors">Binary Sensors<a class="headerlink" href="#binary-sensors" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>binary_sensor.{device}_connectivity_warning</code> - Connectivity issue alert</li>
+<li><code>binary_sensor.{device}_battery_drain_warning</code> - Battery drain alert</li>
+</ul>
+<h2 id="channel-recommendation">Channel Recommendation<a class="headerlink" href="#channel-recommendation" title="Permanent link">&para;</a></h2>
+<p>deCONZ allows channel changes through its interface. To optimize your channel:</p>
+<ol>
+<li>Run the ZigSight Wi-Fi scan service to get a recommendation</li>
+<li>Open the deCONZ GUI application</li>
+<li>Go to <strong>Settings</strong> &gt; <strong>Gateway</strong></li>
+<li>Change the channel to the recommended value</li>
+<li>Restart deCONZ and wait for devices to rejoin</li>
+</ol>
+<p>See <a href="../../wifi_recommendation/">Wi-Fi Recommendation</a> for detailed instructions.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="connection-errors">Connection Errors<a class="headerlink" href="#connection-errors" title="Permanent link">&para;</a></h3>
+<pre class="codehilite"><code>Cannot connect to deCONZ at host:port
+</code></pre>
+
+<p>Solutions:</p>
+<ul>
+<li>Verify deCONZ is running</li>
+<li>Check host and port configuration</li>
+<li>Ensure the API key is valid</li>
+<li>Check firewall settings</li>
+</ul>
+<h3 id="api-key-invalid">API Key Invalid<a class="headerlink" href="#api-key-invalid" title="Permanent link">&para;</a></h3>
+<pre class="codehilite"><code>Unauthorized: Invalid API key
+</code></pre>
+
+<p>Solutions:</p>
+<ul>
+<li>Regenerate the API key in Phoscon</li>
+<li>Ensure the gateway was unlocked when creating the key</li>
+<li>Check for extra spaces in the key</li>
+</ul>
+<h3 id="devices-not-appearing">Devices Not Appearing<a class="headerlink" href="#devices-not-appearing" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Check deCONZ interface</strong>: Verify devices are visible in Phoscon</li>
+<li><strong>Verify API access</strong>: Test the API endpoint directly</li>
+<li><strong>Check device types</strong>: ZigSight processes lights and sensors</li>
+<li><strong>Review logs</strong>: Enable debug logging for details</li>
+</ol>
+<h3 id="missing-link-quality">Missing Link Quality<a class="headerlink" href="#missing-link-quality" title="Permanent link">&para;</a></h3>
+<p>Not all devices report LQI. This is normal for:</p>
+<ul>
+<li>The gateway itself</li>
+<li>Some older devices</li>
+<li>Devices that use simplified reporting</li>
+</ul>
+<h3 id="websocket-disconnections">Websocket Disconnections<a class="headerlink" href="#websocket-disconnections" title="Permanent link">&para;</a></h3>
+<p>If real-time updates aren't working:</p>
+<ol>
+<li>Check if port 443 is blocked (websocket port)</li>
+<li>Verify network connectivity</li>
+<li>Restart the ZigSight integration</li>
+<li>Check deCONZ logs for websocket errors</li>
+</ol>
+<h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
+<h3 id="api-key-security">API Key Security<a class="headerlink" href="#api-key-security" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Use a dedicated API key for ZigSight</li>
+<li>Don't share API keys between applications</li>
+<li>Regenerate if you suspect compromise</li>
+</ul>
+<h3 id="deconz-maintenance">deCONZ Maintenance<a class="headerlink" href="#deconz-maintenance" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Keep deCONZ firmware updated</li>
+<li>Backup your deCONZ configuration regularly</li>
+<li>Monitor the deCONZ logs for issues</li>
+</ul>
+<h3 id="network-optimization">Network Optimization<a class="headerlink" href="#network-optimization" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Position the ConBee/RaspBee centrally</li>
+<li>Add routers (mains-powered devices) for coverage</li>
+<li>Use the Wi-Fi recommendation service to avoid interference</li>
+</ul>
+<h2 id="deconz-specific-features">deCONZ-Specific Features<a class="headerlink" href="#deconz-specific-features" title="Permanent link">&para;</a></h2>
+<h3 id="network-map">Network Map<a class="headerlink" href="#network-map" title="Permanent link">&para;</a></h3>
+<p>deCONZ provides a network map in the desktop application:</p>
+<ol>
+<li>Open deCONZ GUI (not Phoscon)</li>
+<li>Select <strong>View</strong> &gt; <strong>Network</strong></li>
+<li>See device connections and routes</li>
+</ol>
+<p>This complements ZigSight's topology card.</p>
+<h3 id="device-firmware-updates">Device Firmware Updates<a class="headerlink" href="#device-firmware-updates" title="Permanent link">&para;</a></h3>
+<p>Some devices support OTA updates through deCONZ:</p>
+<ol>
+<li>Open Phoscon web interface</li>
+<li>Go to device settings</li>
+<li>Check for available firmware updates</li>
+</ol>
+<p>Updated firmware can improve device reliability.</p>
+<h2 id="using-with-home-assistant-add-on">Using with Home Assistant Add-on<a class="headerlink" href="#using-with-home-assistant-add-on" title="Permanent link">&para;</a></h2>
+<p>If running deCONZ as a Home Assistant add-on:</p>
+<ul>
+<li>Host: <code>core-deconz</code></li>
+<li>Port: <code>40850</code> (usually)</li>
+<li>Websocket port: <code>8443</code></li>
+</ul>
+<p>Check the add-on configuration for exact ports.</p>
+<h2 id="related-documentation">Related Documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://dresden-elektronik.github.io/deconz-rest-doc/">deCONZ Official Documentation</a></li>
+<li><a href="https://phoscon.de/en/support/">Phoscon App Documentation</a></li>
+<li><a href="../../analytics/">ZigSight Analytics</a></li>
+<li><a href="../../wifi_recommendation/">ZigSight Wi-Fi Recommendation</a></li>
+<li><a href="../../automations/">ZigSight Automations</a></li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../zha/" class="btn btn-neutral float-left" title="ZHA"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../analytics/" class="btn btn-neutral float-right" title="Analytics">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/mmornati/zigsight" class="fa fa-code-fork" style="color: #fcfcfc"> mmornati/zigsight</a>
+        </span>
+    
+    
+      <span><a href="../zha/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../analytics/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

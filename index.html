@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="description" content="Home Assistant diagnostics and optimization toolkit for Zigbee networks" /><meta name="author" content="Marco Mornati" /><link rel="canonical" href="https://mmornati.github.io/zigsight/" />
+      <link rel="shortcut icon" href="img/favicon.ico" />
+    <title>ZigSight Documentation</title>
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Home";
+        var mkdocs_page_input_path = "index.md";
+        var mkdocs_page_url = "/zigsight/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/bash.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="." class="icon icon-home"> ZigSight Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="./search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Home</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#what-is-zigsight">What is ZigSight?</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#features">Features</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#device-analytics">Device Analytics</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#wi-fi-channel-recommendation">Wi-Fi Channel Recommendation</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#network-topology-card">Network Topology Card</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#automation-blueprints">Automation Blueprints</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#supported-integrations">Supported Integrations</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick Start</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#documentation">Documentation</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#support">Support</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#license">License</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="getting_started/">Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Integrations</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="integrations/zigbee2mqtt/">Zigbee2MQTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="integrations/zha/">ZHA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="integrations/deconz/">deCONZ</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="analytics/">Analytics</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="wifi_recommendation/">Wi-Fi Recommendation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="ui/">UI</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="automations/">Automations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="faq/">FAQ</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="DEVELOPER_README/">Developer Guide</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href=".">ZigSight Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Home</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/mmornati/zigsight/edit/master/docs/index.md">Edit on mmornati/zigsight</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="zigsight">ZigSight<a class="headerlink" href="#zigsight" title="Permanent link">&para;</a></h1>
+<p>Welcome to <strong>ZigSight</strong>, a Home Assistant custom component that provides diagnostics and optimization tools for Zigbee networks.</p>
+<h2 id="what-is-zigsight">What is ZigSight?<a class="headerlink" href="#what-is-zigsight" title="Permanent link">&para;</a></h2>
+<p>ZigSight helps you monitor, analyze, and optimize your Zigbee network by providing:</p>
+<ul>
+<li><strong>Device Health Monitoring</strong>: Track battery levels, connectivity, and link quality for all your Zigbee devices</li>
+<li><strong>Analytics Engine</strong>: Compute metrics like reconnect rates, battery trends, and health scores</li>
+<li><strong>Wi-Fi Interference Analysis</strong>: Get recommendations for the optimal Zigbee channel based on your Wi-Fi environment</li>
+<li><strong>Network Topology Visualization</strong>: See your entire Zigbee network in an interactive dashboard card</li>
+<li><strong>Automation Blueprints</strong>: Pre-built automations for common monitoring scenarios</li>
+</ul>
+<h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h2>
+<h3 id="device-analytics">Device Analytics<a class="headerlink" href="#device-analytics" title="Permanent link">&para;</a></h3>
+<p>ZigSight tracks key metrics for each device in your network:</p>
+<ul>
+<li><strong>Reconnect Rate</strong>: How often devices disconnect and reconnect</li>
+<li><strong>Battery Trend</strong>: Rate of battery drain over time</li>
+<li><strong>Health Score</strong>: An aggregated health metric (0-100) combining multiple factors</li>
+<li><strong>Connectivity Warnings</strong>: Alerts when devices have connectivity issues</li>
+<li><strong>Battery Drain Warnings</strong>: Alerts when battery drain exceeds normal rates</li>
+</ul>
+<h3 id="wi-fi-channel-recommendation">Wi-Fi Channel Recommendation<a class="headerlink" href="#wi-fi-channel-recommendation" title="Permanent link">&para;</a></h3>
+<p>Zigbee and Wi-Fi both operate in the 2.4 GHz spectrum, which can cause interference. ZigSight can analyze your Wi-Fi environment and recommend the best Zigbee channel (11, 15, 20, or 25) to minimize interference.</p>
+<h3 id="network-topology-card">Network Topology Card<a class="headerlink" href="#network-topology-card" title="Permanent link">&para;</a></h3>
+<p>A custom Lovelace card displays your Zigbee network with:</p>
+<ul>
+<li>Device type indicators (coordinator, router, end device)</li>
+<li>Link quality visualization</li>
+<li>Health status indicators</li>
+<li>Interactive device details</li>
+</ul>
+<h3 id="automation-blueprints">Automation Blueprints<a class="headerlink" href="#automation-blueprints" title="Permanent link">&para;</a></h3>
+<p>Ready-to-use automation blueprints for:</p>
+<ul>
+<li><strong>Battery Drain Alerts</strong>: Notify when device batteries are low</li>
+<li><strong>Reconnect Flap Alerts</strong>: Detect devices with frequent disconnections</li>
+<li><strong>Daily Network Health Reports</strong>: Get a daily summary of your network status</li>
+</ul>
+<h2 id="supported-integrations">Supported Integrations<a class="headerlink" href="#supported-integrations" title="Permanent link">&para;</a></h2>
+<p>ZigSight works with these Zigbee coordination solutions:</p>
+<ul>
+<li><a href="integrations/zigbee2mqtt/">Zigbee2MQTT</a> - MQTT-based Zigbee bridge</li>
+<li><a href="integrations/zha/">ZHA</a> - Zigbee Home Automation (native Home Assistant)</li>
+<li><a href="integrations/deconz/">deCONZ</a> - Coming soon (Dresden Elektronik's Phoscon gateway)</li>
+</ul>
+<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Install ZigSight</strong> - Copy the integration to your <code>custom_components/</code> folder</li>
+<li><strong>Configure</strong> - Add the integration via Settings &gt; Devices &amp; Services</li>
+<li><strong>Monitor</strong> - View device health metrics and network topology</li>
+<li><strong>Optimize</strong> - Use Wi-Fi analysis to find the best Zigbee channel</li>
+<li><strong>Automate</strong> - Import blueprints for automatic monitoring</li>
+</ol>
+<p>For detailed installation instructions, see the <a href="getting_started/">Getting Started</a> guide.</p>
+<h2 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="getting_started/">Getting Started</a></td>
+<td>Installation and initial setup</td>
+</tr>
+<tr>
+<td><a href="integrations/zigbee2mqtt/">Integrations</a></td>
+<td>Setting up Zigbee2MQTT or ZHA</td>
+</tr>
+<tr>
+<td><a href="analytics/">Analytics</a></td>
+<td>Understanding device metrics and health scores</td>
+</tr>
+<tr>
+<td><a href="wifi_recommendation/">Wi-Fi Recommendation</a></td>
+<td>Channel optimization for minimal interference</td>
+</tr>
+<tr>
+<td><a href="ui/">UI</a></td>
+<td>Network topology visualization card</td>
+</tr>
+<tr>
+<td><a href="automations/">Automations</a></td>
+<td>Using the automation blueprints</td>
+</tr>
+<tr>
+<td><a href="faq/">FAQ</a></td>
+<td>Frequently asked questions</td>
+</tr>
+</tbody>
+</table>
+<h2 id="support">Support<a class="headerlink" href="#support" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>GitHub Issues</strong>: <a href="https://github.com/mmornati/zigsight/issues">Report bugs or request features</a></li>
+<li><strong>Discussions</strong>: <a href="https://github.com/mmornati/zigsight/discussions">Ask questions and share ideas</a></li>
+</ul>
+<h2 id="license">License<a class="headerlink" href="#license" title="Permanent link">&para;</a></h2>
+<p>ZigSight is licensed under the Apache 2.0 License. See the <a href="https://github.com/mmornati/zigsight/blob/main/LICENSE">LICENSE</a> file for details.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="getting_started/" class="btn btn-neutral float-right" title="Getting Started">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/mmornati/zigsight" class="fa fa-code-fork" style="color: #fcfcfc"> mmornati/zigsight</a>
+        </span>
+    
+    
+    
+      <span><a href="getting_started/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = ".";</script>
+    <script src="js/theme_extra.js"></script>
+    <script src="js/theme.js"></script>
+      <script src="search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
+
+<!--
+MkDocs version : 1.6.1
+Build Date UTC : 2025-12-13 13:45:12.639440+00:00
+-->

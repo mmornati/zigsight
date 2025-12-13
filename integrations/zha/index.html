@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Marco Mornati" /><link rel="canonical" href="https://mmornati.github.io/zigsight/integrations/zha/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>ZHA - ZigSight Documentation</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "ZHA";
+        var mkdocs_page_input_path = "integrations/zha.md";
+        var mkdocs_page_url = "/zigsight/integrations/zha/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/bash.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> ZigSight Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../getting_started/">Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Integrations</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../zigbee2mqtt/">Zigbee2MQTT</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">ZHA</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#step-1-add-zigsight-integration">Step 1: Add ZigSight Integration</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#step-2-configure-analytics-optional">Step 2: Configure Analytics (Optional)</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#how-it-works">How It Works</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#device-discovery">Device Discovery</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#data-collected">Data Collected</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#zha-events">ZHA Events</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#entities-created">Entities Created</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#sensors">Sensors</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#binary-sensors">Binary Sensors</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#channel-recommendation">Channel Recommendation</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#devices-not-appearing">Devices Not Appearing</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#missing-device-attributes">Missing Device Attributes</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#device-shows-offline">Device Shows Offline</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#health-score-seems-wrong">Health Score Seems Wrong</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#coordinator-placement">Coordinator Placement</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#router-distribution">Router Distribution</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#regular-maintenance">Regular Maintenance</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#zha-specific-features">ZHA-Specific Features</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#device-interview">Device Interview</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#network-visualization">Network Visualization</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#related-documentation">Related Documentation</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../deconz/">deCONZ</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../analytics/">Analytics</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../wifi_recommendation/">Wi-Fi Recommendation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../ui/">UI</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../automations/">Automations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../faq/">FAQ</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../DEVELOPER_README/">Developer Guide</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">ZigSight Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Integrations</li>
+      <li class="breadcrumb-item active">ZHA</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/mmornati/zigsight/edit/master/docs/integrations/zha.md">Edit on mmornati/zigsight</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="zha-integration">ZHA Integration<a class="headerlink" href="#zha-integration" title="Permanent link">&para;</a></h1>
+<p>This guide explains how to configure ZigSight with Zigbee Home Automation (ZHA).</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p><a href="https://www.home-assistant.io/integrations/zha/">ZHA</a> is Home Assistant's native Zigbee integration. It provides direct communication with Zigbee devices without requiring external bridges. ZigSight integrates with ZHA to provide enhanced analytics and monitoring capabilities.</p>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<p>Before configuring ZigSight with ZHA, ensure you have:</p>
+<ul>
+<li><strong>ZHA integration</strong> configured and running in Home Assistant</li>
+<li><strong>Zigbee coordinator</strong> connected (e.g., Sonoff Zigbee 3.0 USB, ConBee II, CC2652)</li>
+<li>Devices paired with your ZHA network</li>
+<li>Home Assistant 2025.10.0 or later</li>
+</ul>
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<h3 id="step-1-add-zigsight-integration">Step 1: Add ZigSight Integration<a class="headerlink" href="#step-1-add-zigsight-integration" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Go to <strong>Settings</strong> &gt; <strong>Devices &amp; Services</strong></li>
+<li>Click <strong>Add Integration</strong></li>
+<li>Search for "ZigSight"</li>
+<li>Select <strong>ZHA</strong> as the integration type</li>
+</ol>
+<h3 id="step-2-configure-analytics-optional">Step 2: Configure Analytics (Optional)<a class="headerlink" href="#step-2-configure-analytics-optional" title="Permanent link">&para;</a></h3>
+<p>Customize the analytics thresholds:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Battery Drain Threshold</td>
+<td>Minimum drain rate (%/hour) to trigger warning</td>
+<td>10.0</td>
+</tr>
+<tr>
+<td>Reconnect Rate Threshold</td>
+<td>Maximum reconnect rate (events/hour) before warning</td>
+<td>5.0</td>
+</tr>
+<tr>
+<td>Reconnect Rate Window</td>
+<td>Time window in hours for calculations</td>
+<td>24</td>
+</tr>
+<tr>
+<td>Reconnect Threshold</td>
+<td>Number of reconnections to track</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Data Retention</td>
+<td>Number of days to keep device history</td>
+<td>30</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
+<h3 id="device-discovery">Device Discovery<a class="headerlink" href="#device-discovery" title="Permanent link">&para;</a></h3>
+<p>ZigSight uses the ZHA device registry to discover devices. It accesses:</p>
+<ul>
+<li>Device entities from Home Assistant</li>
+<li>ZHA device attributes</li>
+<li>Device state changes via events</li>
+</ul>
+<h3 id="data-collected">Data Collected<a class="headerlink" href="#data-collected" title="Permanent link">&para;</a></h3>
+<p>For each device, ZigSight collects:</p>
+<ul>
+<li><strong>Device Name</strong>: Friendly name from ZHA</li>
+<li><strong>Device Type</strong>: Coordinator, Router, or EndDevice</li>
+<li><strong>IEEE Address</strong>: Unique 64-bit device identifier</li>
+<li><strong>Link Quality (LQI)</strong>: Signal strength (0-255) when available</li>
+<li><strong>Battery Level</strong>: Current battery percentage</li>
+<li><strong>Last Seen</strong>: Timestamp of last communication</li>
+<li><strong>Manufacturer</strong>: Device manufacturer name</li>
+<li><strong>Model</strong>: Device model identifier</li>
+</ul>
+<h3 id="zha-events">ZHA Events<a class="headerlink" href="#zha-events" title="Permanent link">&para;</a></h3>
+<p>ZigSight listens to ZHA events for real-time updates:</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zha_event</code></td>
+<td>Device interactions and updates</td>
+</tr>
+<tr>
+<td><code>device_registry_updated</code></td>
+<td>New/removed devices</td>
+</tr>
+<tr>
+<td><code>state_changed</code></td>
+<td>Entity state updates</td>
+</tr>
+</tbody>
+</table>
+<h2 id="entities-created">Entities Created<a class="headerlink" href="#entities-created" title="Permanent link">&para;</a></h2>
+<p>ZigSight creates sensors for each Zigbee device:</p>
+<h3 id="sensors">Sensors<a class="headerlink" href="#sensors" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>sensor.{device}_health_score</code> - Overall health (0-100)</li>
+<li><code>sensor.{device}_reconnect_rate</code> - Reconnection frequency (events/hour)</li>
+<li><code>sensor.{device}_battery_trend</code> - Battery drain rate (%/hour)</li>
+</ul>
+<h3 id="binary-sensors">Binary Sensors<a class="headerlink" href="#binary-sensors" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>binary_sensor.{device}_connectivity_warning</code> - Connectivity issue alert</li>
+<li><code>binary_sensor.{device}_battery_drain_warning</code> - Battery drain alert</li>
+</ul>
+<h2 id="channel-recommendation">Channel Recommendation<a class="headerlink" href="#channel-recommendation" title="Permanent link">&para;</a></h2>
+<p>ZHA supports channel changes directly in Home Assistant. To optimize your channel:</p>
+<ol>
+<li>Run the ZigSight Wi-Fi scan service</li>
+<li>Get the recommended channel</li>
+<li>In Home Assistant, go to <strong>Settings</strong> &gt; <strong>Devices &amp; Services</strong> &gt; <strong>ZHA</strong></li>
+<li>Click <strong>Configure</strong> &gt; <strong>Change channel</strong></li>
+<li>Enter the recommended channel</li>
+</ol>
+<p>See <a href="../../wifi_recommendation/">Wi-Fi Recommendation</a> for detailed instructions.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="devices-not-appearing">Devices Not Appearing<a class="headerlink" href="#devices-not-appearing" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Verify ZHA is running</strong>: Check the ZHA integration status</li>
+<li><strong>Check device pairing</strong>: Ensure devices are paired in ZHA</li>
+<li><strong>Restart integration</strong>: Try removing and re-adding ZigSight</li>
+<li><strong>Review logs</strong>: Enable debug logging for <code>custom_components.zigsight</code></li>
+</ol>
+<h3 id="missing-device-attributes">Missing Device Attributes<a class="headerlink" href="#missing-device-attributes" title="Permanent link">&para;</a></h3>
+<p>Some devices don't report all attributes:</p>
+<ul>
+<li><strong>Battery</strong>: Some mains-powered devices don't report battery</li>
+<li><strong>LQI</strong>: Not all devices include link quality in updates</li>
+<li><strong>Last Seen</strong>: May not update for sleeping devices</li>
+</ul>
+<h3 id="device-shows-offline">Device Shows Offline<a class="headerlink" href="#device-shows-offline" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Check if the device is within range of a router</li>
+<li>Verify the device has battery (if applicable)</li>
+<li>Try pressing a button on the device to wake it</li>
+<li>Check ZHA logs for communication errors</li>
+</ol>
+<h3 id="health-score-seems-wrong">Health Score Seems Wrong<a class="headerlink" href="#health-score-seems-wrong" title="Permanent link">&para;</a></h3>
+<p>The health score uses multiple factors. Check individual components:</p>
+<ul>
+<li>View <code>sensor.{device}_reconnect_rate</code> for connectivity issues</li>
+<li>Check battery level directly</li>
+<li>Review link quality in ZHA device info</li>
+</ul>
+<h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
+<h3 id="coordinator-placement">Coordinator Placement<a class="headerlink" href="#coordinator-placement" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Place the coordinator centrally in your home</li>
+<li>Keep it away from USB 3.0 devices (interference)</li>
+<li>Elevate it if possible for better coverage</li>
+</ul>
+<h3 id="router-distribution">Router Distribution<a class="headerlink" href="#router-distribution" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Add mains-powered devices (routers) throughout your space</li>
+<li>Routers extend the network and improve reliability</li>
+<li>Good router coverage reduces reconnection issues</li>
+</ul>
+<h3 id="regular-maintenance">Regular Maintenance<a class="headerlink" href="#regular-maintenance" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Check device health scores weekly</li>
+<li>Replace batteries in devices with drain warnings</li>
+<li>Re-interview devices that show persistent issues</li>
+</ul>
+<h2 id="zha-specific-features">ZHA-Specific Features<a class="headerlink" href="#zha-specific-features" title="Permanent link">&para;</a></h2>
+<h3 id="device-interview">Device Interview<a class="headerlink" href="#device-interview" title="Permanent link">&para;</a></h3>
+<p>If a device is misbehaving:</p>
+<ol>
+<li>Go to <strong>Settings</strong> &gt; <strong>Devices &amp; Services</strong> &gt; <strong>ZHA</strong></li>
+<li>Click on the problematic device</li>
+<li>Select <strong>Reconfigure Device</strong> to re-interview</li>
+</ol>
+<h3 id="network-visualization">Network Visualization<a class="headerlink" href="#network-visualization" title="Permanent link">&para;</a></h3>
+<p>ZHA provides its own network visualization:</p>
+<ol>
+<li>Go to <strong>Settings</strong> &gt; <strong>Devices &amp; Services</strong> &gt; <strong>ZHA</strong></li>
+<li>Click <strong>Configure</strong></li>
+<li>Select <strong>Visualize</strong> to see the network graph</li>
+</ol>
+<p>This complements ZigSight's topology card with additional route information.</p>
+<h2 id="related-documentation">Related Documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://www.home-assistant.io/integrations/zha/">ZHA Official Documentation</a></li>
+<li><a href="../../analytics/">ZigSight Analytics</a></li>
+<li><a href="../../wifi_recommendation/">ZigSight Wi-Fi Recommendation</a></li>
+<li><a href="../../automations/">ZigSight Automations</a></li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../zigbee2mqtt/" class="btn btn-neutral float-left" title="Zigbee2MQTT"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../deconz/" class="btn btn-neutral float-right" title="deCONZ">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/mmornati/zigsight" class="fa fa-code-fork" style="color: #fcfcfc"> mmornati/zigsight</a>
+        </span>
+    
+    
+      <span><a href="../zigbee2mqtt/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../deconz/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

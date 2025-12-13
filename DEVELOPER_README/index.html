@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Marco Mornati" /><link rel="canonical" href="https://mmornati.github.io/zigsight/DEVELOPER_README/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Developer Guide - ZigSight Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Developer Guide";
+        var mkdocs_page_input_path = "DEVELOPER_README.md";
+        var mkdocs_page_url = "/zigsight/DEVELOPER_README/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/bash.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> ZigSight Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../getting_started/">Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Integrations</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zigbee2mqtt/">Zigbee2MQTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zha/">ZHA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/deconz/">deCONZ</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../analytics/">Analytics</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../wifi_recommendation/">Wi-Fi Recommendation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ui/">UI</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../automations/">Automations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../faq/">FAQ</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Developer Guide</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#repository-layout">Repository Layout</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#development-environment">Development Environment</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#quick-start">Quick Start</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#handy-make-targets">Handy Make targets</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#manual-setup-optional">Manual setup (optional)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#coverage">Coverage</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#adding-secrets-for-codecov">Adding Secrets for Codecov</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#project-structure-guidelines">Project Structure Guidelines</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#analytics-algorithms">Analytics Algorithms</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#function-signatures">Function Signatures</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#deviceanalytics__init__">DeviceAnalytics.__init__()</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#compute_reconnect_rate">compute_reconnect_rate()</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#compute_battery_trend">compute_battery_trend()</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#compute_health_score">compute_health_score()</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#check_battery_drain_warning">check_battery_drain_warning()</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#check_connectivity_warning">check_connectivity_warning()</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#data-retention-policy">Data Retention Policy</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#performance-considerations">Performance Considerations</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#testing-analytics-functions">Testing Analytics Functions</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#wi-fi-scanner-adapters">Wi-Fi Scanner Adapters</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#scanner-architecture">Scanner Architecture</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#available-adapters">Available Adapters</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#manualscanner">ManualScanner</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#routerapiscanner">RouterAPIScanner</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#hostscanner">HostScanner</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#factory-function">Factory Function</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#adding-a-new-router-adapter">Adding a New Router Adapter</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#testing-scanner-adapters">Testing Scanner Adapters</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#channel-recommender-algorithm">Channel Recommender Algorithm</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#algorithm-overview">Algorithm Overview</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#key-functions">Key Functions</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#calculate_overlap_factorwifi_channel-zigbee_channel-rssi">calculate_overlap_factor(wifi_channel, zigbee_channel, rssi)</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#score_zigbee_channelzigbee_channel-wifi_aps">score_zigbee_channel(zigbee_channel, wifi_aps)</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#recommend_zigbee_channelwifi_aps">recommend_zigbee_channel(wifi_aps)</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#frequency-mappings">Frequency Mappings</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#frontend-development">Frontend Development</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#card-location">Card Location</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#no-build-process-required">No Build Process Required</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#card-registration">Card Registration</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#card-usage">Card Usage</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#card-development">Card Development</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#card-features">Card Features</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#api-endpoint">API Endpoint</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#testing-frontend-changes">Testing Frontend Changes</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#future-enhancements">Future Enhancements</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#automation-blueprints">Automation Blueprints</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#blueprint-location">Blueprint Location</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#blueprint-structure">Blueprint Structure</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#creating-a-new-blueprint">Creating a New Blueprint</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#blueprint-testing">Blueprint Testing</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#user-documentation">User Documentation</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#documentation-site">Documentation Site</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#viewing-the-documentation">Viewing the Documentation</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#building-documentation-locally">Building Documentation Locally</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#documentation-structure">Documentation Structure</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#adding-or-editing-pages">Adding or Editing Pages</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#deployment-workflow">Deployment Workflow</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#mkdocs-configuration">MkDocs Configuration</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#documentation-requirements">Documentation Requirements</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#zha-integration-support">ZHA Integration Support</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#architecture">Architecture</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#zha-collector-implementation">ZHA Collector Implementation</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#key-methods">Key Methods</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#metric-normalization">Metric Normalization</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#coordinator-integration">Coordinator Integration</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#zha-api-usage">ZHA API Usage</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#handling-zha-changes">Handling ZHA Changes</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#testing-zha-collector">Testing ZHA Collector</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#performance-considerations_1">Performance Considerations</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#future-enhancements_1">Future Enhancements</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#contributing">Contributing</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#resources">Resources</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">ZigSight Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Developer Guide</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/mmornati/zigsight/edit/master/docs/DEVELOPER_README.md">Edit on mmornati/zigsight</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="developer-readme">Developer README<a class="headerlink" href="#developer-readme" title="Permanent link">&para;</a></h1>
+<p>This document provides information for developers contributing to the ZigSight project.</p>
+<h2 id="repository-layout">Repository Layout<a class="headerlink" href="#repository-layout" title="Permanent link">&para;</a></h2>
+<pre class="codehilite"><code>.
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # GitHub Actions CI workflow
+├── automations/
+│   ├── README.md               # Blueprint overview and import instructions
+│   ├── battery_drain.yaml      # Battery low alert blueprint
+│   ├── reconnect_flap.yaml     # Device flapping alert blueprint
+│   └── network_health_daily_report.yaml  # Daily health report blueprint
+├── custom_components/
+│   └── zigsight/
+│       ├── __init__.py         # Integration entry point
+│       ├── manifest.json       # Home Assistant manifest
+│       ├── config_flow.py      # Configuration flow handler
+│       ├── options_flow.py     # Options flow handler
+│       ├── coordinator.py      # Data update coordinator
+│       ├── analytics.py        # Analytics engine for metrics computation
+│       ├── const.py            # Constants
+│       ├── services.yaml       # Service definitions
+│       ├── sensor/
+│       │   ├── __init__.py     # Sensor platform setup
+│       │   └── sensor.py      # Sensor entity classes
+│       └── binary_sensor/
+│           ├── __init__.py     # Binary sensor platform setup
+│           └── binary_sensor.py # Binary sensor entity classes
+├── docs/
+│   ├── getting_started.md      # User documentation
+│   ├── automations.md          # Automation blueprints guide
+│   └── DEVELOPER_README.md     # This file
+├── tests/
+│   ├── test_manifest.py        # Manifest validation tests
+│   ├── test_coordinator.py     # Coordinator tests
+│   └── test_sensor.py          # Sensor entity tests
+├── pyproject.toml              # Project configuration
+├── requirements-dev.txt        # Development dependencies
+└── README.md                   # Project README
+</code></pre>
+
+<h2 id="development-environment">Development Environment<a class="headerlink" href="#development-environment" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Python</strong>: 3.11 – 3.13 (CI defaults to 3.13)</li>
+<li><strong>Home Assistant compatibility</strong>: <code>homeassistant&gt;=2025.10.0</code></li>
+</ul>
+<h3 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h3>
+<pre class="codehilite"><code class="language-bash">git clone https://github.com/mmornati/zigsight.git
+cd zigsight
+make setup-dev
+source .venv/bin/activate
+</code></pre>
+
+<p><code>make setup-dev</code> creates the local virtualenv, installs every developer dependency from <code>requirements-dev.txt</code>, and registers the pre-commit hooks so linting runs before commits.</p>
+<h3 id="handy-make-targets">Handy Make targets<a class="headerlink" href="#handy-make-targets" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>make lint</code></td>
+<td><code>ruff check .</code> + <code>mypy</code> (mirrors the GitHub CI lint job)</td>
+</tr>
+<tr>
+<td><code>make security</code></td>
+<td>Runs Bandit with the project configuration</td>
+</tr>
+<tr>
+<td><code>make test</code></td>
+<td>Unit tests with coverage HTML + terminal summary</td>
+</tr>
+<tr>
+<td><code>make test-quick</code></td>
+<td>Unit tests without coverage</td>
+</tr>
+<tr>
+<td><code>make format</code></td>
+<td><code>ruff format .</code> plus <code>ruff check --fix .</code></td>
+</tr>
+<tr>
+<td><code>make check-format</code></td>
+<td>Verify formatting (<code>ruff format --check .</code>, <code>ruff check .</code>)</td>
+</tr>
+<tr>
+<td><code>make clean</code></td>
+<td>Remove cached artifacts (<code>.mypy_cache</code>, <code>.ruff_cache</code>, <code>.pytest_cache</code>, …)</td>
+</tr>
+</tbody>
+</table>
+<p>All commands assume the virtualenv created by <code>make setup-dev</code> is active.</p>
+<h3 id="manual-setup-optional">Manual setup (optional)<a class="headerlink" href="#manual-setup-optional" title="Permanent link">&para;</a></h3>
+<p>If you prefer not to use the Makefile helpers:</p>
+<pre class="codehilite"><code class="language-bash">python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements-dev.txt
+pre-commit install
+</code></pre>
+
+<p>Run the individual tools exactly as the make targets do:</p>
+<pre class="codehilite"><code class="language-bash">ruff check .
+ruff format --check .
+mypy custom_components/zigsight/
+pytest tests/
+bandit -r custom_components/zigsight -c tests/bandit.yaml
+</code></pre>
+
+<h3 id="coverage">Coverage<a class="headerlink" href="#coverage" title="Permanent link">&para;</a></h3>
+<p>Project target coverage is <strong>85%</strong>.</p>
+<pre class="codehilite"><code class="language-bash">pytest --cov=custom_components --cov-report=html tests/
+open htmlcov/index.html
+</code></pre>
+
+<p>The CI pipeline uploads coverage to Codecov; results without a token are still published for public repositories.</p>
+<h2 id="adding-secrets-for-codecov">Adding Secrets for Codecov<a class="headerlink" href="#adding-secrets-for-codecov" title="Permanent link">&para;</a></h2>
+<p>Codecov token is optional for public repositories. If you want to add a Codecov token:</p>
+<ol>
+<li>Go to <a href="https://codecov.io">Codecov</a> and sign in with GitHub</li>
+<li>Add your repository</li>
+<li>Copy the repository upload token</li>
+<li>In your GitHub repository, go to <strong>Settings &gt; Secrets and variables &gt; Actions</strong></li>
+<li>Add a new secret named <code>CODECOV_TOKEN</code> with the token value</li>
+</ol>
+<p>The CI workflow will automatically use this token if present.</p>
+<h2 id="project-structure-guidelines">Project Structure Guidelines<a class="headerlink" href="#project-structure-guidelines" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Constants</strong>: All constants should be defined in <code>const.py</code></li>
+<li><strong>Coordinator</strong>: Data fetching and state management in <code>coordinator.py</code></li>
+<li><strong>Analytics</strong>: Metrics computation engine in <code>analytics.py</code></li>
+<li><strong>Entities</strong>: Sensor entities in <code>sensor/sensor.py</code>, binary sensors in <code>binary_sensor/binary_sensor.py</code></li>
+<li><strong>Platform Setup</strong>: Platform initialization in <code>sensor/__init__.py</code> and <code>binary_sensor/__init__.py</code></li>
+<li><strong>Config Flow</strong>: User configuration in <code>config_flow.py</code></li>
+<li><strong>Options</strong>: Configuration options in <code>options_flow.py</code></li>
+</ul>
+<h2 id="analytics-algorithms">Analytics Algorithms<a class="headerlink" href="#analytics-algorithms" title="Permanent link">&para;</a></h2>
+<p>The analytics engine (<code>analytics.py</code>) provides metrics computation for device health monitoring.</p>
+<h3 id="function-signatures">Function Signatures<a class="headerlink" href="#function-signatures" title="Permanent link">&para;</a></h3>
+<h4 id="deviceanalytics__init__"><code>DeviceAnalytics.__init__()</code><a class="headerlink" href="#deviceanalytics__init__" title="Permanent link">&para;</a></h4>
+<pre class="codehilite"><code class="language-python">def __init__(
+    reconnect_rate_window_hours: int = 24,
+    battery_drain_threshold: float = 10.0,
+    min_battery_for_trend: int = 20,
+) -&gt; None
+</code></pre>
+
+<p>Initializes the analytics engine with configurable thresholds.</p>
+<p><strong>Parameters</strong>:
+- <code>reconnect_rate_window_hours</code>: Time window in hours for reconnect rate calculation (default: 24)
+- <code>battery_drain_threshold</code>: Minimum drain rate (%/hour) to trigger warning (default: 10.0)
+- <code>min_battery_for_trend</code>: Minimum battery % to compute trend (default: 20)</p>
+<h4 id="compute_reconnect_rate"><code>compute_reconnect_rate()</code><a class="headerlink" href="#compute_reconnect_rate" title="Permanent link">&para;</a></h4>
+<pre class="codehilite"><code class="language-python">def compute_reconnect_rate(
+    device_history: list[dict[str, Any]],
+    window_hours: int | None = None,
+) -&gt; float
+</code></pre>
+
+<p><strong>Algorithm</strong>:
+1. Filter history entries within time window
+2. Sort entries by timestamp
+3. Detect gaps &gt; 5 minutes between consecutive entries (reconnection events)
+4. Count reconnection events within window
+5. Calculate rate as events/hour</p>
+<p><strong>Returns</strong>: Reconnect rate (events/hour) or 0.0 if insufficient data</p>
+<p><strong>Time Complexity</strong>: O(n log n) where n = number of history entries (due to sorting)</p>
+<h4 id="compute_battery_trend"><code>compute_battery_trend()</code><a class="headerlink" href="#compute_battery_trend" title="Permanent link">&para;</a></h4>
+<pre class="codehilite"><code class="language-python">def compute_battery_trend(
+    device_history: list[dict[str, Any]],
+    window_hours: int = 24,
+) -&gt; float | None
+</code></pre>
+
+<p><strong>Algorithm</strong>:
+1. Extract battery readings from history within time window
+2. Filter readings with battery ≥ <code>min_battery_for_trend</code> (20% default)
+3. Sort by timestamp
+4. Compute linear regression slope using least squares method
+5. Return percentage change per hour (negative = draining)</p>
+<p><strong>Returns</strong>: Battery trend (%/hour) or None if insufficient data</p>
+<p><strong>Time Complexity</strong>: O(n) where n = number of history entries</p>
+<p><strong>Linear Regression Formula</strong>:</p>
+<pre class="codehilite"><code>slope = (n × Σ(t×b) - Σ(t) × Σ(b)) / (n × Σ(t²) - (Σ(t))²)
+</code></pre>
+
+<p>where:
+- n = number of data points
+- t = time in hours since first reading
+- b = battery percentage</p>
+<h4 id="compute_health_score"><code>compute_health_score()</code><a class="headerlink" href="#compute_health_score" title="Permanent link">&para;</a></h4>
+<pre class="codehilite"><code class="language-python">def compute_health_score(
+    device_data: dict[str, Any],
+    device_history: list[dict[str, Any]],
+) -&gt; float
+</code></pre>
+
+<p><strong>Algorithm</strong>:
+1. Extract current metrics: link_quality, battery, last_seen
+2. Normalize each component to 0-100 scale:
+   - <strong>Link Quality</strong>: Normalize 0-255 → 0-100 (higher is better)
+   - <strong>Battery</strong>: Use as-is 0-100% (higher is better)
+   - <strong>Reconnect Rate</strong>: Invert (0/hour = 100, 10+/hour = 0)
+   - <strong>Connectivity</strong>: Based on last_seen recency (&lt; 5 min = 100, &gt; 1 hour = 0, linear decay)
+3. Apply weighted average using configured weights (default: link_quality 30%, battery 20%, reconnect_rate 30%, connectivity 20%)
+4. Return score 0-100 where 100 is excellent</p>
+<p><strong>Returns</strong>: Health score (0-100) where 100 is excellent</p>
+<p><strong>Time Complexity</strong>: O(1) for score calculation, O(n) for reconnect rate computation</p>
+<p><strong>Score Interpretation</strong>:
+- 90-100: Excellent
+- 70-89: Good
+- 50-69: Fair
+- 0-49: Poor</p>
+<h4 id="check_battery_drain_warning"><code>check_battery_drain_warning()</code><a class="headerlink" href="#check_battery_drain_warning" title="Permanent link">&para;</a></h4>
+<pre class="codehilite"><code class="language-python">def check_battery_drain_warning(
+    device_history: list[dict[str, Any]],
+    threshold: float | None = None,
+) -&gt; bool
+</code></pre>
+
+<p><strong>Algorithm</strong>:
+1. Compute battery trend using <code>compute_battery_trend()</code>
+2. Compare trend against threshold (default: 10%/hour)
+3. Return True if trend &lt; -threshold (negative = draining)</p>
+<p><strong>Returns</strong>: True if battery drain warning should be triggered</p>
+<h4 id="check_connectivity_warning"><code>check_connectivity_warning()</code><a class="headerlink" href="#check_connectivity_warning" title="Permanent link">&para;</a></h4>
+<pre class="codehilite"><code class="language-python">def check_connectivity_warning(
+    device_data: dict[str, Any],
+    reconnect_rate_threshold: float = 5.0,
+) -&gt; bool
+</code></pre>
+
+<p><strong>Algorithm</strong>:
+1. Extract device history from device_data
+2. Compute reconnect rate using <code>compute_reconnect_rate()</code>
+3. Check if reconnect_rate ≥ threshold
+4. OR check if last_seen &gt; 1 hour ago
+5. Return True if either condition is met</p>
+<p><strong>Returns</strong>: True if connectivity warning should be triggered</p>
+<h3 id="data-retention-policy">Data Retention Policy<a class="headerlink" href="#data-retention-policy" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Maximum History</strong>: 1000 entries per device (last entries kept, FIFO)</li>
+<li><strong>Retention Period</strong>: Configurable via <code>retention_days</code> (default: 30 days)</li>
+<li><strong>Memory Usage</strong>: Approximately 10-50 KB per device depending on history size</li>
+</ul>
+<p>History is stored in-memory in the coordinator. For persistent storage, use Home Assistant's built-in history features.</p>
+<h3 id="performance-considerations">Performance Considerations<a class="headerlink" href="#performance-considerations" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Reconnect Rate Calculation</strong>: O(n log n) due to sorting. Consider caching if called frequently.</li>
+<li><strong>Battery Trend Calculation</strong>: O(n). Optimized by filtering entries outside window early.</li>
+<li><strong>Health Score Calculation</strong>: O(1) after component extraction. Reconnect rate computation may be O(n log n).</li>
+<li><strong>Memory Usage</strong>: Linear with number of devices and history size. Monitor memory usage in production.</li>
+</ul>
+<h3 id="testing-analytics-functions">Testing Analytics Functions<a class="headerlink" href="#testing-analytics-functions" title="Permanent link">&para;</a></h3>
+<p>See <code>tests/test_analytics.py</code> for comprehensive test coverage:</p>
+<ul>
+<li>Test reconnect rate with various history patterns</li>
+<li>Test battery trend with different drain scenarios</li>
+<li>Test health score computation with different metrics</li>
+<li>Test warning conditions with threshold variations</li>
+</ul>
+<h2 id="wi-fi-scanner-adapters">Wi-Fi Scanner Adapters<a class="headerlink" href="#wi-fi-scanner-adapters" title="Permanent link">&para;</a></h2>
+<p>ZigSight includes a Wi-Fi scanning system for channel recommendation. The system uses an adapter pattern to support multiple input methods.</p>
+<h3 id="scanner-architecture">Scanner Architecture<a class="headerlink" href="#scanner-architecture" title="Permanent link">&para;</a></h3>
+<p>All scanners implement the <code>WiFiScanner</code> abstract base class:</p>
+<pre class="codehilite"><code class="language-python">class WiFiScanner(ABC):
+    @abstractmethod
+    async def scan(self) -&gt; list[dict[str, Any]]:
+        &quot;&quot;&quot;Return list of APs with keys: channel, rssi, ssid (optional)&quot;&quot;&quot;
+</code></pre>
+
+<h3 id="available-adapters">Available Adapters<a class="headerlink" href="#available-adapters" title="Permanent link">&para;</a></h3>
+<h4 id="manualscanner">ManualScanner<a class="headerlink" href="#manualscanner" title="Permanent link">&para;</a></h4>
+<p>Accepts pre-scanned data from user input.</p>
+<p><strong>Usage:</strong></p>
+<pre class="codehilite"><code class="language-python">scanner = ManualScanner(scan_data=[
+    {&quot;channel&quot;: 1, &quot;rssi&quot;: -45, &quot;ssid&quot;: &quot;Network1&quot;},
+    {&quot;channel&quot;: 6, &quot;rssi&quot;: -60}
+])
+aps = await scanner.scan()
+</code></pre>
+
+<h4 id="routerapiscanner">RouterAPIScanner<a class="headerlink" href="#routerapiscanner" title="Permanent link">&para;</a></h4>
+<p>Queries router APIs for scan data. Currently a placeholder for future router-specific implementations.</p>
+<p><strong>Supported Router Types:</strong>
+- UniFi (planned)
+- OpenWrt (planned)
+- Fritz!Box (planned)</p>
+<p><strong>Adding Router Support:</strong>
+Extend <code>RouterAPIScanner.scan()</code> to add router-specific API calls:</p>
+<pre class="codehilite"><code class="language-python">async def scan(self) -&gt; list[dict[str, Any]]:
+    if self.router_type == &quot;unifi&quot;:
+        return await self._scan_unifi()
+    elif self.router_type == &quot;openwrt&quot;:
+        return await self._scan_openwrt()
+    # ...
+</code></pre>
+
+<h4 id="hostscanner">HostScanner<a class="headerlink" href="#hostscanner" title="Permanent link">&para;</a></h4>
+<p>Scans Wi-Fi using host system tools (iwlist or nmcli).</p>
+<p><strong>Requirements:</strong>
+- Linux host with Wi-Fi adapter
+- <code>iwlist</code> (wireless-tools) or <code>nmcli</code> (NetworkManager) installed
+- Appropriate permissions (may require privileged add-on)</p>
+<p><strong>Permissions:</strong>
+- <strong>iwlist</strong>: Typically requires root or CAP_NET_ADMIN capability
+- <strong>nmcli</strong>: Usually works without elevated permissions if NetworkManager is running</p>
+<h3 id="factory-function">Factory Function<a class="headerlink" href="#factory-function" title="Permanent link">&para;</a></h3>
+<p>Use <code>create_scanner()</code> to instantiate the appropriate scanner:</p>
+<pre class="codehilite"><code class="language-python">from custom_components.zigsight.wifi_scanner import create_scanner
+
+# Manual mode
+scanner = create_scanner(
+    mode=&quot;manual&quot;,
+    scan_data=[{&quot;channel&quot;: 1, &quot;rssi&quot;: -45}]
+)
+
+# Router API mode
+scanner = create_scanner(
+    mode=&quot;router_api&quot;,
+    router_config={
+        &quot;router_type&quot;: &quot;unifi&quot;,
+        &quot;host&quot;: &quot;192.168.1.1&quot;,
+        &quot;username&quot;: &quot;admin&quot;,
+        &quot;password&quot;: &quot;secret&quot;
+    }
+)
+
+# Host scan mode
+scanner = create_scanner(
+    mode=&quot;host_scan&quot;,
+    host_config={&quot;interface&quot;: &quot;wlan0&quot;}
+)
+</code></pre>
+
+<h3 id="adding-a-new-router-adapter">Adding a New Router Adapter<a class="headerlink" href="#adding-a-new-router-adapter" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Identify the API endpoint</strong> for Wi-Fi scanning in your router</li>
+<li><strong>Add authentication logic</strong> in <code>RouterAPIScanner.__init__()</code></li>
+<li><strong>Implement the scan method</strong> for your router type:</li>
+</ol>
+<pre class="codehilite"><code class="language-python">async def _scan_your_router(self) -&gt; list[dict[str, Any]]:
+    &quot;&quot;&quot;Scan using YourRouter API.&quot;&quot;&quot;
+    async with aiohttp.ClientSession() as session:
+        # Authenticate
+        auth_data = await self._authenticate_your_router(session)
+
+        # Query scan endpoint
+        async with session.get(
+            f&quot;http://{self.host}/api/wifi/scan&quot;,
+            headers={&quot;Authorization&quot;: f&quot;Bearer {auth_data['token']}&quot;}
+        ) as response:
+            data = await response.json()
+
+        # Parse response into standard format
+        return [
+            {
+                &quot;channel&quot;: ap[&quot;chan&quot;],
+                &quot;rssi&quot;: ap[&quot;signal&quot;],
+                &quot;ssid&quot;: ap.get(&quot;name&quot;)
+            }
+            for ap in data[&quot;access_points&quot;]
+        ]
+</code></pre>
+
+<ol>
+<li><strong>Add router type</strong> to <code>RouterAPIScanner.scan()</code> dispatch logic</li>
+<li><strong>Add tests</strong> in <code>tests/test_wifi_scanner.py</code></li>
+<li><strong>Document</strong> in <code>docs/wifi_recommendation.md</code></li>
+</ol>
+<h3 id="testing-scanner-adapters">Testing Scanner Adapters<a class="headerlink" href="#testing-scanner-adapters" title="Permanent link">&para;</a></h3>
+<p>See <code>tests/test_wifi_scanner.py</code> for comprehensive test coverage:</p>
+<pre class="codehilite"><code class="language-python">@pytest.mark.asyncio
+async def test_your_scanner() -&gt; None:
+    scanner = YourScanner(config)
+    result = await scanner.scan()
+
+    assert isinstance(result, list)
+    for ap in result:
+        assert &quot;channel&quot; in ap
+        assert &quot;rssi&quot; in ap
+</code></pre>
+
+<h2 id="channel-recommender-algorithm">Channel Recommender Algorithm<a class="headerlink" href="#channel-recommender-algorithm" title="Permanent link">&para;</a></h2>
+<p>The channel recommender in <code>recommender.py</code> uses frequency overlap analysis to score Zigbee channels.</p>
+<h3 id="algorithm-overview">Algorithm Overview<a class="headerlink" href="#algorithm-overview" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Calculate Overlap Factor</strong> for each Wi-Fi AP and Zigbee channel pair:</li>
+<li>Compute frequency distance between channels</li>
+<li>Apply overlap percentage based on bandwidth (Wi-Fi ~22 MHz, Zigbee ~2 MHz)</li>
+<li>
+<p>Factor in signal strength (RSSI)</p>
+</li>
+<li>
+<p><strong>Score Each Zigbee Channel</strong> (11, 15, 20, 25):</p>
+</li>
+<li>Sum overlap factors from all Wi-Fi APs</li>
+<li>
+<p>Lower score = less interference</p>
+</li>
+<li>
+<p><strong>Select Best Channel</strong>:</p>
+</li>
+<li>Choose channel with lowest score</li>
+<li>Generate human-readable explanation</li>
+</ol>
+<h3 id="key-functions">Key Functions<a class="headerlink" href="#key-functions" title="Permanent link">&para;</a></h3>
+<h4 id="calculate_overlap_factorwifi_channel-zigbee_channel-rssi"><code>calculate_overlap_factor(wifi_channel, zigbee_channel, rssi)</code><a class="headerlink" href="#calculate_overlap_factorwifi_channel-zigbee_channel-rssi" title="Permanent link">&para;</a></h4>
+<p>Returns interference factor (0-100) for a single Wi-Fi AP and Zigbee channel pair.</p>
+<p><strong>Formula:</strong></p>
+<pre class="codehilite"><code class="language-python">freq_distance = abs(wifi_freq - zigbee_freq)
+overlap_percentage = max(0, 1 - (freq_distance / 22))
+normalized_rssi = (rssi + 90) * 100 / 60  # -30 to -90 dBm range
+interference_factor = overlap_percentage * normalized_rssi
+</code></pre>
+
+<h4 id="score_zigbee_channelzigbee_channel-wifi_aps"><code>score_zigbee_channel(zigbee_channel, wifi_aps)</code><a class="headerlink" href="#score_zigbee_channelzigbee_channel-wifi_aps" title="Permanent link">&para;</a></h4>
+<p>Returns total interference score (0-100) for a Zigbee channel considering all Wi-Fi APs.</p>
+<h4 id="recommend_zigbee_channelwifi_aps"><code>recommend_zigbee_channel(wifi_aps)</code><a class="headerlink" href="#recommend_zigbee_channelwifi_aps" title="Permanent link">&para;</a></h4>
+<p>Returns dict with <code>recommended_channel</code>, <code>scores</code>, and <code>explanation</code>.</p>
+<h3 id="frequency-mappings">Frequency Mappings<a class="headerlink" href="#frequency-mappings" title="Permanent link">&para;</a></h3>
+<p><strong>Wi-Fi (2.4 GHz):</strong>
+- Channel 1: 2412 MHz
+- Channel 6: 2437 MHz (most common)
+- Channel 11: 2462 MHz
+- Channels 1-13 supported (14 in Japan)</p>
+<p><strong>Zigbee (2.4 GHz):</strong>
+- Channel 11: 2405 MHz (recommended)
+- Channel 15: 2425 MHz (recommended)
+- Channel 20: 2450 MHz (recommended)
+- Channel 25: 2475 MHz (recommended)
+- Channels 12-24, 26 available but not recommended</p>
+<h2 id="frontend-development">Frontend Development<a class="headerlink" href="#frontend-development" title="Permanent link">&para;</a></h2>
+<p>ZigSight includes a custom Lovelace card for network topology visualization.</p>
+<h3 id="card-location">Card Location<a class="headerlink" href="#card-location" title="Permanent link">&para;</a></h3>
+<p>The topology card is located at:</p>
+<pre class="codehilite"><code>custom_components/zigsight/www/topology-card.js
+</code></pre>
+
+<h3 id="no-build-process-required">No Build Process Required<a class="headerlink" href="#no-build-process-required" title="Permanent link">&para;</a></h3>
+<p>The topology card is written in vanilla JavaScript and requires no build process. It can be directly loaded by Home Assistant as a Lovelace resource.</p>
+<h3 id="card-registration">Card Registration<a class="headerlink" href="#card-registration" title="Permanent link">&para;</a></h3>
+<p>The card is automatically registered when loaded. Users need to:</p>
+<ol>
+<li>
+<p>Copy the card to their <code>www/</code> directory:
+   <code>bash
+   mkdir -p config/www/community/zigsight
+   cp custom_components/zigsight/www/topology-card.js config/www/community/zigsight/</code></p>
+</li>
+<li>
+<p>Register as a Lovelace resource in <code>configuration.yaml</code>:
+   ```yaml
+   lovelace:
+     mode: yaml
+     resources:</p>
+<ul>
+<li>url: /local/community/zigsight/topology-card.js
+     type: module
+   ```</li>
+</ul>
+</li>
+</ol>
+<p>Or via UI: Settings → Dashboards → Resources → Add Resource</p>
+<h3 id="card-usage">Card Usage<a class="headerlink" href="#card-usage" title="Permanent link">&para;</a></h3>
+<p>Add to any dashboard:</p>
+<pre class="codehilite"><code class="language-yaml">type: custom:zigsight-topology-card
+title: Zigbee Network Topology
+</code></pre>
+
+<h3 id="card-development">Card Development<a class="headerlink" href="#card-development" title="Permanent link">&para;</a></h3>
+<p>To modify the card:</p>
+<ol>
+<li>Edit <code>custom_components/zigsight/www/topology-card.js</code></li>
+<li>Copy updated file to Home Assistant's <code>www/</code> directory</li>
+<li>Clear browser cache or use incognito mode</li>
+<li>Refresh the dashboard</li>
+</ol>
+<h3 id="card-features">Card Features<a class="headerlink" href="#card-features" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Network Statistics</strong>: Shows device counts by type</li>
+<li><strong>Device Cards</strong>: Interactive cards for each device with metrics</li>
+<li><strong>Color Coding</strong>: Visual indicators for device type and health</li>
+<li><strong>Device Details</strong>: Click any device to see detailed information</li>
+<li><strong>Link Quality</strong>: Color-coded signal strength indicators</li>
+<li><strong>Warnings</strong>: Highlights devices with connectivity or battery issues</li>
+</ul>
+<h3 id="api-endpoint">API Endpoint<a class="headerlink" href="#api-endpoint" title="Permanent link">&para;</a></h3>
+<p>The card fetches data from <code>/api/zigsight/topology</code> which returns:
+- Node list with device information
+- Edge list with parent-child relationships
+- Network statistics</p>
+<p>See <code>docs/ui.md</code> for complete API documentation.</p>
+<h3 id="testing-frontend-changes">Testing Frontend Changes<a class="headerlink" href="#testing-frontend-changes" title="Permanent link">&para;</a></h3>
+<p>Since there's no build process, testing is straightforward:</p>
+<ol>
+<li>Copy the updated card to Home Assistant</li>
+<li>Reload the dashboard</li>
+<li>Check browser console for errors</li>
+<li>Test all interactive features</li>
+</ol>
+<h3 id="future-enhancements">Future Enhancements<a class="headerlink" href="#future-enhancements" title="Permanent link">&para;</a></h3>
+<p>Potential improvements for the topology card:</p>
+<ul>
+<li>Interactive graph visualization (D3.js, vis-network)</li>
+<li>Device filtering and search</li>
+<li>Automatic refresh intervals</li>
+<li>Export topology as image</li>
+<li>Historical topology comparison</li>
+<li>Custom color schemes</li>
+</ul>
+<h2 id="automation-blueprints">Automation Blueprints<a class="headerlink" href="#automation-blueprints" title="Permanent link">&para;</a></h2>
+<p>ZigSight includes pre-built Home Assistant automation blueprints in the <code>automations/</code> directory.</p>
+<h3 id="blueprint-location">Blueprint Location<a class="headerlink" href="#blueprint-location" title="Permanent link">&para;</a></h3>
+<p>Blueprints are stored in:</p>
+<pre class="codehilite"><code>automations/
+├── README.md                        # Overview and import instructions
+├── battery_drain.yaml               # Battery low alert blueprint
+├── reconnect_flap.yaml              # Device flapping detection blueprint
+└── network_health_daily_report.yaml # Daily network health report blueprint
+</code></pre>
+
+<h3 id="blueprint-structure">Blueprint Structure<a class="headerlink" href="#blueprint-structure" title="Permanent link">&para;</a></h3>
+<p>Each blueprint follows the Home Assistant blueprint schema:</p>
+<pre class="codehilite"><code class="language-yaml">blueprint:
+  name: Blueprint Name
+  description: Description of what the blueprint does
+  domain: automation
+  author: ZigSight
+  source_url: https://github.com/mmornati/zigsight/blob/main/automations/blueprint.yaml
+  input:
+    input_name:
+      name: Human Readable Name
+      description: What this input controls
+      default: default_value
+      selector:
+        # Input selector type
+
+trigger:
+  # Trigger configuration
+
+condition:
+  # Optional conditions
+
+action:
+  # Actions to perform
+</code></pre>
+
+<h3 id="creating-a-new-blueprint">Creating a New Blueprint<a class="headerlink" href="#creating-a-new-blueprint" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Create the blueprint file</strong> in <code>automations/</code>:
+   <code>bash
+   touch automations/my_new_blueprint.yaml</code></p>
+</li>
+<li>
+<p><strong>Define the blueprint metadata</strong>:</p>
+</li>
+<li><code>name</code>: Short, descriptive name</li>
+<li><code>description</code>: What the blueprint does</li>
+<li><code>domain</code>: Always <code>automation</code> for automation blueprints</li>
+<li><code>author</code>: "ZigSight"</li>
+<li>
+<p><code>source_url</code>: Link to the file on GitHub</p>
+</li>
+<li>
+<p><strong>Define inputs</strong> with appropriate selectors:</p>
+</li>
+<li><code>entity</code>: Entity picker</li>
+<li><code>number</code>: Numeric input with min/max/step</li>
+<li><code>text</code>: Free text input</li>
+<li><code>boolean</code>: Toggle switch</li>
+<li><code>time</code>: Time picker</li>
+<li>
+<p><code>select</code>: Dropdown selection</p>
+</li>
+<li>
+<p><strong>Add triggers, conditions, and actions</strong> using the inputs:
+   ```yaml
+   trigger:</p>
+<ul>
+<li>platform: state
+   entity_id: !input my_entity_input
+   ```</li>
+</ul>
+</li>
+<li>
+<p><strong>Test the blueprint</strong>:</p>
+</li>
+<li>Import into Home Assistant</li>
+<li>Create an automation from it</li>
+<li>
+<p>Verify all inputs work correctly</p>
+</li>
+<li>
+<p><strong>Add tests</strong> in <code>tests/test_blueprints.yaml</code>:
+   <code>python
+   def test_my_blueprint_yaml_valid():
+       """Test that my_blueprint.yaml is valid YAML."""
+       blueprint_path = Path("automations/my_new_blueprint.yaml")
+       with blueprint_path.open() as f:
+           data = yaml.safe_load(f)
+       assert "blueprint" in data
+       assert "trigger" in data
+       assert "action" in data</code></p>
+</li>
+<li>
+<p><strong>Update documentation</strong>:</p>
+</li>
+<li>Add to <code>automations/README.md</code></li>
+<li>Add configuration reference to <code>docs/automations.md</code></li>
+</ol>
+<h3 id="blueprint-testing">Blueprint Testing<a class="headerlink" href="#blueprint-testing" title="Permanent link">&para;</a></h3>
+<p>Blueprint YAML files are validated in CI:</p>
+<pre class="codehilite"><code class="language-bash"># Run blueprint validation tests
+pytest tests/test_blueprints.py -v
+</code></pre>
+
+<p>Tests verify:
+- YAML syntax is valid
+- Required blueprint keys are present
+- Input definitions are properly formatted
+- Triggers and actions are defined</p>
+<h3 id="user-documentation">User Documentation<a class="headerlink" href="#user-documentation" title="Permanent link">&para;</a></h3>
+<p>User-facing documentation is in <code>docs/automations.md</code>, which covers:
+- How to import blueprints
+- How to create automations from blueprints
+- Configuration reference for each blueprint
+- Customization examples</p>
+<h2 id="documentation-site">Documentation Site<a class="headerlink" href="#documentation-site" title="Permanent link">&para;</a></h2>
+<p>ZigSight documentation is built using <a href="https://www.mkdocs.org/">MkDocs</a> and automatically deployed to GitHub Pages.</p>
+<h3 id="viewing-the-documentation">Viewing the Documentation<a class="headerlink" href="#viewing-the-documentation" title="Permanent link">&para;</a></h3>
+<p>The documentation site is available at: <strong>https://mmornati.github.io/zigsight/</strong></p>
+<h3 id="building-documentation-locally">Building Documentation Locally<a class="headerlink" href="#building-documentation-locally" title="Permanent link">&para;</a></h3>
+<p>To preview documentation changes locally:</p>
+<pre class="codehilite"><code class="language-bash"># Install documentation dependencies
+pip install -r requirements-docs.txt
+
+# Start the development server
+mkdocs serve
+
+# Or build the static site
+mkdocs build
+</code></pre>
+
+<p>The development server runs at <code>http://127.0.0.1:8000/</code> with live reload.</p>
+<h3 id="documentation-structure">Documentation Structure<a class="headerlink" href="#documentation-structure" title="Permanent link">&para;</a></h3>
+<p>Documentation files are in the <code>docs/</code> directory:</p>
+<pre class="codehilite"><code>docs/
+├── index.md                    # Homepage
+├── getting_started.md          # Installation guide
+├── analytics.md                # Analytics engine documentation
+├── wifi_recommendation.md      # Wi-Fi channel recommendation guide
+├── ui.md                       # Network topology card documentation
+├── automations.md              # Automation blueprints guide
+├── faq.md                      # Frequently asked questions
+├── DEVELOPER_README.md         # This file
+└── integrations/
+    ├── zigbee2mqtt.md          # Zigbee2MQTT integration guide
+    ├── zha.md                  # ZHA integration guide
+    └── deconz.md               # deCONZ integration guide
+</code></pre>
+
+<h3 id="adding-or-editing-pages">Adding or Editing Pages<a class="headerlink" href="#adding-or-editing-pages" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Create or edit markdown files in the <code>docs/</code> directory</li>
+<li>Update <code>mkdocs.yml</code> navigation if adding new pages</li>
+<li>Test locally with <code>mkdocs serve</code></li>
+<li>Submit a pull request</li>
+</ol>
+<h3 id="deployment-workflow">Deployment Workflow<a class="headerlink" href="#deployment-workflow" title="Permanent link">&para;</a></h3>
+<p>Documentation is automatically deployed via the <code>.github/workflows/deploy-docs.yaml</code> workflow:</p>
+<ul>
+<li><strong>Trigger</strong>: Push to <code>main</code> branch that modifies <code>docs/**</code>, <code>mkdocs.yml</code>, or <code>requirements-docs.txt</code></li>
+<li><strong>Build</strong>: MkDocs builds the static site with <code>mkdocs build --strict</code></li>
+<li><strong>Deploy</strong>: The <code>peaceiris/actions-gh-pages</code> action publishes to the <code>gh-pages</code> branch</li>
+<li><strong>Hosting</strong>: GitHub Pages serves the site from the <code>gh-pages</code> branch</li>
+</ul>
+<p>The workflow can also be triggered manually via <code>workflow_dispatch</code>.</p>
+<h3 id="mkdocs-configuration">MkDocs Configuration<a class="headerlink" href="#mkdocs-configuration" title="Permanent link">&para;</a></h3>
+<p>The documentation configuration is in <code>mkdocs.yml</code>:</p>
+<ul>
+<li><strong>Theme</strong>: ReadTheDocs theme</li>
+<li><strong>Plugins</strong>: Search</li>
+<li><strong>Extensions</strong>: Tables, fenced code blocks, admonitions, table of contents</li>
+</ul>
+<h3 id="documentation-requirements">Documentation Requirements<a class="headerlink" href="#documentation-requirements" title="Permanent link">&para;</a></h3>
+<p>Documentation dependencies are in <code>requirements-docs.txt</code>:</p>
+<ul>
+<li><code>mkdocs&gt;=1.5.0</code></li>
+</ul>
+<h2 id="zha-integration-support">ZHA Integration Support<a class="headerlink" href="#zha-integration-support" title="Permanent link">&para;</a></h2>
+<p>ZigSight supports collecting device diagnostics from the Zigbee Home Automation (ZHA) integration alongside Zigbee2MQTT.</p>
+<h3 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h3>
+<p>The ZHA collector (<code>zha_collector.py</code>) implements a polling-based approach to gather device metrics:</p>
+<pre class="codehilite"><code>┌─────────────┐
+│ Coordinator │
+└──────┬──────┘
+       │
+       ├─────────────┐
+       │             │
+       v             v
+┌──────────┐   ┌─────────────┐
+│   MQTT   │   │ ZHA         │
+│ Collector│   │ Collector   │
+└──────────┘   └─────────────┘
+       │             │
+       v             v
+┌──────────────────────┐
+│  Device Metrics      │
+│  (Normalized Format) │
+└──────────────────────┘
+</code></pre>
+
+<h3 id="zha-collector-implementation">ZHA Collector Implementation<a class="headerlink" href="#zha-collector-implementation" title="Permanent link">&para;</a></h3>
+<p>The <code>ZHACollector</code> class provides:</p>
+<h4 id="key-methods">Key Methods<a class="headerlink" href="#key-methods" title="Permanent link">&para;</a></h4>
+<p><strong><code>is_available() -&gt; bool</code></strong></p>
+<p>Checks if ZHA integration is loaded by testing <code>"zha" in hass.data</code>.</p>
+<p><strong><code>collect_devices() -&gt; dict[str, dict[str, Any]]</code></strong></p>
+<p>Collects all ZHA devices and their metrics:
+1. Access <code>hass.data["zha"]["gateway"]</code>
+2. Iterate through <code>gateway.devices</code>
+3. For each device, collect metrics from:
+   - Device attributes (<code>lqi</code>, <code>rssi</code>, <code>last_seen</code>)
+   - Diagnostic entities (<code>sensor.&lt;device&gt;_rssi</code>, etc.)
+4. Normalize metrics to coordinator format</p>
+<p><strong><code>_collect_device_metrics(zha_device) -&gt; dict[str, Any]</code></strong></p>
+<p>Extracts metrics from ZHA device attributes:
+- <code>lqi</code> → <code>link_quality</code>
+- <code>rssi</code> → <code>rssi</code>
+- <code>last_seen</code> → ISO 8601 timestamp</p>
+<p><strong><code>_collect_entity_metrics(ieee: str) -&gt; dict[str, Any]</code></strong></p>
+<p>Reads diagnostic entities from device/entity registries:
+1. Find device by IEEE address in device registry
+2. Get entities for device from entity registry
+3. Read entity states for RSSI, LQI, battery</p>
+<h3 id="metric-normalization">Metric Normalization<a class="headerlink" href="#metric-normalization" title="Permanent link">&para;</a></h3>
+<p>ZHA metrics are normalized to match Zigbee2MQTT format for consistency:</p>
+<table>
+<thead>
+<tr>
+<th>ZHA Source</th>
+<th>Normalized Name</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zha_device.lqi</code></td>
+<td><code>link_quality</code></td>
+<td>int (0-255)</td>
+</tr>
+<tr>
+<td><code>zha_device.rssi</code></td>
+<td><code>rssi</code></td>
+<td>int (dBm)</td>
+</tr>
+<tr>
+<td><code>zha_device.last_seen</code></td>
+<td><code>last_seen</code></td>
+<td>ISO 8601 string</td>
+</tr>
+<tr>
+<td><code>sensor.&lt;device&gt;_battery</code></td>
+<td><code>battery</code></td>
+<td>float (%)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="coordinator-integration">Coordinator Integration<a class="headerlink" href="#coordinator-integration" title="Permanent link">&para;</a></h3>
+<p>The coordinator integrates ZHA collection through:</p>
+<p><strong>Configuration</strong></p>
+<pre class="codehilite"><code class="language-python">coordinator = ZigSightCoordinator(
+    hass,
+    enable_zha=True,  # Enable ZHA collection
+    ...
+)
+</code></pre>
+
+<p><strong>Update Cycle</strong></p>
+<pre class="codehilite"><code class="language-python">async def _async_update_data(self) -&gt; dict[str, Any]:
+    # Collect ZHA devices if enabled
+    if self._enable_zha and self._zha_collector:
+        await self._collect_zha_devices()
+    # ... continue with MQTT and analytics
+</code></pre>
+
+<p><strong>Device Processing</strong></p>
+<pre class="codehilite"><code class="language-python">def _process_zha_device_update(self, device_id: str, device_data: dict):
+    # Process ZHA device similar to MQTT devices
+    # - Track reconnections
+    # - Store metrics
+    # - Update history
+    # - Fire events
+</code></pre>
+
+<h3 id="zha-api-usage">ZHA API Usage<a class="headerlink" href="#zha-api-usage" title="Permanent link">&para;</a></h3>
+<p>ZigSight uses the following Home Assistant APIs for ZHA:</p>
+<p><strong>Stable APIs (Public)</strong>
+- <code>device_registry.async_get(hass)</code> - Get device registry
+- <code>entity_registry.async_get(hass)</code> - Get entity registry
+- <code>device_registry.async_get_device(identifiers)</code> - Find device by ID
+- <code>entity_registry.async_entries_for_device(device_id)</code> - Get device entities
+- <code>hass.states.get(entity_id)</code> - Read entity state</p>
+<p><strong>Internal APIs (May Change)</strong>
+- <code>hass.data["zha"]</code> - Access ZHA integration data
+- <code>hass.data["zha"]["gateway"]</code> - Access ZHA gateway
+- <code>gateway.devices</code> - Iterate ZHA devices
+- <code>zha_device.lqi</code>, <code>zha_device.rssi</code> - Device attributes</p>
+<h3 id="handling-zha-changes">Handling ZHA Changes<a class="headerlink" href="#handling-zha-changes" title="Permanent link">&para;</a></h3>
+<p>If ZHA internals change in future Home Assistant versions:</p>
+<ol>
+<li><strong>Check ZHA integration release notes</strong> for API changes</li>
+<li><strong>Update <code>ZHACollector</code> methods</strong> to match new APIs</li>
+<li><strong>Add version checks</strong> if supporting multiple HA versions:
+   <code>python
+   from homeassistant.const import __version__
+   if __version__ &gt;= "2025.1.0":
+       # New API
+   else:
+       # Legacy API</code></li>
+<li><strong>Update tests</strong> to cover new behavior</li>
+<li><strong>Document changes</strong> in <code>docs/integrations/zha.md</code></li>
+</ol>
+<h3 id="testing-zha-collector">Testing ZHA Collector<a class="headerlink" href="#testing-zha-collector" title="Permanent link">&para;</a></h3>
+<p>Tests use mocks to simulate ZHA integration:</p>
+<pre class="codehilite"><code class="language-python"># Mock ZHA gateway
+mock_gateway = MagicMock()
+mock_gateway.devices = {ieee: mock_device}
+mock_hass.data[&quot;zha&quot;] = {&quot;gateway&quot;: mock_gateway}
+
+# Mock device attributes
+mock_device.lqi = 200
+mock_device.rssi = -50
+mock_device.last_seen = datetime.now()
+
+# Test collection
+collector = ZHACollector(mock_hass)
+devices = await collector.collect_devices()
+</code></pre>
+
+<p>See <code>tests/test_zha_collector.py</code> for comprehensive test coverage.</p>
+<h3 id="performance-considerations_1">Performance Considerations<a class="headerlink" href="#performance-considerations_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Polling interval</strong>: ZHA collection runs on coordinator update cycle (60s default)</li>
+<li><strong>Device count</strong>: Tested with up to 50 devices; larger networks may need tuning</li>
+<li><strong>Registry access</strong>: Device/entity registry lookups are cached by Home Assistant</li>
+<li><strong>Entity state reads</strong>: Minimal overhead, reads from state machine</li>
+</ul>
+<h3 id="future-enhancements_1">Future Enhancements<a class="headerlink" href="#future-enhancements_1" title="Permanent link">&para;</a></h3>
+<p>Potential improvements for ZHA support:</p>
+<ul>
+<li><strong>Network topology</strong>: Extract parent-child relationships from ZHA</li>
+<li><strong>Route table</strong>: Access ZHA routing information</li>
+<li><strong>Device statistics</strong>: Collect packet loss, retry counts</li>
+<li><strong>Event-based updates</strong>: Subscribe to ZHA device events instead of polling</li>
+<li><strong>Deeper integration</strong>: Use ZHA's internal state tracking</li>
+</ul>
+<h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Create a feature branch: <code>git checkout -b feature/your-feature-name</code></li>
+<li>Make your changes</li>
+<li>Run tests and linting locally</li>
+<li>Commit your changes: <code>git commit -m "Add feature: description"</code></li>
+<li>Push to GitHub: <code>git push origin feature/your-feature-name</code></li>
+<li>Create a Pull Request</li>
+</ol>
+<h2 id="resources">Resources<a class="headerlink" href="#resources" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://developers.home-assistant.io/">Home Assistant Developer Documentation</a></li>
+<li><a href="https://developers.home-assistant.io/docs/creating_integration_architecture/">Home Assistant Integration Architecture</a></li>
+<li><a href="https://docs.pytest.org/">Pytest Documentation</a></li>
+<li><a href="https://docs.astral.sh/ruff/">Ruff Documentation</a></li>
+<li><a href="https://www.metageek.com/training/resources/zigbee-wifi-coexistence/">Wi-Fi/Zigbee Coexistence</a></li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../faq/" class="btn btn-neutral float-left" title="FAQ"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/mmornati/zigsight" class="fa fa-code-fork" style="color: #fcfcfc"> mmornati/zigsight</a>
+        </span>
+    
+    
+      <span><a href="../faq/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

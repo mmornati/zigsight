@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Marco Mornati" /><link rel="canonical" href="https://mmornati.github.io/zigsight/wifi_recommendation/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Wi-Fi Recommendation - ZigSight Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Wi-Fi Recommendation";
+        var mkdocs_page_input_path = "wifi_recommendation.md";
+        var mkdocs_page_url = "/zigsight/wifi_recommendation/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/bash.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> ZigSight Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../getting_started/">Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Integrations</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zigbee2mqtt/">Zigbee2MQTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/zha/">ZHA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../integrations/deconz/">deCONZ</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../analytics/">Analytics</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Wi-Fi Recommendation</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#understanding-channel-overlap">Understanding Channel Overlap</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#wi-fi-channels">Wi-Fi Channels</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#zigbee-channels">Zigbee Channels</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#overlap-mapping">Overlap Mapping</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#using-the-service">Using the Service</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#method-1-manual-upload-recommended-for-most-users">Method 1: Manual Upload (Recommended for Most Users)</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#step-1-obtain-wi-fi-scan-data">Step 1: Obtain Wi-Fi Scan Data</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#step-2-call-the-service">Step 2: Call the Service</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#method-2-router-api-mode">Method 2: Router API Mode</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#method-3-host-scan-mode">Method 3: Host Scan Mode</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#router-specific-guides">Router-Specific Guides</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#unifi">UniFi</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#openwrt">OpenWrt</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#fritzbox">Fritz!Box</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#generic-router">Generic Router</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#understanding-results">Understanding Results</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#changing-your-zigbee-channel">Changing Your Zigbee Channel</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#before-you-change">Before You Change</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#migration-checklist">Migration Checklist</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#zigbee2mqtt">Zigbee2MQTT</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#zha-home-assistant">ZHA (Home Assistant)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#deconz">deCONZ</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#no-recommendation-available">No Recommendation Available</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#devices-not-rejoining-after-channel-change">Devices Not Rejoining After Channel Change</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#high-interference-scores-on-all-channels">High Interference Scores on All Channels</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#host-scan-not-working">Host Scan Not Working</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#additional-resources">Additional Resources</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#support">Support</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ui/">UI</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../automations/">Automations</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../faq/">FAQ</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../DEVELOPER_README/">Developer Guide</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">ZigSight Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Wi-Fi Recommendation</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/mmornati/zigsight/edit/master/docs/wifi_recommendation.md">Edit on mmornati/zigsight</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="wi-fi-interference-analysis-and-zigbee-channel-recommendation">Wi-Fi Interference Analysis and Zigbee Channel Recommendation<a class="headerlink" href="#wi-fi-interference-analysis-and-zigbee-channel-recommendation" title="Permanent link">&para;</a></h1>
+<p>This guide explains how to use ZigSight's Wi-Fi interference analysis to optimize your Zigbee network by selecting the best channel.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>Zigbee and Wi-Fi both operate in the 2.4 GHz spectrum, which can lead to interference and degraded performance. ZigSight analyzes Wi-Fi access points in your environment and recommends the optimal Zigbee channel (11, 15, 20, or 25) to minimize interference.</p>
+<h2 id="understanding-channel-overlap">Understanding Channel Overlap<a class="headerlink" href="#understanding-channel-overlap" title="Permanent link">&para;</a></h2>
+<h3 id="wi-fi-channels">Wi-Fi Channels<a class="headerlink" href="#wi-fi-channels" title="Permanent link">&para;</a></h3>
+<p>Wi-Fi channels in the 2.4 GHz band use approximately 22 MHz of bandwidth each. While common channels are 1, 6, and 11, any channels from 1-13 (or 1-14 in some regions) may be in use.</p>
+<h3 id="zigbee-channels">Zigbee Channels<a class="headerlink" href="#zigbee-channels" title="Permanent link">&para;</a></h3>
+<p>Zigbee uses much narrower channels (~2 MHz) numbered 11-26 in the 2.4 GHz band. However, only channels <strong>11, 15, 20, and 25</strong> are recommended because they provide optimal spacing from common Wi-Fi channels.</p>
+<h3 id="overlap-mapping">Overlap Mapping<a class="headerlink" href="#overlap-mapping" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Zigbee Channel 11</strong> (~2405 MHz): Overlaps with Wi-Fi channels 1-2</li>
+<li><strong>Zigbee Channel 15</strong> (~2425 MHz): Overlaps with Wi-Fi channels 2-4</li>
+<li><strong>Zigbee Channel 20</strong> (~2450 MHz): Overlaps with Wi-Fi channels 6-8</li>
+<li><strong>Zigbee Channel 25</strong> (~2475 MHz): Overlaps with Wi-Fi channels 11-13</li>
+</ul>
+<h2 id="using-the-service">Using the Service<a class="headerlink" href="#using-the-service" title="Permanent link">&para;</a></h2>
+<h3 id="method-1-manual-upload-recommended-for-most-users">Method 1: Manual Upload (Recommended for Most Users)<a class="headerlink" href="#method-1-manual-upload-recommended-for-most-users" title="Permanent link">&para;</a></h3>
+<p>This is the easiest method. Export Wi-Fi scan data from your router, then upload it to ZigSight.</p>
+<h4 id="step-1-obtain-wi-fi-scan-data">Step 1: Obtain Wi-Fi Scan Data<a class="headerlink" href="#step-1-obtain-wi-fi-scan-data" title="Permanent link">&para;</a></h4>
+<p>See the router-specific guides below for how to export Wi-Fi scan data.</p>
+<h4 id="step-2-call-the-service">Step 2: Call the Service<a class="headerlink" href="#step-2-call-the-service" title="Permanent link">&para;</a></h4>
+<ol>
+<li>In Home Assistant, go to <strong>Developer Tools</strong> &gt; <strong>Services</strong></li>
+<li>Select service: <code>zigsight.recommend_channel</code></li>
+<li>Set mode to <code>manual</code></li>
+<li>Paste your Wi-Fi scan data in the <code>wifi_scan_data</code> field</li>
+</ol>
+<p>Example service call:</p>
+<pre class="codehilite"><code class="language-yaml">service: zigsight.recommend_channel
+data:
+  mode: manual
+  wifi_scan_data:
+    - channel: 1
+      rssi: -45
+      ssid: &quot;MyNetwork&quot;
+    - channel: 6
+      rssi: -60
+      ssid: &quot;NeighborNetwork&quot;
+    - channel: 11
+      rssi: -75
+      ssid: &quot;AnotherNetwork&quot;
+</code></pre>
+
+<p>The service will log the recommendation and explanation to Home Assistant logs. You can also retrieve the last recommendation from <code>hass.data[DOMAIN]["last_recommendation"]</code>.</p>
+<h3 id="method-2-router-api-mode">Method 2: Router API Mode<a class="headerlink" href="#method-2-router-api-mode" title="Permanent link">&para;</a></h3>
+<p>This mode directly queries your router's API for Wi-Fi scan data (when implemented for your router).</p>
+<p><strong>Note:</strong> Router API support is currently a placeholder and requires router-specific implementation. For now, use manual mode.</p>
+<p>Example (future functionality):</p>
+<pre class="codehilite"><code class="language-yaml">service: zigsight.recommend_channel
+data:
+  mode: router_api
+  router_type: unifi
+  host: 192.168.1.1
+  username: admin
+  password: your_password
+</code></pre>
+
+<h3 id="method-3-host-scan-mode">Method 3: Host Scan Mode<a class="headerlink" href="#method-3-host-scan-mode" title="Permanent link">&para;</a></h3>
+<p>This mode runs a Wi-Fi scan directly on your Home Assistant host using system tools (iwlist or nmcli).</p>
+<p><strong>Requirements:</strong>
+- Home Assistant running on hardware with a Wi-Fi adapter
+- Appropriate permissions to run scanning commands
+- May require a privileged add-on configuration</p>
+<p>Example:</p>
+<pre class="codehilite"><code class="language-yaml">service: zigsight.recommend_channel
+data:
+  mode: host_scan
+  interface: wlan0  # Optional, defaults to wlan0
+</code></pre>
+
+<p><strong>Note:</strong> This mode may not work in Docker containers or supervised installations without additional configuration.</p>
+<h2 id="router-specific-guides">Router-Specific Guides<a class="headerlink" href="#router-specific-guides" title="Permanent link">&para;</a></h2>
+<h3 id="unifi">UniFi<a class="headerlink" href="#unifi" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Log in to your UniFi controller</li>
+<li>Navigate to <strong>Insights</strong> &gt; <strong>Wi-Fi</strong></li>
+<li>View the <strong>RF Environment</strong> scan</li>
+<li>Export or note down:</li>
+<li>Channel numbers</li>
+<li>RSSI values (signal strength)</li>
+<li>SSIDs</li>
+</ol>
+<p>Format for ZigSight:</p>
+<pre class="codehilite"><code class="language-json">[
+  {&quot;channel&quot;: 1, &quot;rssi&quot;: -45, &quot;ssid&quot;: &quot;Network1&quot;},
+  {&quot;channel&quot;: 6, &quot;rssi&quot;: -60, &quot;ssid&quot;: &quot;Network2&quot;}
+]
+</code></pre>
+
+<h3 id="openwrt">OpenWrt<a class="headerlink" href="#openwrt" title="Permanent link">&para;</a></h3>
+<ol>
+<li>SSH into your OpenWrt router</li>
+<li>Run: <code>iwinfo wlan0 scan</code></li>
+<li>Note the Channel and Signal values</li>
+<li>Format as JSON for ZigSight</li>
+</ol>
+<h3 id="fritzbox">Fritz!Box<a class="headerlink" href="#fritzbox" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Log in to Fritz!Box web interface</li>
+<li>Navigate to <strong>WLAN</strong> &gt; <strong>Radio Channel</strong></li>
+<li>View the channel usage graph</li>
+<li>Note which channels have active networks</li>
+<li>Estimate RSSI based on signal strength indicators</li>
+</ol>
+<h3 id="generic-router">Generic Router<a class="headerlink" href="#generic-router" title="Permanent link">&para;</a></h3>
+<p>Most routers have a Wi-Fi analyzer or channel scanner:
+1. Look for "Wi-Fi Analyzer", "Channel Scanner", or "RF Environment" in your router settings
+2. Export or screenshot the scan results
+3. Create a JSON list with channel and approximate RSSI values</p>
+<p><strong>RSSI Guidelines:</strong>
+- Excellent signal: -30 to -50 dBm
+- Good signal: -50 to -65 dBm
+- Fair signal: -65 to -80 dBm
+- Weak signal: -80 to -90 dBm</p>
+<h2 id="understanding-results">Understanding Results<a class="headerlink" href="#understanding-results" title="Permanent link">&para;</a></h2>
+<p>The service returns:
+- <strong>recommended_channel</strong>: The best Zigbee channel (11, 15, 20, or 25)
+- <strong>scores</strong>: Interference scores for all 4 channels (0 = best, 100 = worst)
+- <strong>explanation</strong>: Human-readable summary of the analysis</p>
+<p>Example result logged:</p>
+<pre class="codehilite"><code>INFO: Zigbee channel recommendation: Channel 15 (score: 12.3)
+INFO: Recommendation: Analyzed 8 Wi-Fi access points on channels: Ch1 (3 APs), Ch6 (2 APs), Ch11 (3 APs). 
+      Zigbee channel 15 has the lowest interference score (12.3/100). 
+      This channel has minimal Wi-Fi interference.
+</code></pre>
+
+<h2 id="changing-your-zigbee-channel">Changing Your Zigbee Channel<a class="headerlink" href="#changing-your-zigbee-channel" title="Permanent link">&para;</a></h2>
+<p><strong>⚠️ IMPORTANT: Changing your Zigbee channel requires careful planning</strong></p>
+<h3 id="before-you-change">Before You Change<a class="headerlink" href="#before-you-change" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Backup your Zigbee network configuration</strong> through your coordinator software (Zigbee2MQTT, ZHA, or deCONZ)</li>
+<li><strong>Plan for downtime</strong>: All devices will temporarily disconnect</li>
+<li><strong>Ensure all devices are powered</strong>: Battery devices should have fresh batteries</li>
+<li><strong>Schedule the change</strong>: Pick a time when automation disruption is acceptable</li>
+</ol>
+<h3 id="migration-checklist">Migration Checklist<a class="headerlink" href="#migration-checklist" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Run Wi-Fi scan and get channel recommendation</li>
+<li>[ ] Backup Zigbee coordinator configuration</li>
+<li>[ ] Verify all devices are online and responsive</li>
+<li>[ ] Schedule migration during low-activity period</li>
+<li>[ ] Change coordinator channel in your Zigbee software</li>
+<li>[ ] Restart coordinator</li>
+<li>[ ] Wait 10-15 minutes for devices to rejoin</li>
+<li>[ ] Verify all devices are back online</li>
+<li>[ ] Test automations</li>
+</ul>
+<h3 id="zigbee2mqtt">Zigbee2MQTT<a class="headerlink" href="#zigbee2mqtt" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Stop Zigbee2MQTT</li>
+<li>Edit <code>configuration.yaml</code>:
+   <code>yaml
+   advanced:
+     channel: 15  # Your recommended channel</code></li>
+<li>Start Zigbee2MQTT</li>
+<li>Devices will automatically rejoin (may take 10-15 minutes)</li>
+</ol>
+<h3 id="zha-home-assistant">ZHA (Home Assistant)<a class="headerlink" href="#zha-home-assistant" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Go to <strong>Settings</strong> &gt; <strong>Devices &amp; Services</strong> &gt; <strong>Zigbee Home Automation</strong></li>
+<li>Click <strong>Configure</strong></li>
+<li>Select <strong>Change channel</strong></li>
+<li>Enter your recommended channel</li>
+<li>Confirm and wait for migration to complete</li>
+</ol>
+<h3 id="deconz">deCONZ<a class="headerlink" href="#deconz" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Open deCONZ GUI</li>
+<li>Go to <strong>Settings</strong> &gt; <strong>Gateway</strong></li>
+<li>Change the channel number</li>
+<li>Restart deCONZ</li>
+<li>Devices will rejoin automatically</li>
+</ol>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="no-recommendation-available">No Recommendation Available<a class="headerlink" href="#no-recommendation-available" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Ensure Wi-Fi scan data is properly formatted</li>
+<li>Check Home Assistant logs for error messages</li>
+<li>Verify JSON syntax if using manual mode</li>
+</ul>
+<h3 id="devices-not-rejoining-after-channel-change">Devices Not Rejoining After Channel Change<a class="headerlink" href="#devices-not-rejoining-after-channel-change" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Wait at least 15-20 minutes for battery devices</li>
+<li>Power cycle mains-powered devices (routers help extend the network)</li>
+<li>Check coordinator logs for rejoin attempts</li>
+<li>If needed, re-pair devices starting with routers first</li>
+</ul>
+<h3 id="high-interference-scores-on-all-channels">High Interference Scores on All Channels<a class="headerlink" href="#high-interference-scores-on-all-channels" title="Permanent link">&para;</a></h3>
+<ul>
+<li>This indicates a very busy 2.4 GHz spectrum</li>
+<li>Consider moving Wi-Fi networks to 5 GHz if possible</li>
+<li>Use the channel with the lowest score even if it's not ideal</li>
+<li>Monitor Zigbee network performance and adjust if needed</li>
+</ul>
+<h3 id="host-scan-not-working">Host Scan Not Working<a class="headerlink" href="#host-scan-not-working" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Verify Wi-Fi adapter is available: <code>iwconfig</code> or <code>ip link</code></li>
+<li>Check permissions: May need to run as root or with capabilities</li>
+<li>Try both iwlist and nmcli methods</li>
+<li>Consider using manual mode as alternative</li>
+</ul>
+<h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Run scans periodically</strong>: Wi-Fi networks change over time</li>
+<li><strong>Scan during peak hours</strong>: Get a realistic picture of interference</li>
+<li><strong>Consider all neighbors</strong>: Include all visible networks, not just yours</li>
+<li><strong>Don't change channels frequently</strong>: Zigbee networks need time to stabilize</li>
+<li><strong>Document your changes</strong>: Keep notes on channel changes and results</li>
+</ol>
+<h2 id="additional-resources">Additional Resources<a class="headerlink" href="#additional-resources" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://www.zigbee2mqtt.io/guide/usage/best_practices.html">Zigbee2MQTT: Best Practices</a></li>
+<li><a href="https://www.home-assistant.io/integrations/zha/">ZHA Channel Migration Guide</a></li>
+<li><a href="https://www.metageek.com/training/resources/zigbee-wifi-coexistence/">Understanding 2.4 GHz Spectrum</a></li>
+</ul>
+<h2 id="support">Support<a class="headerlink" href="#support" title="Permanent link">&para;</a></h2>
+<p>If you encounter issues:
+1. Check Home Assistant logs for error messages
+2. Verify Wi-Fi scan data format
+3. Open an issue on GitHub with:
+   - Home Assistant version
+   - ZigSight version
+   - Wi-Fi scan data (redact SSIDs if needed)
+   - Error messages from logs</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../analytics/" class="btn btn-neutral float-left" title="Analytics"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../ui/" class="btn btn-neutral float-right" title="UI">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/mmornati/zigsight" class="fa fa-code-fork" style="color: #fcfcfc"> mmornati/zigsight</a>
+        </span>
+    
+    
+      <span><a href="../analytics/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../ui/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

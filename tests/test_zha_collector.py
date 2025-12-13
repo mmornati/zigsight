@@ -106,7 +106,9 @@ async def test_collect_devices_with_devices(
 
 
 @pytest.mark.asyncio
-async def test_collect_device_metrics(mock_hass: MagicMock, mock_zha_device: Mock) -> None:
+async def test_collect_device_metrics(
+    mock_hass: MagicMock, mock_zha_device: Mock
+) -> None:
     """Test _collect_device_metrics extracts correct metrics."""
     with patch(
         "custom_components.zigsight.zha_collector.dr.async_get"
@@ -183,9 +185,7 @@ async def test_collect_entity_metrics_with_entities(mock_hass: MagicMock) -> Non
     mock_device.id = "device_1"
     mock_device.identifiers = {("zha", ieee)}
 
-    with patch(
-        "custom_components.zigsight.zha_collector.dr.async_get"
-    ) as mock_dr_get:
+    with patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get:
         mock_registry = MagicMock()
         mock_registry.devices = {"device_1": mock_device}
         mock_dr_get.return_value = mock_registry

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 AUTOMATIONS_DIR = Path(__file__).parent.parent / "automations"
 
@@ -100,7 +100,9 @@ class TestBlueprintMetadata:
         assert (
             "description" in blueprint
         ), f"{blueprint_file} blueprint missing 'description'"
-        assert blueprint["description"], f"{blueprint_file} blueprint description is empty"
+        assert blueprint[
+            "description"
+        ], f"{blueprint_file} blueprint description is empty"
 
     @pytest.mark.parametrize("blueprint_file", BLUEPRINT_FILES)
     def test_blueprint_has_domain(self, blueprint_file: str) -> None:
@@ -122,7 +124,9 @@ class TestBlueprintMetadata:
         blueprint = data.get("blueprint", {})
 
         assert "author" in blueprint, f"{blueprint_file} blueprint missing 'author'"
-        assert blueprint["author"] == "ZigSight", f"{blueprint_file} author should be 'ZigSight'"
+        assert (
+            blueprint["author"] == "ZigSight"
+        ), f"{blueprint_file} author should be 'ZigSight'"
 
     @pytest.mark.parametrize("blueprint_file", BLUEPRINT_FILES)
     def test_blueprint_has_source_url(self, blueprint_file: str) -> None:
@@ -233,7 +237,9 @@ class TestSpecificBlueprints:
         data = load_yaml_file(filepath)
         inputs = data.get("blueprint", {}).get("input", {})
 
-        assert "battery_threshold" in inputs, "battery_drain missing battery_threshold input"
+        assert (
+            "battery_threshold" in inputs
+        ), "battery_drain missing battery_threshold input"
         threshold = inputs["battery_threshold"]
         assert "default" in threshold, "battery_threshold should have a default value"
         assert threshold["default"] == 20, "battery_threshold default should be 20"

@@ -75,6 +75,12 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_start(self) -> None:
         """Start the coordinator and subscribe to MQTT topics."""
+        if self._enable_zha:
+            # ZHA mode: skip MQTT subscriptions, only use ZHA collector
+            self.logger.info("Starting ZigSight coordinator in ZHA mode")
+            return
+
+        # Zigbee2MQTT mode: subscribe to MQTT topics
         self.logger.info(
             "Starting ZigSight coordinator with MQTT prefix: %s", self._mqtt_prefix
         )

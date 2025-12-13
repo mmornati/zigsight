@@ -3,6 +3,7 @@
 DOMAIN = "zigsight"
 
 # Configuration keys
+CONF_INTEGRATION_TYPE = "integration_type"
 CONF_MQTT_TOPIC_PREFIX = "mqtt_topic_prefix"
 CONF_MQTT_BROKER = "mqtt_broker"
 CONF_MQTT_PORT = "mqtt_port"
@@ -12,7 +13,12 @@ CONF_RECONNECT_THRESHOLD = "reconnect_threshold"
 CONF_RETENTION_DAYS = "retention_days"
 CONF_ENABLE_ZHA = "enable_zha"
 
+# Integration types
+INTEGRATION_TYPE_ZHA = "zha"
+INTEGRATION_TYPE_ZIGBEE2MQTT = "zigbee2mqtt"
+
 # Default values
+DEFAULT_INTEGRATION_TYPE = INTEGRATION_TYPE_ZIGBEE2MQTT
 DEFAULT_MQTT_TOPIC_PREFIX = "zigbee2mqtt"
 DEFAULT_MQTT_BROKER = "localhost"
 DEFAULT_MQTT_PORT = 1883

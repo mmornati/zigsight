@@ -62,9 +62,7 @@ class ZHACollector:
                     device_id = str(ieee)
                     devices[device_id] = device_data
             except Exception as err:
-                _LOGGER.debug(
-                    "Error collecting data for ZHA device %s: %s", ieee, err
-                )
+                _LOGGER.debug("Error collecting data for ZHA device %s: %s", ieee, err)
 
         _LOGGER.debug("Collected %d ZHA devices", len(devices))
         return devices
@@ -78,7 +76,7 @@ class ZHACollector:
             device_name = getattr(zha_device, "name", None) or str(ieee)
 
             # Initialize device data
-            device_data = {
+            device_data: dict[str, Any] = {
                 "device_id": str(ieee),
                 "friendly_name": device_name,
                 "ieee": str(ieee),
@@ -91,7 +89,8 @@ class ZHACollector:
 
             # Try to get metrics from diagnostic entities
             entity_metrics = await self._collect_entity_metrics(str(ieee))
-            device_data["metrics"].update(entity_metrics)
+            if isinstance(device_data["metrics"], dict):
+                device_data["metrics"].update(entity_metrics)
 
             return device_data
 
@@ -107,9 +106,11 @@ class ZHACollector:
             # Get last_seen from device
             last_seen = getattr(zha_device, "last_seen", None)
             if last_seen:
-                metrics["last_seen"] = last_seen.isoformat() if hasattr(
-                    last_seen, "isoformat"
-                ) else str(last_seen)
+                metrics["last_seen"] = (
+                    last_seen.isoformat()
+                    if hasattr(last_seen, "isoformat")
+                    else str(last_seen)
+                )
             else:
                 metrics["last_seen"] = datetime.now().isoformat()
 
@@ -145,7 +146,7 @@ class ZHACollector:
         - sensor.<device>_lqi
         - sensor.<device>_last_seen
         """
-        metrics = {}
+        metrics: dict[str, Any] = {}
 
         # Find device in registry using identifiers
         device_entry = self._device_registry.async_get_device(
@@ -173,21 +174,24 @@ class ZHACollector:
                         metrics["rssi"] = int(float(state.state))
                     except (ValueError, TypeError):
                         pass
-                elif "lqi" in entity.entity_id.lower() or "link_quality" in entity.entity_id.lower():
+                elif (
+                    "lqi" in entity.entity_id.lower()
+                    or "link_quality" in entity.entity_id.lower()
+                ):
                     try:
                         metrics["link_quality"] = int(float(state.state))
                     except (ValueError, TypeError):
                         pass
-                elif "battery" in entity.entity_id.lower() and entity.domain == "sensor":
+                elif (
+                    "battery" in entity.entity_id.lower() and entity.domain == "sensor"
+                ):
                     try:
-                        battery_value = float(state.state)
+                        battery_value: float = float(state.state)
                         metrics["battery"] = battery_value
                     except (ValueError, TypeError):
                         pass
 
             except Exception as err:
-                _LOGGER.debug(
-                    "Error reading entity %s: %s", entity.entity_id, err
-                )
+                _LOGGER.debug("Error reading entity %s: %s", entity.entity_id, err)
 
         return metrics

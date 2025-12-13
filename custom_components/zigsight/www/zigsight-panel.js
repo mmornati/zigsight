@@ -2860,7 +2860,8 @@ class ZigSightPanel extends HTMLElement {
 
   renderChannelSpectrum(recommendation) {
     // Render a visual representation of Wi-Fi and Zigbee channels
-    const zigbeeChannels = [11, 15, 20, 25, 26];
+    // Only show the channels that are actually recommended (11, 15, 20, 25)
+    const zigbeeChannels = [11, 15, 20, 25];
     const wifiChannels = [1, 6, 11];
     const scores = recommendation.scores || {};
     

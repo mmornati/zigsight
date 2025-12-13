@@ -183,7 +183,13 @@ class ZigSightAnalyticsTrendsView(HomeAssistantView):
             # Get query parameters
             device_id = request.query.get("device_id")
             metric = request.query.get("metric", "health_score")
-            hours = int(request.query.get("hours", "24"))
+            try:
+                hours = int(request.query.get("hours", "24"))
+                # Validate hours is within reasonable bounds
+                if hours < 1 or hours > 720:  # Max 30 days
+                    hours = 24
+            except (ValueError, TypeError):
+                hours = 24
 
             # Get coordinator from hass data
             coordinators = []
@@ -291,7 +297,8 @@ class ZigSightAnalyticsExportView(HomeAssistantView):
         try:
             # Get query parameters
             export_format = request.query.get("format", "json")
-            device_ids = request.query.get("devices", "").split(",") if request.query.get("devices") else None
+            devices_param = request.query.get("devices", "")
+            device_ids = devices_param.split(",") if devices_param else None
 
             # Get coordinator from hass data
             coordinators = []

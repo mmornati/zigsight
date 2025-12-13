@@ -853,6 +853,18 @@ class ZigSightTopologyVisualization extends HTMLElement {
 
   loadScript(src) {
     return new Promise((resolve, reject) => {
+      // Check if script is already loading or loaded
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing) {
+        if (window.vis && window.vis.Network) {
+          resolve();
+        } else {
+          existing.addEventListener('load', resolve);
+          existing.addEventListener('error', reject);
+        }
+        return;
+      }
+
       const script = document.createElement('script');
       script.src = src;
       script.onload = resolve;

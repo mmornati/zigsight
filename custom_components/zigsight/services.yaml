@@ -1,27 +1,29 @@
 recommend_channel:
   name: Recommend Zigbee channel
-  description: Analyzes Wi-Fi interference and recommends the best Zigbee channel
-  target:
-    entity:
-      domain: input_select
+  description: >-
+    Analyzes Wi-Fi interference and recommends the best Zigbee channel.
+    Admin only: "host_scan" mode runs Wi-Fi scanning commands on the Home
+    Assistant host. Returns the recommendation.
   fields:
-    wifi_scan_data:
-      name: Wi-Fi Scan Data
-      description: JSON data from Wi-Fi scan (optional if using router API mode)
-      required: false
-      selector:
-        object:
     mode:
       name: Scan Mode
-      description: How to obtain Wi-Fi scan data
+      description: How to obtain Wi-Fi scan data.
       required: false
       default: "manual"
       selector:
         select:
           options:
             - "manual"
-            - "router_api"
             - "host_scan"
+    wifi_scan_data:
+      name: Wi-Fi Scan Data
+      description: >-
+        Wi-Fi access point scan data (required in "manual" mode): a list of
+        objects with "channel", "rssi" and optionally "ssid", or an object
+        with an "access_points" list in that shape.
+      required: false
+      selector:
+        object:
 
 enable_zha_diagnostic_entities:
   name: Enable ZHA diagnostic entities

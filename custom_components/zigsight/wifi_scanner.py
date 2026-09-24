@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from abc import ABC, abstractmethod
 from typing import Any
@@ -11,6 +12,39 @@ _LOGGER = logging.getLogger(__name__)
 
 # Constants for RSSI conversion
 RSSI_BASE_DBM = -100  # Base dBm value for percentage conversion
+
+# Zigbee only operates in the 2.4 GHz band (channels 11-26, mapped to Wi-Fi
+# channels 1-14 for interference scoring in recommender.py); a host Wi-Fi
+# scan on a dual-band adapter can also report 5 GHz networks (channel
+# numbers >= 36), which are irrelevant here and would otherwise pollute the
+# recommendation with access points ZigSight/Zigbee can never overlap with.
+WIFI_2_4GHZ_CHANNELS = range(1, 15)
+
+
+def _filter_2_4ghz(aps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop access points outside the 2.4 GHz Wi-Fi channels (1-14)."""
+    return [ap for ap in aps if ap.get("channel") in WIFI_2_4GHZ_CHANNELS]
+
+
+async def _communicate_with_timeout(
+    proc: asyncio.subprocess.Process, timeout: float
+) -> bytes | None:
+    """Wait for a subprocess to finish, killing it if it times out.
+
+    ``asyncio.wait_for`` cancelling ``proc.communicate()`` does not stop the
+    child process itself, which would otherwise keep running (and holding
+    its pipes open) in the background. Returns stdout, or None on timeout.
+    """
+    try:
+        stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except TimeoutError:
+        # The process may already be gone by the time we get here; killing
+        # an already-dead process is a race, not a bug.
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+        await proc.wait()
+        return None
+    return stdout
 
 
 class WiFiScanner(ABC):
@@ -52,55 +86,6 @@ class ManualScanner(WiFiScanner):
                 return aps
 
         _LOGGER.warning("Invalid scan data format, returning empty list")
-        return []
-
-
-class RouterAPIScanner(WiFiScanner):
-    """Router API scanner for querying router endpoints.
-
-    Supports UniFi, OpenWrt, Fritz!Box and other router APIs.
-    """
-
-    def __init__(
-        self,
-        router_type: str,
-        host: str,
-        username: str | None = None,
-        password: str | None = None,
-        api_key: str | None = None,
-    ) -> None:
-        """Initialize router API scanner.
-
-        Args:
-            router_type: Type of router (unifi, openwrt, fritzbox)
-            host: Router hostname or IP address
-            username: Router admin username (if needed)
-            password: Router admin password (if needed)
-            api_key: API key for authentication (if supported)
-        """
-        self.router_type = router_type.lower()
-        self.host = host
-        self.username = username
-        self.password = password
-        self.api_key = api_key
-
-    async def scan(self) -> list[dict[str, Any]]:
-        """Query router API for Wi-Fi scan data.
-
-        Returns:
-            List of access points with channel and rssi
-        """
-        # This is a placeholder for actual router API implementations
-        # In production, this would make HTTP requests to router APIs
-        _LOGGER.info(
-            "Router API scan not yet implemented for %s at %s",
-            self.router_type,
-            self.host,
-        )
-        _LOGGER.info(
-            "Router API scanning requires router-specific implementation. "
-            "For now, use manual mode with exported scan data from your router."
-        )
         return []
 
 
@@ -163,13 +148,14 @@ class HostScanner(WiFiScanner):
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-
-            if proc.returncode != 0:
+            stdout = await _communicate_with_timeout(proc, timeout=30)
+            if stdout is None or proc.returncode != 0:
                 return []
 
-            # Parse iwlist output
-            return self._parse_iwlist_output(stdout.decode("utf-8"))
+            # Parse iwlist output; Zigbee is 2.4 GHz only, so 5 GHz results
+            # (from a dual-band adapter) are dropped.
+            parsed = self._parse_iwlist_output(stdout.decode("utf-8", errors="replace"))
+            return _filter_2_4ghz(parsed)
         except Exception as e:
             _LOGGER.debug("iwlist execution failed: %s", e)
             return []
@@ -251,22 +237,23 @@ class HostScanner(WiFiScanner):
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-
-            if proc.returncode != 0:
+            stdout = await _communicate_with_timeout(proc, timeout=30)
+            if stdout is None or proc.returncode != 0:
                 return []
 
-            # Parse nmcli output
-            return self._parse_nmcli_output(stdout.decode("utf-8"))
+            # Parse nmcli output; Zigbee is 2.4 GHz only, so 5 GHz results
+            # (from a dual-band adapter) are dropped.
+            parsed = self._parse_nmcli_output(stdout.decode("utf-8", errors="replace"))
+            return _filter_2_4ghz(parsed)
         except Exception as e:
             _LOGGER.debug("nmcli execution failed: %s", e)
             return []
 
     def _parse_nmcli_output(self, output: str) -> list[dict[str, Any]]:
-        """Parse nmcli output.
+        """Parse nmcli -t (terse) output.
 
         Args:
-            output: Raw nmcli output (tab-separated)
+            output: Raw nmcli terse output, ':' separated
 
         Returns:
             List of parsed access points
@@ -274,7 +261,7 @@ class HostScanner(WiFiScanner):
         aps = []
 
         for line in output.splitlines():
-            parts = line.split(":")
+            parts = _split_nmcli_terse_line(line)
             if len(parts) >= 3:
                 ssid = parts[0].strip()
                 try:
@@ -294,18 +281,43 @@ class HostScanner(WiFiScanner):
         return aps
 
 
+def _split_nmcli_terse_line(line: str) -> list[str]:
+    """Split a line of ``nmcli -t`` terse output on unescaped ':'.
+
+    nmcli escapes literal ':' and '\\' inside field values with a leading
+    backslash (e.g. an SSID containing ':' is emitted as ``foo\\:bar``); a
+    plain ``line.split(":")`` would wrongly cut such SSIDs into extra
+    fields. This walks the line respecting those escapes and unescapes each
+    field.
+    """
+    fields: list[str] = []
+    current: list[str] = []
+    escaped = False
+    for char in line:
+        if escaped:
+            current.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == ":":
+            fields.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    fields.append("".join(current))
+    return fields
+
+
 def create_scanner(
     mode: str,
     scan_data: dict[str, Any] | list[dict[str, Any]] | None = None,
-    router_config: dict[str, Any] | None = None,
     host_config: dict[str, Any] | None = None,
 ) -> WiFiScanner:
     """Factory function to create appropriate scanner.
 
     Args:
-        mode: Scanner mode (manual, router_api, host_scan)
+        mode: Scanner mode (manual, host_scan)
         scan_data: Data for manual mode
-        router_config: Configuration for router_api mode
         host_config: Configuration for host_scan mode
 
     Returns:
@@ -320,17 +332,6 @@ def create_scanner(
         if scan_data is None:
             raise ValueError("scan_data is required for manual mode")
         return ManualScanner(scan_data)
-
-    if mode == "router_api":
-        if router_config is None:
-            raise ValueError("router_config is required for router_api mode")
-        return RouterAPIScanner(
-            router_type=router_config.get("router_type", ""),
-            host=router_config.get("host", ""),
-            username=router_config.get("username"),
-            password=router_config.get("password"),
-            api_key=router_config.get("api_key"),
-        )
 
     if mode == "host_scan":
         interface = "wlan0"

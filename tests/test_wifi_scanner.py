@@ -10,7 +10,9 @@ import pytest
 from custom_components.zigsight.wifi_scanner import (
     HostScanner,
     ManualScanner,
-    RouterAPIScanner,
+    _communicate_with_timeout,
+    _filter_2_4ghz,
+    _split_nmcli_terse_line,
     create_scanner,
 )
 
@@ -66,60 +68,6 @@ class TestManualScanner:
         scanner = ManualScanner("invalid")  # type: ignore
         result = await scanner.scan()
         assert result == []
-
-
-@pytest.mark.unit
-class TestRouterAPIScanner:
-    """Tests for RouterAPIScanner."""
-
-    @pytest.mark.asyncio
-    async def test_router_api_scanner_init(self) -> None:
-        """Test router API scanner initialization."""
-        scanner = RouterAPIScanner(
-            router_type="unifi",
-            host="192.168.1.1",
-            username="admin",
-            password="password",
-        )
-
-        assert scanner.router_type == "unifi"
-        assert scanner.host == "192.168.1.1"
-        assert scanner.username == "admin"
-
-    @pytest.mark.asyncio
-    async def test_router_api_scanner_not_implemented(self) -> None:
-        """Test that router API scanning returns empty list (not yet implemented)."""
-        scanner = RouterAPIScanner(
-            router_type="unifi",
-            host="192.168.1.1",
-        )
-        result = await scanner.scan()
-
-        # Should return empty list as implementation is placeholder
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_router_api_scanner_with_api_key(self) -> None:
-        """Test router API scanner with API key."""
-        scanner = RouterAPIScanner(
-            router_type="openwrt",
-            host="192.168.1.1",
-            api_key="my-api-key",
-        )
-
-        assert scanner.api_key == "my-api-key"
-        result = await scanner.scan()
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_router_api_scanner_case_insensitive(self) -> None:
-        """Test router type is converted to lowercase."""
-        scanner = RouterAPIScanner(
-            router_type="UniFi",
-            host="192.168.1.1",
-        )
-
-        assert scanner.router_type == "unifi"
 
 
 @pytest.mark.unit
@@ -321,6 +269,105 @@ AnotherNetwork:11:35"""
 
         assert result == []
 
+    def test_parse_nmcli_output_escaped_colon_in_ssid(self) -> None:
+        """nmcli escapes ':' in SSIDs as '\\:'; splitting on ':' would break."""
+        scanner = HostScanner()
+        # SSID "Office: 5G" is emitted by `nmcli -t` as "Office\: 5G".
+        output = "Office\\: 5G:6:50"
+
+        result = scanner._parse_nmcli_output(output)
+
+        assert len(result) == 1
+        assert result[0]["ssid"] == "Office: 5G"
+        assert result[0]["channel"] == 6
+
+    def test_parse_nmcli_output_escaped_backslash(self) -> None:
+        """A literal backslash in a value is escaped as '\\\\' by nmcli."""
+        scanner = HostScanner()
+        output = "back\\\\slash:11:35"
+
+        result = scanner._parse_nmcli_output(output)
+
+        assert len(result) == 1
+        assert result[0]["ssid"] == "back\\slash"
+
+
+@pytest.mark.unit
+class TestCommunicateWithTimeout:
+    """Tests for the subprocess timeout/kill helper against a real process."""
+
+    @pytest.mark.asyncio
+    async def test_kills_real_process_on_timeout(self) -> None:
+        """A process that outlives the timeout is killed, not left running."""
+        proc = await asyncio.create_subprocess_exec(
+            "sleep",
+            "5",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout = await _communicate_with_timeout(proc, timeout=0.1)
+
+        assert stdout is None
+        # communicate()/wait() only return once the process has exited.
+        assert proc.returncode is not None
+
+    @pytest.mark.asyncio
+    async def test_returns_stdout_when_process_finishes_in_time(self) -> None:
+        """A process that finishes before the timeout returns its stdout."""
+        proc = await asyncio.create_subprocess_exec(
+            "echo",
+            "hello",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout = await _communicate_with_timeout(proc, timeout=5)
+
+        assert stdout is not None
+        assert b"hello" in stdout
+
+
+@pytest.mark.unit
+class TestFilter24Ghz:
+    """Tests for dropping non-2.4 GHz (Zigbee-irrelevant) access points."""
+
+    def test_keeps_2_4ghz_channels(self) -> None:
+        aps = [{"channel": 1}, {"channel": 6}, {"channel": 14}]
+        assert _filter_2_4ghz(aps) == aps
+
+    def test_drops_5ghz_channels(self) -> None:
+        aps = [{"channel": 6, "ssid": "a"}, {"channel": 36, "ssid": "5ghz"}]
+        assert _filter_2_4ghz(aps) == [{"channel": 6, "ssid": "a"}]
+
+    def test_drops_missing_channel(self) -> None:
+        assert _filter_2_4ghz([{"ssid": "no-channel"}]) == []
+
+
+@pytest.mark.unit
+class TestSplitNmcliTerseLine:
+    """Tests for the escape-aware nmcli terse output splitter."""
+
+    def test_plain_fields(self) -> None:
+        assert _split_nmcli_terse_line("MyNetwork:6:50") == ["MyNetwork", "6", "50"]
+
+    def test_escaped_colon_in_field(self) -> None:
+        assert _split_nmcli_terse_line("Office\\: 5G:6:50") == [
+            "Office: 5G",
+            "6",
+            "50",
+        ]
+
+    def test_escaped_backslash(self) -> None:
+        assert _split_nmcli_terse_line("back\\\\slash:1:10") == [
+            "back\\slash",
+            "1",
+            "10",
+        ]
+
+    def test_empty_line(self) -> None:
+        assert _split_nmcli_terse_line("") == [""]
+
 
 @pytest.mark.unit
 class TestCreateScanner:
@@ -338,21 +385,9 @@ class TestCreateScanner:
         with pytest.raises(ValueError, match="scan_data is required"):
             create_scanner(mode="manual")
 
-    def test_create_router_api_scanner(self) -> None:
-        """Test creating router API scanner."""
-        router_config = {
-            "router_type": "unifi",
-            "host": "192.168.1.1",
-            "username": "admin",
-        }
-        scanner = create_scanner(mode="router_api", router_config=router_config)
-
-        assert isinstance(scanner, RouterAPIScanner)
-        assert scanner.router_type == "unifi"
-
-    def test_create_router_api_scanner_no_config(self) -> None:
-        """Test creating router API scanner without config."""
-        with pytest.raises(ValueError, match="router_config is required"):
+    def test_create_router_api_mode_rejected(self) -> None:
+        """The removed router_api mode is rejected like any invalid mode."""
+        with pytest.raises(ValueError, match="Invalid scanner mode"):
             create_scanner(mode="router_api")
 
     def test_create_host_scanner(self) -> None:

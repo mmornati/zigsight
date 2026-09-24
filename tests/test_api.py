@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
@@ -183,6 +184,39 @@ class TestZigSightAnalyticsTrendsView:
 
         assert response.status == 404
 
+    async def test_get_trends_invalid_hours_not_a_number(self, mock_hass):
+        """A non-numeric 'hours' is rejected with a clear 400."""
+        view = ZigSightAnalyticsTrendsView(mock_hass)
+        request = MagicMock(spec=web.Request)
+        request.query = {"metric": "health_score", "hours": "nope"}
+
+        response = await view.get(request)
+
+        assert response.status == 400
+        assert "hours" in json.loads(response.body)["error"]
+
+    @pytest.mark.parametrize("hours", ["0", "-5", "721", "100000"])
+    async def test_get_trends_invalid_hours_out_of_range(self, mock_hass, hours):
+        """An out-of-range 'hours' is rejected with a clear 400."""
+        view = ZigSightAnalyticsTrendsView(mock_hass)
+        request = MagicMock(spec=web.Request)
+        request.query = {"metric": "health_score", "hours": hours}
+
+        response = await view.get(request)
+
+        assert response.status == 400
+
+    async def test_get_trends_invalid_metric(self, mock_hass):
+        """An unknown metric is rejected with a clear 400."""
+        view = ZigSightAnalyticsTrendsView(mock_hass)
+        request = MagicMock(spec=web.Request)
+        request.query = {"metric": "not_a_real_metric", "hours": "24"}
+
+        response = await view.get(request)
+
+        assert response.status == 400
+        assert "metric" in json.loads(response.body)["error"]
+
 
 class TestZigSightAnalyticsExportView:
     """Test the analytics export view."""
@@ -231,6 +265,47 @@ class TestZigSightAnalyticsExportView:
         response = await view.get(request)
 
         assert response.status == 404
+
+    async def test_export_invalid_format(self, mock_hass):
+        """An unsupported export format is rejected with a clear 400."""
+        view = ZigSightAnalyticsExportView(mock_hass)
+        request = MagicMock(spec=web.Request)
+        request.query = {"format": "xml"}
+
+        response = await view.get(request)
+
+        assert response.status == 400
+        assert "format" in json.loads(response.body)["error"]
+
+    async def test_export_empty_devices_param(self, mock_hass):
+        """A 'devices' parameter with no usable id is rejected with 400."""
+        view = ZigSightAnalyticsExportView(mock_hass)
+        request = MagicMock(spec=web.Request)
+        request.query = {"format": "json", "devices": " , ,"}
+
+        response = await view.get(request)
+
+        assert response.status == 400
+
+    async def test_export_csv_escapes_formula_injection(
+        self, mock_hass, mock_coordinator
+    ):
+        """Values starting with =, +, -, @ are prefixed with a quote in CSV."""
+        devices = copy.deepcopy(mock_coordinator.get_all_devices.return_value)
+        devices["device1"]["friendly_name"] = "=cmd|' /C calc'!A1"
+        mock_coordinator.get_all_devices.return_value = devices
+
+        view = ZigSightAnalyticsExportView(mock_hass)
+        request = MagicMock(spec=web.Request)
+        request.query = {"format": "csv"}
+
+        response = await view.get(request)
+
+        assert response.status == 200
+        text = response.text
+        assert "'=cmd|' /C calc'!A1" in text
+        assert "\n=cmd" not in text
+        assert ",=cmd" not in text
 
 
 class TestZigSightTopologyView:

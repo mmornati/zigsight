@@ -54,26 +54,29 @@ data:
       ssid: "AnotherNetwork"
 ```
 
-The service will log the recommendation and explanation to Home Assistant logs. You can also retrieve the last recommendation from `hass.data[DOMAIN]["last_recommendation"]`.
+The service is admin-only (`host_scan` mode below runs commands on the Home
+Assistant host) and logs the recommendation and explanation to Home
+Assistant logs either way. To get the result back in an automation/script
+without parsing logs, set a "Response variable" on the action (or
+`response_variable:` in YAML) - the service returns `recommended_channel`,
+`scores`, `explanation`, `wifi_aps_count` and `timestamp`:
 
-### Method 2: Router API Mode
-
-This mode directly queries your router's API for Wi-Fi scan data (when implemented for your router).
-
-**Note:** Router API support is currently a placeholder and requires router-specific implementation. For now, use manual mode.
-
-Example (future functionality):
 ```yaml
-service: zigsight.recommend_channel
-data:
-  mode: router_api
-  router_type: unifi
-  host: 192.168.1.1
-  username: admin
-  password: your_password
+- action: zigsight.recommend_channel
+  data:
+    mode: manual
+    wifi_scan_data: [...]
+  response_variable: recommendation
+- action: notify.persistent_notification
+  data:
+    message: "Recommended channel: {{ recommendation.recommended_channel }}"
 ```
 
-### Method 3: Host Scan Mode
+The last recommendation (from either the service or the panel's Channel tab)
+is also available to the panel/API via
+`GET /api/zigsight/channel-recommendation` (admin only).
+
+### Method 2: Host Scan Mode
 
 This mode runs a Wi-Fi scan directly on your Home Assistant host using system tools (iwlist or nmcli).
 

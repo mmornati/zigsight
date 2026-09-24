@@ -324,26 +324,6 @@ scanner = ManualScanner(
 aps = await scanner.scan()
 ```
 
-#### RouterAPIScanner
-Queries router APIs for scan data. Currently a placeholder for future router-specific implementations.
-
-**Supported Router Types:**
-- UniFi (planned)
-- OpenWrt (planned)
-- Fritz!Box (planned)
-
-**Adding Router Support:**
-Extend `RouterAPIScanner.scan()` to add router-specific API calls:
-
-```python
-async def scan(self) -> list[dict[str, Any]]:
-    if self.router_type == "unifi":
-        return await self._scan_unifi()
-    elif self.router_type == "openwrt":
-        return await self._scan_openwrt()
-    # ...
-```
-
 #### HostScanner
 Scans Wi-Fi using host system tools (iwlist or nmcli).
 
@@ -366,51 +346,15 @@ from custom_components.zigsight.wifi_scanner import create_scanner
 # Manual mode
 scanner = create_scanner(mode="manual", scan_data=[{"channel": 1, "rssi": -45}])
 
-# Router API mode
-scanner = create_scanner(
-    mode="router_api",
-    router_config={
-        "router_type": "unifi",
-        "host": "192.168.1.1",
-        "username": "admin",
-        "password": "secret",
-    },
-)
-
 # Host scan mode
 scanner = create_scanner(mode="host_scan", host_config={"interface": "wlan0"})
 ```
 
-### Adding a New Router Adapter
-
-1. **Identify the API endpoint** for Wi-Fi scanning in your router
-2. **Add authentication logic** in `RouterAPIScanner.__init__()`
-3. **Implement the scan method** for your router type:
-
-```python
-async def _scan_your_router(self) -> list[dict[str, Any]]:
-    """Scan using YourRouter API."""
-    async with aiohttp.ClientSession() as session:
-        # Authenticate
-        auth_data = await self._authenticate_your_router(session)
-
-        # Query scan endpoint
-        async with session.get(
-            f"http://{self.host}/api/wifi/scan",
-            headers={"Authorization": f"Bearer {auth_data['token']}"},
-        ) as response:
-            data = await response.json()
-
-        # Parse response into standard format
-        return [
-            {"channel": ap["chan"], "rssi": ap["signal"], "ssid": ap.get("name")}
-            for ap in data["access_points"]
-        ]
-```
-
-4. **Add router type** to `RouterAPIScanner.scan()` dispatch logic
-5. **Add tests** in `tests/test_wifi_scanner.py`
-6. **Document** in `docs/wifi_recommendation.md`
+Only `manual` and `host_scan` are supported; both `zigsight.recommend_channel`
+and `POST /api/zigsight/channel-recommendation` validate `mode` against
+exactly these two values. `HostScanner` also drops any 5 GHz access point
+(channel >= 36) from the result, since Zigbee only operates in the 2.4 GHz
+band and such results would otherwise skew the recommendation for no reason.
 
 ### Testing Scanner Adapters
 
@@ -539,13 +483,13 @@ integration version as a cache buster).
 
 | Method | Path | Access | Purpose |
 |--------|------|--------|---------|
-| GET | `/api/zigsight/devices` | user | device records |
-| GET | `/api/zigsight/topology` | user | nodes (IEEE ids), edges (network map or inferred), network map status, network info |
+| GET | `/api/zigsight/devices` | admin | device records |
+| GET | `/api/zigsight/topology` | user | nodes (IEEE ids), edges (network map or inferred), network map status, network info. Deliberately *not* admin-gated, unlike the rest of this table: the Lovelace `topology-card.js`/`topology-visualization.js` poll it every 60s and may be on a dashboard a non-admin user can see; a rejected `@require_admin` check on every poll trips Home Assistant's login-attempt tracking (`process_wrong_login`) as if it were a failed login |
 | POST | `/api/zigsight/topology/networkmap` | admin | ask Zigbee2MQTT for a raw network map (202) |
-| GET | `/api/zigsight/channel-recommendation` | user | current Zigbee channel + last recommendation |
+| GET | `/api/zigsight/channel-recommendation` | admin | current Zigbee channel + last recommendation |
 | POST | `/api/zigsight/channel-recommendation` | admin | compute a recommendation from Wi-Fi scan data |
-| GET | `/api/zigsight/recommendation-history` | user | last 10 recommendations |
-| GET | `/api/zigsight/analytics/*` | user | overview, trends, export |
+| GET | `/api/zigsight/recommendation-history` | admin | last 10 recommendations |
+| GET | `/api/zigsight/analytics/*` | admin | overview, trends, export |
 
 ## Automation Blueprints
 

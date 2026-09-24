@@ -1,0 +1,7 @@
+# Extra, dev-only dependencies for the local/CI end-to-end environment
+# (scripts/z2m_replay.py and scripts/e2e_bootstrap.py). Not needed to run
+# the integration itself, nor to run the unit/integration test suite in
+# tests/ - only for docker-compose based e2e testing. See docs/testing.md.
+
+paho-mqtt>=2.1.0,<3
+aiohttp>=3.11.0

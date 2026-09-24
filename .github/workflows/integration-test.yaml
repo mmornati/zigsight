@@ -1,84 +1,101 @@
----
 name: Integration Test
 
 'on':
+  pull_request:
   workflow_dispatch:
     inputs:
       ha_version:
-        description: 'Home Assistant version to test against'
+        description: >-
+          Home Assistant version to test against (e.g. 2025.10.3, or
+          "latest"). Leave empty to run the default matrix (pinned minimum +
+          latest).
         required: false
-        default: 'latest'
+        default: ''
 
 permissions:
   contents: read
 
+concurrency:
+  group: integration-test-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  docker-integration-test:
-    name: Docker Integration Test
+  prepare-matrix:
+    name: Prepare HA version matrix
     runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.matrix.outputs.versions }}
+    steps:
+      - name: Compute matrix
+        id: matrix
+        env:
+          HA_VERSION_INPUT: ${{ github.event.inputs.ha_version }}
+        run: |
+          if [ -n "$HA_VERSION_INPUT" ]; then
+            echo "versions=[\"$HA_VERSION_INPUT\"]" >> "$GITHUB_OUTPUT"
+          else
+            # Pinned minimum supported version (manifest.json/hacs.json) plus
+            # the latest stable release, so we catch both "still works on
+            # the oldest version we claim to support" and "still works on
+            # what HACS users are actually running".
+            echo 'versions=["2025.10.3", "latest"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e:
+    name: End-to-end (HA ${{ matrix.ha_version }})
+    needs: prepare-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        ha_version: ${{ fromJSON(needs.prepare-matrix.outputs.versions) }}
+    env:
+      HA_VERSION: ${{ matrix.ha_version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Start Home Assistant Container
-        run: |
-          echo "Starting Home Assistant ${{ github.event.inputs.ha_version || 'latest' }}..."
-          HA_VERSION="${{ github.event.inputs.ha_version || 'latest' }}"
-          HA_IMAGE="homeassistant/home-assistant:${HA_VERSION}"
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
 
-          mkdir -p "${GITHUB_WORKSPACE}/test_config"
+      - name: Install e2e bootstrap dependencies
+        run: python3 -m pip install --quiet -r requirements-e2e.txt
 
-          docker run -d \
-            --name ha-test \
-            --network host \
-            -v "${GITHUB_WORKSPACE}/custom_components/zigsight:/config/custom_components/zigsight:ro" \
-            -v "${GITHUB_WORKSPACE}/test_config:/config" \
-            "$HA_IMAGE"
+      - name: Start the e2e stack (HA + Mosquitto + Zigbee2MQTT replay)
+        run: docker compose --profile e2e up -d --wait home-assistant mosquitto z2m-replay
 
-          echo "Container started with image: $HA_IMAGE"
+      - name: Bootstrap and verify the environment
+        run: python3 scripts/e2e_bootstrap.py
 
-      - name: Wait for Home Assistant to be ready
-        run: |
-          echo "Waiting for Home Assistant to start..."
-          timeout=180
-          elapsed=0
-
-          while [ "$elapsed" -lt "$timeout" ]; do
-            if curl -sf http://localhost:8123 > /dev/null 2>&1; then
-              echo "✓ Home Assistant is ready!"
-              break
-            fi
-            sleep 5
-            elapsed=$((elapsed + 5))
-          done
-
-          if [ "$elapsed" -ge "$timeout" ]; then
-            echo "✗ Home Assistant failed to start within ${timeout}s"
-            docker logs ha-test
-            exit 1
-          fi
-
-      - name: Verify Integration
-        run: |
-          echo "Verifying integration..."
-          docker exec ha-test test -f /config/custom_components/zigsight/manifest.json || {
-            echo "✗ Integration manifest not found"
-            exit 1
-          }
-          echo "✓ Integration files verified"
-
-      - name: Check for Errors
-        run: |
-          sleep 10
-          if docker logs ha-test 2>&1 | grep -i "importerror\|modulenotfounderror\|syntaxerror" | grep -i "zigsight"; then
-            echo "✗ Found errors in logs"
-            docker logs ha-test | grep -i "zigsight"
-            exit 1
-          fi
-          echo "✓ No errors detected"
-
-      - name: Stop container
+      - name: Collect Home Assistant / broker / replay logs
         if: always()
         run: |
-          docker stop ha-test || true
-          docker rm ha-test || true
+          mkdir -p logs
+          docker compose logs home-assistant > logs/home-assistant.log 2>&1 || true
+          docker compose logs mosquitto > logs/mosquitto.log 2>&1 || true
+          docker compose logs z2m-replay > logs/z2m-replay.log 2>&1 || true
+
+      - name: Fail if ZigSight logged any ERROR
+        run: |
+          if grep -E 'ERROR' logs/home-assistant.log | grep -F 'custom_components.zigsight'; then
+            echo "::error::Found ERROR log lines from custom_components.zigsight"
+            exit 1
+          fi
+          echo "No ZigSight ERROR lines in the Home Assistant log"
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: ha-logs-${{ matrix.ha_version }}
+          path: logs/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Tear down the e2e stack
+        if: always()
+        run: docker compose --profile e2e down -v

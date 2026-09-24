@@ -1,6 +1,6 @@
 # Makefile for ZigSight integration
 
-.PHONY: help install test lint format clean build docs setup-dev security package zip test-integration start stop restart logs status check-js test-js
+.PHONY: help install test lint format clean build docs setup-dev security package zip test-integration start stop restart logs status check-js test-js e2e-up e2e-bootstrap e2e-down e2e
 
 # Virtual environment detection and binary paths
 VENV := .venv
@@ -34,12 +34,19 @@ help:
 	@echo "  test-coverage  - Run tests with HTML coverage report"
 	@echo "  test-integration - Start integration testing environment"
 	@echo ""
-	@echo "Integration Testing:"
+	@echo "Integration Testing (manual, no MQTT broker):"
 	@echo "  start          - Start Home Assistant for testing"
 	@echo "  stop           - Stop Home Assistant"
 	@echo "  restart        - Restart Home Assistant"
 	@echo "  logs           - Show Home Assistant logs"
 	@echo "  status         - Check Home Assistant status"
+	@echo ""
+	@echo "End-to-end Testing (HA + Mosquitto + Zigbee2MQTT replay, no"
+	@echo "production Home Assistant needed - see docs/testing.md):"
+	@echo "  e2e-up         - Start HA + mosquitto + z2m-replay"
+	@echo "  e2e-bootstrap  - Onboard HA, configure MQTT/ZigSight, verify"
+	@echo "  e2e-down       - Stop and remove the e2e stack"
+	@echo "  e2e            - e2e-up + e2e-bootstrap + e2e-down"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  lint           - Run Ruff (lint) + mypy"
@@ -143,6 +150,25 @@ logs:
 
 status:
 	./scripts/integration-test.sh status
+
+# End-to-end environment: HA + Mosquitto + Zigbee2MQTT replay.
+# Default credentials (local-only, override with E2E_HA_USERNAME /
+# E2E_HA_PASSWORD): username "zigsight-e2e", password
+# "ZigSight-e2e-local-only!2026". See docs/testing.md.
+e2e-up:
+	docker compose --profile e2e up -d --wait home-assistant mosquitto z2m-replay
+
+e2e-bootstrap:
+	$(PYTHON) -m pip install --quiet -r requirements-e2e.txt
+	$(PYTHON) scripts/e2e_bootstrap.py
+
+e2e-down:
+	docker compose --profile e2e down -v
+
+# Always tears the stack down, even if bootstrap fails, but still exits
+# non-zero when it did.
+e2e: e2e-up
+	@$(MAKE) e2e-bootstrap; status=$$?; $(MAKE) e2e-down; exit $$status
 
 # Clean build artifacts and test data
 clean:

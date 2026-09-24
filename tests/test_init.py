@@ -14,7 +14,7 @@ import pytest
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.exceptions import Unauthorized
+from homeassistant.exceptions import ServiceValidationError, Unauthorized
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -271,4 +271,43 @@ async def test_recommend_channel_service_requires_admin(
             {"mode": "manual", "wifi_scan_data": []},
             blocking=True,
             context=Context(user_id=hass_read_only_user.id),
+        )
+
+
+@pytest.mark.asyncio
+async def test_recommend_channel_service_manual_mode_without_data_raises(
+    hass: HomeAssistant,
+) -> None:
+    """Manual mode with no (or empty) wifi_scan_data is a caller-input error.
+
+    async_generate_channel_recommendation raises ValueError for this case;
+    the service must surface it as ServiceValidationError (not a generic
+    HomeAssistantError) so the frontend/UI shows it as a fixable input
+    problem, mirroring the REST API's 400 response.
+    """
+    add_mock_zha_config_entry(hass)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZHA}
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    with pytest.raises(ServiceValidationError, match="wifi_scan_data"):
+        await hass.services.async_call(
+            DOMAIN,
+            "recommend_channel",
+            {"mode": "manual"},
+            blocking=True,
+            return_response=True,
+        )
+
+    # Empty list is falsy too, so it must be rejected the same way.
+    with pytest.raises(ServiceValidationError, match="wifi_scan_data"):
+        await hass.services.async_call(
+            DOMAIN,
+            "recommend_channel",
+            {"mode": "manual", "wifi_scan_data": []},
+            blocking=True,
+            return_response=True,
         )

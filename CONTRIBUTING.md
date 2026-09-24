@@ -120,6 +120,11 @@ async def async_setup(hass: HomeAssistant) -> bool:
     return True
 ```
 
+See [docs/testing.md](docs/testing.md) for the full picture: unit/integration
+tests (below), recorded Zigbee2MQTT fixtures, the local end-to-end
+environment (`make e2e`), and how to capture real traffic read-only from
+your own production broker to build new fixtures.
+
 ## 🧪 Writing Tests
 
 ### Test Requirements

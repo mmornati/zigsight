@@ -1,7 +1,10 @@
 services:
   home-assistant:
     container_name: home-assistant-zigsight-test
-    image: homeassistant/home-assistant:latest
+    # Pinned via HA_VERSION so results are reproducible; override on the CLI
+    # or in the environment to test against a different release, e.g.
+    # `HA_VERSION=latest docker compose up -d`.
+    image: homeassistant/home-assistant:${HA_VERSION:-2025.10.3}
     volumes:
       # Mount test configuration files first
       - ./test_config/configuration.yaml:/config/configuration.yaml
@@ -23,6 +26,48 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+
+  # --- The two services below are only needed for the full end-to-end
+  # environment (`make e2e-up` / the `integration-test` CI job), which drives
+  # Home Assistant through onboarding + the MQTT/ZigSight config flows and
+  # asserts devices/entities/panel/topology come up from replayed
+  # Zigbee2MQTT traffic. They stay out of the way of the plain manual
+  # `make start` workflow (scripts/integration-test.sh), which doesn't need
+  # a broker. See docs/testing.md.
+  mosquitto:
+    container_name: mosquitto-zigsight-test
+    image: eclipse-mosquitto:2
+    profiles: ["e2e"]
+    volumes:
+      - ./test_config/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    # No ports published to the host: only reachable from other containers
+    # on this compose network (anonymous access is fine for that reason -
+    # see test_config/mosquitto/mosquitto.conf).
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 -W 3 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  z2m-replay:
+    container_name: z2m-replay-zigsight-test
+    image: python:3.13-slim
+    profiles: ["e2e"]
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    volumes:
+      - .:/opt/zigsight:ro
+    working_dir: /opt/zigsight
+    command: >
+      sh -c "pip install --quiet --no-cache-dir -r requirements-e2e.txt &&
+             python scripts/z2m_replay.py --host mosquitto --prefix zigbee2mqtt"
+    environment:
+      - MQTT_HOST=mosquitto
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
 
 volumes:
   ha_config:

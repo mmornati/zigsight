@@ -16,7 +16,9 @@ services:
       # Persistent storage for Home Assistant data
       - ha_config:/config/.storage
     ports:
-      - "8123:8123"
+      # Loopback only: the e2e instance uses well-known local-only
+      # credentials, so it must not be reachable from the LAN.
+      - "127.0.0.1:8123:8123"
     restart: unless-stopped
     environment:
       - TZ=Europe/Amsterdam
@@ -60,12 +62,38 @@ services:
         condition: service_healthy
     volumes:
       - .:/opt/zigsight:ro
+      # Captures for `docker compose run --rm z2m-replay python
+      # scripts/z2m_replay.py --host mosquitto --capture-file
+      # /work/captures/<file>.jsonl` (see docs/testing.md). captures/ is
+      # git-ignored.
+      - ./captures:/work/captures:ro
     working_dir: /opt/zigsight
-    command: >
-      sh -c "pip install --quiet --no-cache-dir -r requirements-e2e.txt &&
-             python scripts/z2m_replay.py --host mosquitto --prefix zigbee2mqtt"
+    # Installs paho-mqtt once per container (a restart reuses it), then
+    # exec's the command so it is PID 1 and gets SIGTERM directly. Works
+    # for `docker compose run ... z2m-replay <other command>` too.
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        python -c 'import paho.mqtt' 2>/dev/null ||
+        pip install --quiet --no-cache-dir --root-user-action=ignore -r requirements-e2e.txt;
+        exec "$$@"
+      - z2m-replay
+    # --scenario-after 0: the rename/join scenario only runs when
+    # scripts/e2e_bootstrap.py asks for it (after Home Assistant has seen
+    # the original devices). Z2M_REPLAY_SPEED 0.4 = a round every 2s.
+    command:
+      - python
+      - scripts/z2m_replay.py
+      - --host
+      - mosquitto
+      - --prefix
+      - zigbee2mqtt
+      - --speed
+      - ${Z2M_REPLAY_SPEED:-0.4}
+      - --scenario-after
+      - "0"
     environment:
-      - MQTT_HOST=mosquitto
       - LOG_LEVEL=INFO
     restart: unless-stopped
 

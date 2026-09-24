@@ -26,26 +26,46 @@ jobs:
     outputs:
       versions: ${{ steps.matrix.outputs.versions }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
       - name: Compute matrix
         id: matrix
         env:
+          # Passed through the environment, never interpolated into the
+          # script, so a crafted dispatch input can't inject shell.
           HA_VERSION_INPUT: ${{ github.event.inputs.ha_version }}
         run: |
           if [ -n "$HA_VERSION_INPUT" ]; then
-            echo "versions=[\"$HA_VERSION_INPUT\"]" >> "$GITHUB_OUTPUT"
+            if ! printf '%s' "$HA_VERSION_INPUT" | grep -Eq '^[A-Za-z0-9._-]{1,64}$'; then
+              echo "::error::Invalid ha_version input"
+              exit 1
+            fi
+            versions=$(jq -cn --arg v "$HA_VERSION_INPUT" '[$v]')
           else
-            # Pinned minimum supported version (manifest.json/hacs.json) plus
-            # the latest stable release, so we catch both "still works on
-            # the oldest version we claim to support" and "still works on
-            # what HACS users are actually running".
-            echo 'versions=["2025.10.3", "latest"]' >> "$GITHUB_OUTPUT"
+            # Single source for the pinned minimum supported version: the
+            # HA_VERSION default in docker-compose.yml (also what
+            # `make e2e` runs locally), plus the latest stable release.
+            # shellcheck disable=SC2016 # literal ${HA_VERSION:-...} in the pattern
+            pinned=$(sed -n 's/.*homeassistant\/home-assistant:${HA_VERSION:-\([^}]*\)}.*/\1/p' docker-compose.yml)
+            if [ -z "$pinned" ]; then
+              echo "::error::Could not read the pinned HA_VERSION default from docker-compose.yml"
+              exit 1
+            fi
+            versions=$(jq -cn --arg v "$pinned" '[$v, "latest"]')
           fi
+          echo "versions=$versions" >> "$GITHUB_OUTPUT"
+          echo "Testing against: $versions"
 
   e2e:
     name: End-to-end (HA ${{ matrix.ha_version }})
     needs: prepare-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # "latest" tracks whatever Home Assistant released last: a failure there
+    # is reported (red job) but doesn't block the PR; the pinned minimum
+    # version does.
+    continue-on-error: ${{ matrix.ha_version == 'latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -75,17 +95,14 @@ jobs:
         if: always()
         run: |
           mkdir -p logs
-          docker compose logs home-assistant > logs/home-assistant.log 2>&1 || true
-          docker compose logs mosquitto > logs/mosquitto.log 2>&1 || true
-          docker compose logs z2m-replay > logs/z2m-replay.log 2>&1 || true
+          # --no-log-prefix: ci_check_ha_log.py needs lines to start with
+          # Home Assistant's timestamp to find record boundaries.
+          docker compose --profile e2e logs --no-color --no-log-prefix home-assistant > logs/home-assistant.log 2>&1 || true
+          docker compose --profile e2e logs --no-color mosquitto > logs/mosquitto.log 2>&1 || true
+          docker compose --profile e2e logs --no-color z2m-replay > logs/z2m-replay.log 2>&1 || true
 
-      - name: Fail if ZigSight logged any ERROR
-        run: |
-          if grep -E 'ERROR' logs/home-assistant.log | grep -F 'custom_components.zigsight'; then
-            echo "::error::Found ERROR log lines from custom_components.zigsight"
-            exit 1
-          fi
-          echo "No ZigSight ERROR lines in the Home Assistant log"
+      - name: Fail on ZigSight errors, tracebacks or blocking calls in the HA log
+        run: python3 scripts/ci_check_ha_log.py logs/home-assistant.log
 
       - name: Upload logs
         if: failure()

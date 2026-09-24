@@ -58,6 +58,20 @@ site/
 # Frontend assets (should be distributed via HACS)
 # Note: custom_components/zigsight/www/ is included for card distribution
 www/
+
+# Zigbee2MQTT captures recorded read-only from a real broker for
+# scripts/z2m_replay.py --capture-file (see docs/testing.md). These can
+# contain real device/network data and must never be committed, even after
+# redaction while loading. captures/.gitkeep only keeps the directory (the
+# e2e replay container mounts it) owned by you rather than by docker.
+captures/*
+!captures/.gitkeep
+capture*.txt
+capture*.jsonl
+capture*.tsv
+
+# Logs saved by `make e2e-check-logs`
+e2e-logs/
 !custom_components/zigsight/www/
 
 *.zip

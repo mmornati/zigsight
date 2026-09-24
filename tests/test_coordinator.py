@@ -265,6 +265,38 @@ def test_zha_last_seen_only_advances_on_push(mock_hass: MagicMock) -> None:
     assert record["metrics"]["last_seen"] == later.isoformat()
 
 
+def test_zha_last_seen_seeded_once_at_discovery(mock_hass: MagicMock) -> None:
+    """A brand new device's last_seen is seeded from the discovery snapshot.
+
+    Without this, a freshly discovered device would have no last_seen at
+    all until its first live push -- which may not happen for a long time
+    on an idle device.
+    """
+    coordinator = ZigSightCoordinator(mock_hass, enable_zha=True)
+    seen_at = NOW
+
+    # A poll/snapshot discovery (is_push=False) still seeds last_seen the
+    # first time the device is seen.
+    is_new = coordinator._process_zha_device_update(
+        "00:11",
+        {"friendly_name": "Plug", "last_seen": seen_at, "metrics": {}},
+        is_push=False,
+    )
+    assert is_new
+    record = coordinator.get_device("00:11")
+    assert record is not None
+    assert record["metrics"]["last_seen"] == seen_at.isoformat()
+
+    # But a later snapshot for the SAME (now existing) device must not
+    # advance it -- only the initial seed is exempt.
+    later = seen_at + timedelta(hours=3)
+    is_new = coordinator._process_zha_device_update(
+        "00:11", {"last_seen": later, "metrics": {}}, is_push=False
+    )
+    assert not is_new
+    assert record["metrics"]["last_seen"] == seen_at.isoformat()
+
+
 async def test_zha_collector_errors_are_contained(mock_hass: MagicMock) -> None:
     """A failing ZHA collector doesn't fail the refresh."""
     coordinator = ZigSightCoordinator(mock_hass, enable_zha=True)

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
+from freezegun.api import FrozenDateTimeFactory
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.zigsight.zha_collector import (
     ZHACollector,
@@ -18,6 +21,7 @@ from custom_components.zigsight.zha_collector import (
 from .zha_test_helpers import add_mock_zha_config_entry, add_mock_zha_device
 
 IEEE = "00:11:22:33:44:55:66:77"
+OTHER_IEEE = "00:11:22:33:44:55:66:99"
 
 
 async def test_no_zha_entries(hass: HomeAssistant) -> None:
@@ -239,3 +243,110 @@ async def test_collect_device_last_seen_from_entity_state(hass: HomeAssistant) -
         hass.states.async_set(entity_id, "unavailable", {"restored": True})
     data = collector._collect_device(info)
     assert data["last_seen"] is None
+
+
+async def test_debounced_registry_event_tracks_new_device(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A device joining after setup is tracked ~2s after a registry event.
+
+    Discovery isn't only driven by the periodic (60s) refresh: device/
+    entity registry update events (e.g. a new ZHA device being created)
+    trigger a debounced re-discovery too, so new devices are tracked
+    quickly instead of waiting up to a full refresh interval.
+    """
+    freezer.move_to("2026-09-24T08:20:00+00:00")
+    zha_entry = add_mock_zha_config_entry(hass)
+
+    updates: list[tuple[str, dict]] = []
+    collector = ZHACollector(hass)
+    collector.async_setup(lambda ieee, data: updates.append((ieee, data)))
+    assert async_discover_devices(hass) == {}
+
+    # The device (and its entities) is added after the collector started --
+    # this fires the device/entity registry update events.
+    add_mock_zha_device(hass, zha_entry, IEEE, lqi_disabled_by=None, lqi_state="120")
+    await hass.async_block_till_done()
+    lqi_entity_id = async_discover_devices(hass)[IEEE].entities.lqi
+    assert lqi_entity_id is not None
+
+    # Not tracked yet: the debounce timer hasn't fired.
+    hass.states.async_set(lqi_entity_id, "130")
+    await hass.async_block_till_done()
+    assert updates == []
+
+    freezer.tick(timedelta(seconds=2.5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    # Now tracked: a state change is pushed through.
+    hass.states.async_set(lqi_entity_id, "140")
+    await hass.async_block_till_done()
+    assert updates
+    assert updates[-1][0] == IEEE
+    assert updates[-1][1]["metrics"]["link_quality"] == 140
+
+    collector.async_stop()
+
+
+async def test_async_stop_cancels_pending_debounce(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Stopping the collector cancels a pending debounce timer."""
+    freezer.move_to("2026-09-24T08:20:00+00:00")
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(hass, zha_entry, IEEE, lqi_disabled_by=None, lqi_state="100")
+
+    collector = ZHACollector(hass)
+    collector.async_setup(lambda ieee, data: None)
+    assert collector._unsub_debounce is None
+
+    # A second device joining arms the debounce timer.
+    add_mock_zha_device(
+        hass, zha_entry, OTHER_IEEE, lqi_disabled_by=None, lqi_state="50"
+    )
+    await hass.async_block_till_done()
+    assert collector._unsub_debounce is not None
+
+    collector.async_stop()
+    assert collector._unsub_debounce is None
+
+    # Advancing time must not resurrect the cancelled timer / raise.
+    freezer.tick(timedelta(seconds=5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+
+async def test_debounced_refresh_skips_when_zha_unavailable(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A registry event landing while ZHA is unloaded doesn't drop tracking.
+
+    Rediscovering while no ZHA config entry is loaded would find nothing
+    and tear down the existing entity-state tracking, leaving push updates
+    unhandled until the next periodic refresh (up to 60s) once ZHA is back.
+    """
+    freezer.move_to("2026-09-24T08:20:00+00:00")
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(hass, zha_entry, IEEE, lqi_disabled_by=None, lqi_state="100")
+
+    collector = ZHACollector(hass)
+    collector.async_setup(lambda ieee, data: None)
+    lqi_entity_id = async_discover_devices(hass)[IEEE].entities.lqi
+    assert lqi_entity_id in collector._tracked_entity_ids
+
+    # ZHA goes away, and a registry event lands while it's not loaded.
+    zha_entry.mock_state(hass, ConfigEntryState.NOT_LOADED)
+    add_mock_zha_device(
+        hass, zha_entry, OTHER_IEEE, lqi_disabled_by=None, lqi_state="50"
+    )
+    await hass.async_block_till_done()
+
+    freezer.tick(timedelta(seconds=2.5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    # Tracking of the original entity was kept, not dropped.
+    assert lqi_entity_id in collector._tracked_entity_ids
+
+    collector.async_stop()

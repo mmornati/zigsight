@@ -306,10 +306,14 @@ class ZHACollector:
         self._async_refresh_tracking()
         self._unsub_registry = [
             self.hass.bus.async_listen(
-                "device_registry_updated", self._async_registry_changed
+                dr.EVENT_DEVICE_REGISTRY_UPDATED,
+                self._async_registry_changed,
+                event_filter=self._device_event_is_zha,
             ),
             self.hass.bus.async_listen(
-                "entity_registry_updated", self._async_registry_changed
+                er.EVENT_ENTITY_REGISTRY_UPDATED,
+                self._async_registry_changed,
+                event_filter=self._entity_event_is_zha,
             ),
         ]
 
@@ -328,6 +332,32 @@ class ZHACollector:
         self._on_update = None
 
     @callback
+    def _device_event_is_zha(
+        self, event_data: dr.EventDeviceRegistryUpdatedData
+    ) -> bool:
+        """event_filter: only device changes relevant to a ZHA device."""
+        if event_data["action"] == "remove":
+            identifiers = event_data["device"].get("identifiers") or ()
+            return any(domain == ZHA_DOMAIN for domain, _ident in identifiers)
+        device = dr.async_get(self.hass).async_get(event_data["device_id"])
+        return device is not None and any(
+            domain == ZHA_DOMAIN for domain, _ident in device.identifiers
+        )
+
+    @callback
+    def _entity_event_is_zha(
+        self, event_data: er.EventEntityRegistryUpdatedData
+    ) -> bool:
+        """event_filter: only entity changes relevant to a tracked ZHA entity."""
+        entity_id = event_data["entity_id"]
+        if entity_id in self._entity_to_ieee:
+            # A change (e.g. enabled, renamed, removed) to an entity we
+            # already track -- always relevant, regardless of platform.
+            return True
+        entry = er.async_get(self.hass).async_get(entity_id)
+        return entry is not None and entry.platform == ZHA_DOMAIN
+
+    @callback
     def _async_registry_changed(self, event: Event[Any]) -> None:
         """Debounce device/entity registry updates into one re-discovery."""
         if self._unsub_debounce is not None:
@@ -339,6 +369,14 @@ class ZHACollector:
     @callback
     def _async_debounced_refresh(self, _now: datetime) -> None:
         self._unsub_debounce = None
+        if not self.is_available():
+            # ZHA isn't loaded right now (unloading, or still starting up):
+            # a discovery pass would find nothing and tear down the
+            # current tracking, leaving push updates unhandled for up to a
+            # full periodic refresh interval once ZHA comes back. Keep
+            # whatever is currently tracked instead; the periodic refresh
+            # (or the next registry event once ZHA is back) will catch up.
+            return
         self._async_refresh_tracking()
 
     @callback

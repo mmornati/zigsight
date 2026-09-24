@@ -1017,14 +1017,16 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Store one ZHA device update; return True if the device is new.
 
         ``is_push`` distinguishes a live state-change push from a periodic
-        registry re-discovery snapshot: only a push may advance
-        ``last_seen`` (to the entity's own ``last_reported``/
-        ``last_updated``). A snapshot must never bump it to "now" -- doing
-        so previously masked devices going silent (analytics falls back to
-        ``last_seen`` for the connectivity warning whenever ``available``
-        is unknown, which it is for any device whose LQI/RSSI/battery
-        entities are all still disabled) and would defeat the purpose of
-        that warning entirely.
+        registry re-discovery snapshot: only a push may advance an
+        *existing* device's ``last_seen`` (to the entity's own
+        ``last_reported``/``last_updated``). A snapshot must never bump it
+        to "now" -- doing so previously masked devices going silent
+        (analytics falls back to ``last_seen`` for the connectivity
+        warning whenever ``available`` is unknown, which it is for any
+        device whose LQI/RSSI/battery entities are all still disabled) and
+        would defeat the purpose of that warning entirely. A brand new
+        device's ``last_seen`` is still seeded once, from whatever the
+        discovery snapshot that found it observed -- see below.
         """
         now = dt_util.utcnow()
         record = self._devices.get(device_id)
@@ -1058,6 +1060,18 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for key, value in device_metrics.items()
             if key in _TRACKED_METRICS and isinstance(value, int | float)
         }
+
+        if is_new:
+            # Seed last_seen once, from whatever the discovery snapshot
+            # itself observed (a tracked entity's own last_reported /
+            # last_updated, only for a non-unavailable, non-restored
+            # state -- see zha_collector._collect_device). A freshly
+            # discovered device would otherwise have no last_seen at all
+            # until its first live push, which may not happen for a long
+            # time on an idle device.
+            seed_last_seen = device_data.get("last_seen")
+            if isinstance(seed_last_seen, datetime):
+                record["metrics"]["last_seen"] = seed_last_seen.isoformat()
 
         if is_push:
             pushed_last_seen = device_data.get("last_seen")

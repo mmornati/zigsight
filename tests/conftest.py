@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -10,13 +9,20 @@ import pytest
 
 from custom_components.zigsight.coordinator import ZigSightCoordinator
 
+pytest_plugins = "pytest_homeassistant_custom_component"
 
-@pytest.fixture
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
+
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(enable_custom_integrations: Any) -> None:
+    """Enable custom integrations for every test.
+
+    ``pytest-homeassistant-custom-component`` disables custom (non-core)
+    integrations by default so that ``hass`` fixtures stay fast/hermetic.
+    ZigSight IS a custom integration, so real integration tests need it
+    re-enabled; this autouse fixture wraps the plugin's own
+    ``enable_custom_integrations`` fixture so every test gets it for free.
+    """
+    return
 
 
 @pytest.fixture

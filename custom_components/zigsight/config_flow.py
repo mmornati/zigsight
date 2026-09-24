@@ -6,6 +6,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import callback
 
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
@@ -18,8 +19,6 @@ from .const import (
     CONF_MQTT_USERNAME,
     CONF_RECONNECT_RATE_THRESHOLD,
     CONF_RECONNECT_RATE_WINDOW_HOURS,
-    CONF_RECONNECT_THRESHOLD,
-    CONF_RETENTION_DAYS,
     DEFAULT_BATTERY_DRAIN_THRESHOLD,
     DEFAULT_INTEGRATION_TYPE,
     DEFAULT_MQTT_BROKER,
@@ -27,12 +26,11 @@ from .const import (
     DEFAULT_MQTT_TOPIC_PREFIX,
     DEFAULT_RECONNECT_RATE_THRESHOLD,
     DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
-    DEFAULT_RECONNECT_THRESHOLD,
-    DEFAULT_RETENTION_DAYS,
     DOMAIN,
     INTEGRATION_TYPE_ZHA,
     INTEGRATION_TYPE_ZIGBEE2MQTT,
 )
+from .options_flow import ZigSightOptionsFlowHandler
 
 STEP_INTEGRATION_TYPE_SCHEMA = vol.Schema(
     {
@@ -65,14 +63,6 @@ STEP_ZIGBEE2MQTT_DATA_SCHEMA = vol.Schema(
 STEP_COMMON_DATA_SCHEMA = vol.Schema(
     {
         vol.Optional(
-            CONF_RECONNECT_THRESHOLD,
-            default=DEFAULT_RECONNECT_THRESHOLD,
-        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
-        vol.Optional(
-            CONF_RETENTION_DAYS,
-            default=DEFAULT_RETENTION_DAYS,
-        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=365)),
-        vol.Optional(
             CONF_BATTERY_DRAIN_THRESHOLD,
             default=DEFAULT_BATTERY_DRAIN_THRESHOLD,
         ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100.0)),
@@ -88,7 +78,7 @@ STEP_COMMON_DATA_SCHEMA = vol.Schema(
 )
 
 
-class ZigsightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
+class ZigsightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for ZigSight."""
 
     VERSION = 1
@@ -97,6 +87,14 @@ class ZigsightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
         """Initialize the config flow."""
         self._integration_type: str | None = None
         self._integration_data: dict[str, Any] = {}
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> ZigSightOptionsFlowHandler:
+        """Get the options flow for this handler."""
+        return ZigSightOptionsFlowHandler()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -174,12 +172,6 @@ class ZigsightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
         # Combine all configuration data
         config_data = {
             CONF_INTEGRATION_TYPE: self._integration_type,
-            CONF_RECONNECT_THRESHOLD: user_input.get(
-                CONF_RECONNECT_THRESHOLD, DEFAULT_RECONNECT_THRESHOLD
-            ),
-            CONF_RETENTION_DAYS: user_input.get(
-                CONF_RETENTION_DAYS, DEFAULT_RETENTION_DAYS
-            ),
             CONF_BATTERY_DRAIN_THRESHOLD: user_input.get(
                 CONF_BATTERY_DRAIN_THRESHOLD, DEFAULT_BATTERY_DRAIN_THRESHOLD
             ),

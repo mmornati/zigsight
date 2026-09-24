@@ -4,19 +4,61 @@ from __future__ import annotations
 
 from typing import Any
 
+import voluptuous as vol
 from homeassistant import config_entries
+
+from .const import (
+    CONF_BATTERY_DRAIN_THRESHOLD,
+    CONF_RECONNECT_RATE_THRESHOLD,
+    CONF_RECONNECT_RATE_WINDOW_HOURS,
+    DEFAULT_BATTERY_DRAIN_THRESHOLD,
+    DEFAULT_RECONNECT_RATE_THRESHOLD,
+    DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
+)
 
 
 class ZigSightOptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle options flow for ZigSight."""
+    """Handle options flow for ZigSight.
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
+    Note: as of Home Assistant 2025.12, ``OptionsFlow.config_entry`` is a
+    read-only property provided by the base class (backed by
+    ``self.hass.config_entries``); assigning to ``self.config_entry`` here
+    is both unnecessary and a mypy error, so this handler no longer takes
+    or stores a ``config_entry`` argument in ``__init__``.
+    """
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """Manage the options."""
-        # Placeholder for future options configuration
-        return self.async_create_entry(title="", data={})
+        """Manage the analytics threshold options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current = self.config_entry.options or self.config_entry.data
+
+        options_schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_BATTERY_DRAIN_THRESHOLD,
+                    default=current.get(
+                        CONF_BATTERY_DRAIN_THRESHOLD, DEFAULT_BATTERY_DRAIN_THRESHOLD
+                    ),
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100.0)),
+                vol.Optional(
+                    CONF_RECONNECT_RATE_THRESHOLD,
+                    default=current.get(
+                        CONF_RECONNECT_RATE_THRESHOLD,
+                        DEFAULT_RECONNECT_RATE_THRESHOLD,
+                    ),
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100.0)),
+                vol.Optional(
+                    CONF_RECONNECT_RATE_WINDOW_HOURS,
+                    default=current.get(
+                        CONF_RECONNECT_RATE_WINDOW_HOURS,
+                        DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=168)),
+            }
+        )
+
+        return self.async_show_form(step_id="init", data_schema=options_schema)

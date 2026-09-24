@@ -83,14 +83,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         mqtt_username = mqtt_username_raw if mqtt_username_raw else None
         mqtt_password = mqtt_password_raw if mqtt_password_raw else None
 
-    battery_drain_threshold = entry.data.get(
-        CONF_BATTERY_DRAIN_THRESHOLD, DEFAULT_BATTERY_DRAIN_THRESHOLD
+    # Analytics thresholds can be tuned later via the options flow; options
+    # (when set) take precedence over the original config-entry data.
+    battery_drain_threshold = entry.options.get(
+        CONF_BATTERY_DRAIN_THRESHOLD,
+        entry.data.get(CONF_BATTERY_DRAIN_THRESHOLD, DEFAULT_BATTERY_DRAIN_THRESHOLD),
     )
-    reconnect_rate_threshold = entry.data.get(
-        CONF_RECONNECT_RATE_THRESHOLD, DEFAULT_RECONNECT_RATE_THRESHOLD
+    reconnect_rate_threshold = entry.options.get(
+        CONF_RECONNECT_RATE_THRESHOLD,
+        entry.data.get(CONF_RECONNECT_RATE_THRESHOLD, DEFAULT_RECONNECT_RATE_THRESHOLD),
     )
-    reconnect_rate_window_hours = entry.data.get(
-        CONF_RECONNECT_RATE_WINDOW_HOURS, DEFAULT_RECONNECT_RATE_WINDOW_HOURS
+    reconnect_rate_window_hours = entry.options.get(
+        CONF_RECONNECT_RATE_WINDOW_HOURS,
+        entry.data.get(
+            CONF_RECONNECT_RATE_WINDOW_HOURS, DEFAULT_RECONNECT_RATE_WINDOW_HOURS
+        ),
     )
 
     coordinator = ZigSightCoordinator(
@@ -128,6 +135,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register frontend panel (only once)
     await _async_register_panel(hass)
 
+    # Reload the entry whenever options change (e.g. analytics thresholds
+    # tuned via the options flow) so the coordinator picks up new values.
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
     return True
 
 
@@ -139,6 +150,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_shutdown()
 
     return unload_ok
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the config entry when its options are updated."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def _async_setup_services(hass: HomeAssistant) -> None:

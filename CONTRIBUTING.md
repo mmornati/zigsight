@@ -103,6 +103,7 @@ Always use type hints:
 from typing import Any
 from homeassistant.core import HomeAssistant
 
+
 def my_function(hass: HomeAssistant, value: str) -> bool:
     """Function description."""
     return True
@@ -154,15 +155,18 @@ Tests can be marked for categorization:
 ```python
 import pytest
 
+
 @pytest.mark.slow
 def test_long_running_operation():
     """Test that takes a long time."""
     pass
 
+
 @pytest.mark.integration
 def test_integration_with_mqtt():
     """Test that requires external services."""
     pass
+
 
 @pytest.mark.unit
 def test_pure_function():
@@ -202,6 +206,7 @@ pytest tests/ --cov=custom_components/zigsight --cov-report=xml
 
 ```python
 """Test module."""
+
 import pytest
 from unittest.mock import MagicMock
 
@@ -228,7 +233,7 @@ async def test_coordinator_construction(mock_hass):
 def test_analytics_compute():
     """Test analytics computation."""
     from custom_components.zigsight.analytics import DeviceAnalytics
-    
+
     analytics = DeviceAnalytics()
     result = analytics.compute_reconnect_rate([])
     assert result == 0.0
@@ -240,6 +245,7 @@ For testing async code, use `pytest-asyncio`:
 
 ```python
 import pytest
+
 
 @pytest.mark.asyncio
 async def test_async_function():

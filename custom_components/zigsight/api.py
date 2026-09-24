@@ -294,7 +294,7 @@ class ZigSightAnalyticsTrendsView(HomeAssistantView):
                 # Extract metric data
                 trends = []
                 for entry in filtered_history:
-                    timestamp = entry.get("timestamp")
+                    entry_timestamp = entry.get("timestamp")
                     metrics = entry.get("metrics", {})
 
                     if metric == "health_score":
@@ -321,7 +321,7 @@ class ZigSightAnalyticsTrendsView(HomeAssistantView):
                     if value is not None:
                         trends.append(
                             {
-                                "timestamp": timestamp,
+                                "timestamp": entry_timestamp,
                                 "value": value,
                             }
                         )

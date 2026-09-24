@@ -190,9 +190,8 @@ from awesomeversion import AwesomeVersion
 when the difference is an API).
 
 When a new Home Assistant release is out, bump
-`pytest-homeassistant-custom-component` in `requirements-test-latest.txt` (and
-in the `dev` extra of `pyproject.toml`); when the minimum supported version is
-raised, update `requirements-test-min.txt` together with `hacs.json`.
+`pytest-homeassistant-custom-component` in `requirements-test-latest.txt`; when
+the minimum supported version is raised, update `requirements-test-min.txt` together with `hacs.json`.
 
 ### Running Tests
 

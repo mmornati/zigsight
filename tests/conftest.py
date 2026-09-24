@@ -41,6 +41,11 @@ def mqtt_client_mock(mqtt_client_mock: MqttMockPahoClient) -> MqttMockPahoClient
     timer after test <... MQTT._async_start_misc_periodic ...>" (reported
     by the plugin releases shipping Home Assistant 2026.x; the 2025.10 one
     did not report it).
+
+    This deliberately mirrors only paho's socket-close step
+    (``on_socket_close``), which is what cancels the timer; it doesn't fire
+    ``on_disconnect``, so Home Assistant's disconnect / reconnect handling
+    isn't triggered by the teardown.
     """
 
     def _disconnect(*args: Any, **kwargs: Any) -> int:

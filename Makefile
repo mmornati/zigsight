@@ -92,6 +92,10 @@ install-dev:
 setup-dev:
 	@echo "Creating virtual environment and installing development tools..."
 	@test -d $(VENV) || $(PYTHON_LATEST) -m venv $(VENV)
+	@$(VENV_PYTHON) -c 'import sys; sys.exit(sys.version_info[:2] != (3, 14))' || { \
+		echo "Error: $(VENV) uses $$($(VENV_PYTHON) --version), but requirements-dev.txt (latest Home Assistant) needs Python 3.14."; \
+		echo "Remove it ('rm -rf $(VENV)') and run 'make setup-dev' again (override the interpreter with PYTHON_LATEST=...)."; \
+		exit 1; }
 	$(VENV_PIP) install --upgrade pip
 	$(VENV_PIP) install -r requirements-dev.txt
 	$(VENV_PRE_COMMIT) install
@@ -99,6 +103,10 @@ setup-dev:
 # Virtualenv with the minimum supported Home Assistant release (Python 3.13)
 setup-min:
 	@test -d $(VENV_MIN) || $(PYTHON_MIN) -m venv $(VENV_MIN)
+	@$(VENV_MIN)/bin/python -c 'import sys; sys.exit(sys.version_info[:2] != (3, 13))' || { \
+		echo "Error: $(VENV_MIN) uses $$($(VENV_MIN)/bin/python --version), but requirements-test-min.txt (Home Assistant 2025.10) needs Python 3.13."; \
+		echo "Remove it ('rm -rf $(VENV_MIN)') and run 'make setup-min' again (override the interpreter with PYTHON_MIN=...)."; \
+		exit 1; }
 	$(VENV_MIN)/bin/pip install --upgrade pip
 	$(VENV_MIN)/bin/pip install -r requirements-test-min.txt -r requirements-lint.txt
 

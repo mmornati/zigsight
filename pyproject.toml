@@ -31,10 +31,12 @@ Issues = "https://github.com/mmornati/zigsight/issues"
 Documentation = "https://github.com/mmornati/zigsight"
 
 [project.optional-dependencies]
-# Mirrors requirements-dev.txt (latest Home Assistant, Python 3.14); see
-# requirements-test-min.txt for the minimum supported Home Assistant.
+# Lint / type-check tools only (same as requirements-lint.txt). The test
+# dependencies depend on the Home Assistant release (and Python version) under
+# test, so they live in requirements-test-min.txt (HA 2025.10, Python 3.13)
+# and requirements-test-latest.txt (latest HA, Python 3.14) instead;
+# requirements-dev.txt combines the latter with the lint tools.
 dev = [
-    "pytest-homeassistant-custom-component==0.13.366",
     "ruff==0.16.8",
     "mypy==2.3.1",
     "bandit==1.9.4",

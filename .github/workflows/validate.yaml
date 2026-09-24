@@ -139,15 +139,12 @@ jobs:
         with:
           python-version: "3.14"
           cache: 'pip'
-          cache-dependency-path: |
-            requirements-dev.txt
-            requirements-test-latest.txt
-            requirements-lint.txt
+          cache-dependency-path: requirements-lint.txt
 
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements-dev.txt
+          python3 -m pip install -r requirements-lint.txt
           python3 -m pip install safety
 
       - name: Run Bandit security scan

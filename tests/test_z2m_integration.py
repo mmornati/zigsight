@@ -273,9 +273,8 @@ async def test_bridge_info_and_state(coordinator: ZigSightCoordinator) -> None:
     dumped = repr(info)
     assert "not-a-real-password" not in dumped
     assert "network_key" not in dumped
-    # Z2M availability timeouts are used for connectivity checks
-    assert coordinator._analytics.router_timeout == timedelta(minutes=10)
-    assert coordinator._analytics.end_device_timeout == timedelta(minutes=1500)
+    # Z2M's passive availability timeout is the silent device timeout
+    assert coordinator._analytics.silent_timeout == timedelta(minutes=1500)
 
 
 async def test_bridge_state_legacy_payload(
@@ -427,6 +426,126 @@ async def test_new_device_joins(
     assert device.model_id == "MCCGQ11LM"
 
 
+async def test_entities_wait_for_interview_and_follow_capabilities(
+    hass: HomeAssistant, entry: MockConfigEntry, coordinator: ZigSightCoordinator
+) -> None:
+    """Entities are created after the interview; new capabilities add entities."""
+    new_ieee = "0x00158d0009f8e7d6"
+    devices = load_fixture("bridge_devices.json")
+    climate = next(d for d in devices if d["ieee_address"] == CLIMATE)
+    interviewing = copy.deepcopy(climate)
+    interviewing.update(
+        {
+            "ieee_address": new_ieee,
+            "friendly_name": new_ieee,
+            "definition": None,
+            "power_source": None,
+            "interview_completed": False,
+            "interviewing": True,
+            "interview_state": "IN_PROGRESS",
+        }
+    )
+    async_fire(hass, BASE, "bridge/devices", [*devices, interviewing])
+    await hass.async_block_till_done()
+
+    # Tracked, but no entities while the interview runs
+    assert coordinator.get_device(new_ieee) is not None
+    ent_reg = er.async_get(hass)
+    assert not [
+        e
+        for e in er.async_entries_for_config_entry(ent_reg, entry.entry_id)
+        if e.unique_id.startswith(new_ieee)
+    ]
+
+    # Interview completed (without a voltage expose yet): battery entities
+    done = copy.deepcopy(climate)
+    done.update({"ieee_address": new_ieee, "friendly_name": "Office Climate"})
+    done["definition"]["exposes"] = [
+        e for e in done["definition"]["exposes"] if e["name"] != "voltage"
+    ]
+    async_fire(hass, BASE, "bridge/devices", [*devices, done])
+    await hass.async_block_till_done()
+    for key in ("link_quality", "battery", "battery_trend", "health_score"):
+        assert _entity_id(hass, "sensor", f"{new_ieee}_{key}")
+    assert _entity_id(hass, "binary_sensor", f"{new_ieee}_battery_drain_warning")
+    assert ent_reg.async_get_entity_id("sensor", DOMAIN, f"{new_ieee}_voltage") is None
+
+    # A definition update adding the voltage expose adds just that entity
+    with_voltage = copy.deepcopy(climate)
+    with_voltage.update({"ieee_address": new_ieee, "friendly_name": "Office Climate"})
+    async_fire(hass, BASE, "bridge/devices", [*devices, with_voltage])
+    await hass.async_block_till_done()
+    assert _entity_id(hass, "sensor", f"{new_ieee}_voltage")
+
+
+async def test_empty_device_list_is_ignored(
+    hass: HomeAssistant, coordinator: ZigSightCoordinator
+) -> None:
+    """A retained '[]' (or coordinator only) list doesn't wipe everything."""
+    coordinator_only = [
+        d for d in load_fixture("bridge_devices.json") if d["type"] == "Coordinator"
+    ]
+    async_fire(hass, BASE, "bridge/devices", [])
+    async_fire(hass, BASE, "bridge/devices", coordinator_only)
+    await hass.async_block_till_done()
+    assert len(coordinator.device_ids()) == 5
+    assert _entity_id(hass, "sensor", f"{PLUG}_link_quality")
+    assert dr.async_get(hass).async_get_device(identifiers={(DOMAIN, PLUG)})
+
+
+async def test_invalid_last_seen_falls_back_to_receipt_time(
+    hass: HomeAssistant, coordinator: ZigSightCoordinator
+) -> None:
+    """An impossible last_seen date doesn't break message processing."""
+    async_fire(
+        hass,
+        BASE,
+        "Kitchen",
+        {"linkquality": 150, "last_seen": "2026-13-45T10:00:00Z"},
+    )
+    await hass.async_block_till_done()
+    assert _state(hass, "sensor", f"{PLUG}_link_quality").state == "150"
+    record = coordinator.get_device(PLUG)
+    assert record is not None
+    assert record["metrics"]["last_seen"] == NOW
+
+
+async def test_stale_registry_devices_removed_on_startup(
+    hass: HomeAssistant,
+    mqtt_mock: MagicMock,
+    entry: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Devices removed from Zigbee2MQTT while HA was down are cleaned up."""
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    gone = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={(DOMAIN, "0x00000000deadbeef")}
+    )
+    gone_entity = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "0x00000000deadbeef_link_quality",
+        config_entry=entry,
+        device_id=gone.id,
+    )
+    kept = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={(DOMAIN, PLUG)}
+    )
+
+    await _setup(hass, entry, freezer)
+    async_fire_messages(hass, _messages_without_networkmap())
+    await hass.async_block_till_done()
+
+    assert dev_reg.async_get(gone.id) is None
+    assert ent_reg.async_get(gone_entity.entity_id) is None
+    assert dev_reg.async_get(kept.id) is not None
+    bridge = dev_reg.async_get_device(
+        identifiers={(DOMAIN, f"{entry.entry_id}_bridge")}
+    )
+    assert bridge is not None
+
+
 async def test_device_disabled_then_enabled(
     hass: HomeAssistant, coordinator: ZigSightCoordinator
 ) -> None:
@@ -488,7 +607,7 @@ async def test_device_update_event_is_slim_and_rate_limited(
     coordinator: ZigSightCoordinator,
     freezer: FrozenDateTimeFactory,
 ) -> None:
-    """zigsight_device_update carries a small payload and is rate limited."""
+    """zigsight_device_update is small, rate limited and ignores LQI churn."""
     events: list[Event] = []
 
     @callback
@@ -497,26 +616,45 @@ async def test_device_update_event_is_slim_and_rate_limited(
 
     hass.bus.async_listen(EVENT_DEVICE_UPDATE, _listener)
     freezer.tick(timedelta(minutes=5))
-    async_fire(hass, BASE, "Kitchen", {"linkquality": 100})
-    async_fire(hass, BASE, "Kitchen", {"linkquality": 101})
-    async_fire(hass, BASE, "Kitchen", {"linkquality": 102})
+    # The battery reported during the replayed session was rate limited
+    # (availability had just been reported): it goes out with the next message.
+    async_fire(hass, BASE, "Bedroom Climate", {"linkquality": 99})
+    await hass.async_block_till_done()
+    assert len(events) == 1
+    assert events[0].data["metrics"]["battery"] == 87
+    events.clear()
+
+    freezer.tick(timedelta(minutes=5))
+    # Link quality changes alone never fire the event
+    for lqi in (100, 101, 102):
+        async_fire(hass, BASE, "Bedroom Climate", {"linkquality": lqi})
+    await hass.async_block_till_done()
+    assert events == []
+
+    async_fire(hass, BASE, "Bedroom Climate", {"battery": 86, "linkquality": 90})
     await hass.async_block_till_done()
     assert len(events) == 1
     data = events[0].data
-    assert data["device_id"] == PLUG
-    assert data["friendly_name"] == "Kitchen"
-    assert data["metrics"]["link_quality"] == 100
+    assert data["device_id"] == CLIMATE
+    assert data["friendly_name"] == "Bedroom Climate"
+    assert data["metrics"]["battery"] == 86
+    assert data["metrics"]["link_quality"] == 90
     assert "last_message" not in data["metrics"]
     assert set(data) == {"device_id", "friendly_name", "source", "available", "metrics"}
 
-    # Availability changes are always reported
-    async_fire(hass, BASE, "Kitchen/availability", {"state": "offline"})
+    # Battery changes are rate limited...
+    async_fire(hass, BASE, "Bedroom Climate", {"battery": 85})
+    await hass.async_block_till_done()
+    assert len(events) == 1
+
+    # ... availability changes are always reported
+    async_fire(hass, BASE, "Bedroom Climate/availability", "offline")
     await hass.async_block_till_done()
     assert len(events) == 2
     assert events[1].data["available"] is False
 
     freezer.tick(timedelta(minutes=2))
-    async_fire(hass, BASE, "Kitchen", {"linkquality": 103})
+    async_fire(hass, BASE, "Bedroom Climate", {"battery": 84})
     await hass.async_block_till_done()
     assert len(events) == 3
 
@@ -560,34 +698,63 @@ async def test_network_map(
     assert len(coordinator.get_network_links()) == 5
 
 
-async def test_periodic_refresh_updates_analytics(
+async def test_untracked_quiet_router_is_not_flagged(
     hass: HomeAssistant,
     coordinator: ZigSightCoordinator,
     freezer: FrozenDateTimeFactory,
 ) -> None:
-    """Time based analytics are refreshed by the periodic update."""
-    # Kitchen plug stops reporting and availability is gone: after the
-    # router timeout (10 minutes) the connectivity warning turns on.
+    """Without availability, quiet routers only warn after the long timeout.
+
+    ZigSight doesn't ping devices: an idle bulb/plug may send nothing for
+    hours, so the 10 minute Zigbee2MQTT router timeout must not apply.
+    """
     record = coordinator.get_device(PLUG)
     assert record is not None
-    record["available"] = None
+    record["available"] = None  # availability not tracked
+    warning = f"{PLUG}_connectivity_warning"
+
     freezer.tick(timedelta(minutes=30))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert (
-        _state(hass, "binary_sensor", f"{PLUG}_connectivity_warning").state == STATE_ON
-    )
-    # ... while the sleepy end device is still fine (25 h timeout)
-    climate = coordinator.get_device(CLIMATE)
-    assert climate is not None
-    climate["available"] = None
-    freezer.tick(timedelta(minutes=1))
+    assert _state(hass, "binary_sensor", warning).state == STATE_OFF
+
+    freezer.tick(timedelta(hours=12))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert (
-        _state(hass, "binary_sensor", f"{CLIMATE}_connectivity_warning").state
-        == STATE_OFF
-    )
+    assert _state(hass, "binary_sensor", warning).state == STATE_OFF
+
+    # The periodic refresh flags it once silent for longer than 25 h
+    freezer.tick(timedelta(hours=13))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert _state(hass, "binary_sensor", warning).state == STATE_ON
+
+
+async def test_bridge_offline_resets_availability(
+    hass: HomeAssistant, coordinator: ZigSightCoordinator
+) -> None:
+    """A Zigbee2MQTT restart neither raises warnings nor counts reconnects."""
+    async_fire(hass, BASE, "Kitchen/availability", {"state": "offline"})
+    await hass.async_block_till_done()
+    warning = f"{PLUG}_connectivity_warning"
+    assert _state(hass, "binary_sensor", warning).state == STATE_ON
+
+    async_fire(hass, BASE, "bridge/state", {"state": "offline"})
+    await hass.async_block_till_done()
+    for ieee in (LAMP, PLUG, CLIMATE, MOTION):
+        record = coordinator.get_device(ieee)
+        assert record is not None
+        assert record["available"] is None
+    # Stale "offline" no longer drives the warning
+    assert _state(hass, "binary_sensor", warning).state == STATE_OFF
+
+    async_fire(hass, BASE, "bridge/state", {"state": "online"})
+    async_fire(hass, BASE, "Kitchen/availability", {"state": "online"})
+    await hass.async_block_till_done()
+    record = coordinator.get_device(PLUG)
+    assert record is not None
+    assert record["available"] is True
+    assert record["reconnect_count"] == 0
 
 
 async def test_history_is_bounded_and_numeric(

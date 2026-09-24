@@ -219,6 +219,55 @@ async def test_legacy_entities_are_migrated_to_ieee_unique_ids(
     )
 
 
+async def test_legacy_entities_not_provided_anymore_are_removed(
+    hass: HomeAssistant, mqtt_mock: MagicMock
+) -> None:
+    """Legacy battery/voltage entities of mains devices don't linger."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, version=1, minor_version=1, data=LEGACY_Z2M_DATA
+    )
+    entry.add_to_hass(hass)
+    ent_reg = er.async_get(hass)
+    legacy = {
+        key: ent_reg.async_get_or_create(
+            "sensor",
+            DOMAIN,
+            f"zigsight_Living Room Lamp_{key}",
+            config_entry=entry,
+        )
+        for key in ("link_quality", "battery", "voltage", "battery_trend")
+    }
+    drain = ent_reg.async_get_or_create(
+        "binary_sensor",
+        DOMAIN,
+        "zigsight_Living Room Lamp_battery_drain_warning",
+        config_entry=entry,
+    )
+    # The climate sensor exposes a voltage: its legacy voltage entity stays
+    climate_voltage = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, "zigsight_Bedroom Climate_voltage", config_entry=entry
+    )
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    async_fire_messages(
+        hass, [m for m in session_messages() if m.topic.endswith("bridge/devices")]
+    )
+    await hass.async_block_till_done()
+
+    lamp = "0x0017880104e45517"
+    migrated = ent_reg.async_get(legacy["link_quality"].entity_id)
+    assert migrated is not None
+    assert migrated.unique_id == f"{lamp}_link_quality"
+    for key in ("battery", "voltage", "battery_trend"):
+        assert ent_reg.async_get(legacy[key].entity_id) is None
+    assert ent_reg.async_get(drain.entity_id) is None
+    # The climate sensor does expose voltage: its legacy entity is migrated
+    kept = ent_reg.async_get(climate_voltage.entity_id)
+    assert kept is not None
+    assert kept.unique_id == f"{CLIMATE}_voltage"
+
+
 async def test_legacy_duplicate_is_removed(
     hass: HomeAssistant, mqtt_mock: MagicMock
 ) -> None:

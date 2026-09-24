@@ -58,7 +58,7 @@ Battery sensors, battery trend and the battery drain warning are only created fo
 - **Link Quality** (30%): Normalized signal strength (0-255 → 0-100)
 - **Battery** (20%): Current battery level (0-100%). Left out (and the other weights re-normalised) for mains powered devices
 - **Reconnect Rate** (30%): Inverted reconnect rate (lower is better)
-- **Connectivity** (20%): 100 when Zigbee2MQTT reports the device online, 0 when offline. Without availability information it decays linearly from 100 (just seen) to 0 when the device has been silent for its [connectivity timeout](#connectivity-warning)
+- **Connectivity** (20%): 100 when Zigbee2MQTT reports the device online, 0 when offline. Without availability information it decays linearly from 100 (just seen) to 0 when the device has been silent for the [silent device timeout](#connectivity-warning) (25 hours)
 
 **Score Interpretation**:
 - **90-100**: Excellent health
@@ -110,11 +110,11 @@ Health Score = (78.4 × 0.3) + (80 × 0.2) + (95 × 0.3) + (100 × 0.2) = 86.6
 **When It Triggers**:
 - Reconnect rate ≥ 5 events/hour (default)
 - OR Zigbee2MQTT reports the device **offline** (availability enabled)
-- OR, when availability is not known, the device hasn't been seen for longer than its connectivity timeout:
-  - Routers (mains powered): **10 minutes**
-  - End devices (usually sleepy battery devices): **25 hours**
+- OR, when Zigbee2MQTT availability is not tracking the device (it is disabled by default in Zigbee2MQTT 2.x), the device hasn't been seen for longer than the **silent device timeout: 25 hours**, for every device type
 
-These timeouts mirror Zigbee2MQTT's availability defaults; when Zigbee2MQTT publishes its own `availability.active.timeout` / `availability.passive.timeout` in `bridge/info`, those values are used instead. Enabling availability in Zigbee2MQTT is recommended: routers that only send messages when something changes (e.g. idle bulbs) would otherwise trip the 10 minute router timeout.
+Zigbee2MQTT uses a short 10 minute timeout for routers only because it actively pings them; ZigSight doesn't ping devices, and idle routers (bulbs, plugs) can legitimately stay silent for hours, so a short router timeout would only produce false warnings. The 25 hours mirror Zigbee2MQTT's "passive" availability default; when Zigbee2MQTT publishes its own `availability.passive.timeout` in `bridge/info`, that value is used. Enable availability in Zigbee2MQTT for timely offline detection: when it tracks a device, its online/offline state is used directly.
+
+When Zigbee2MQTT itself goes offline (`bridge/state`), every device's availability becomes unknown: the stale state doesn't raise warnings, and the "online" published after Zigbee2MQTT restarts is not counted as a reconnect.
 
 The entity has two attributes: `available` (Zigbee2MQTT availability, `null` when unknown) and `reconnect_count` (reconnects since Home Assistant started).
 

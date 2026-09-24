@@ -34,8 +34,6 @@ class ZigSightSensorEntityDescription(SensorEntityDescription):
     """Describes a ZigSight sensor."""
 
     value_fn: Callable[[ZigSightCoordinator, str], StateType]
-    # Only created for battery powered devices
-    battery_only: bool = False
 
 
 LINK_QUALITY = ZigSightSensorEntityDescription(
@@ -50,7 +48,6 @@ BATTERY = ZigSightSensorEntityDescription(
     device_class=SensorDeviceClass.BATTERY,
     native_unit_of_measurement=PERCENTAGE,
     state_class=SensorStateClass.MEASUREMENT,
-    battery_only=True,
     value_fn=_metric("battery"),
 )
 VOLTAGE = ZigSightSensorEntityDescription(
@@ -75,7 +72,6 @@ BATTERY_TREND = ZigSightSensorEntityDescription(
     translation_key="battery_trend",
     native_unit_of_measurement="%/h",
     state_class=SensorStateClass.MEASUREMENT,
-    battery_only=True,
     value_fn=lambda coordinator, ieee: coordinator.get_device_battery_trend(ieee),
 )
 HEALTH_SCORE = ZigSightSensorEntityDescription(
@@ -127,18 +123,15 @@ def build_sensors(
 ) -> Iterable[SensorEntity]:
     """Return the sensors to create for one device.
 
-    Battery related sensors are only created for battery powered devices and
-    the voltage sensor only for devices exposing a voltage.
+    The entity set comes from ``coordinator.entity_keys()``: battery related
+    sensors only for battery powered devices, voltage only for devices
+    exposing a voltage.
     """
-    record = coordinator.get_device(ieee) or {}
-    battery_powered = bool(record.get("battery_powered"))
+    keys = coordinator.entity_keys(ieee)
     entities: list[SensorEntity] = []
     for description in SENSOR_DESCRIPTIONS:
-        if description.battery_only and not battery_powered:
+        if description.key not in keys:
             continue
-        if description is VOLTAGE:
-            if record.get("has_voltage"):
-                entities.append(ZigSightVoltageSensor(coordinator, ieee, description))
-            continue
-        entities.append(ZigSightSensor(coordinator, ieee, description))
+        cls = ZigSightVoltageSensor if description is VOLTAGE else ZigSightSensor
+        entities.append(cls(coordinator, ieee, description))
     return entities

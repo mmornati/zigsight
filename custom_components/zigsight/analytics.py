@@ -19,10 +19,7 @@ from .const import (
     DEFAULT_BATTERY_DRAIN_THRESHOLD,
     DEFAULT_RECONNECT_RATE_THRESHOLD,
     DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
-    DEVICE_TYPE_COORDINATOR,
-    DEVICE_TYPE_ROUTER,
-    END_DEVICE_CONNECTIVITY_TIMEOUT,
-    ROUTER_CONNECTIVITY_TIMEOUT,
+    SILENT_DEVICE_TIMEOUT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,7 +43,10 @@ def as_datetime(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         parsed: datetime | None = value
     elif isinstance(value, str) and value:
-        parsed = dt_util.parse_datetime(value)
+        try:
+            parsed = dt_util.parse_datetime(value)
+        except ValueError:
+            return None
     else:
         return None
     if parsed is None:
@@ -72,25 +72,23 @@ class DeviceAnalytics:
         self,
         reconnect_rate_window_hours: int = DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
         battery_drain_threshold: float = DEFAULT_BATTERY_DRAIN_THRESHOLD,
-        router_timeout: timedelta = ROUTER_CONNECTIVITY_TIMEOUT,
-        end_device_timeout: timedelta = END_DEVICE_CONNECTIVITY_TIMEOUT,
+        silent_timeout: timedelta = SILENT_DEVICE_TIMEOUT,
     ) -> None:
         """Initialize analytics engine with thresholds."""
         self.reconnect_rate_window_hours = reconnect_rate_window_hours
         self.battery_drain_threshold = battery_drain_threshold
-        self.router_timeout = router_timeout
-        self.end_device_timeout = end_device_timeout
+        self.silent_timeout = silent_timeout
         self.weights = DEFAULT_HEALTH_SCORE_WEIGHTS.copy()
 
     def connectivity_timeout(self, device: Mapping[str, Any]) -> timedelta:
-        """Return how long a device may stay silent before it is suspicious.
+        """Return how long an untracked device may stay silent.
 
-        Routers (and the coordinator) are mains powered and chatty; sleepy
-        end devices may legitimately stay silent for many hours.
+        Only used when Zigbee2MQTT availability doesn't track the device.
+        ZigSight doesn't ping devices, and quiet routers (idle bulbs, plugs)
+        may send nothing for hours, so every device type gets the same long
+        timeout; a short router timeout would only produce false warnings.
         """
-        if device.get("type") in (DEVICE_TYPE_ROUTER, DEVICE_TYPE_COORDINATOR):
-            return self.router_timeout
-        return self.end_device_timeout
+        return self.silent_timeout
 
     def compute_reconnect_rate(
         self,
@@ -170,7 +168,7 @@ class DeviceAnalytics:
 
         Zigbee2MQTT availability (when enabled) is authoritative. Otherwise
         the score decays linearly with the time since the device was last
-        seen, relative to its device-type dependent timeout.
+        seen, relative to the silent device timeout.
         """
         available = device.get("available")
         if available is False:
@@ -248,7 +246,7 @@ class DeviceAnalytics:
         - it flaps (reconnect rate at or above the threshold), or
         - Zigbee2MQTT reports it offline, or
         - availability is unknown and it hasn't been seen for longer than
-          its device-type dependent timeout.
+          the silent device timeout (25 hours by default).
         """
         if reconnect_rate >= reconnect_rate_threshold:
             return True

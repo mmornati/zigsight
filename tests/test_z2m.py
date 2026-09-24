@@ -261,6 +261,8 @@ def test_parse_json_and_decode() -> None:
         (1790237732000.0, "2026-09-24T08:15:32+00:00"),
         ("2030-01-01T00:00:00Z", None),  # in the future
         ("garbage", None),
+        ("2026-13-45T10:00:00Z", None),  # impossible date
+        ("2026-02-30T10:00:00+02:00", None),
         (True, None),
         (None, None),
         (1e30, None),

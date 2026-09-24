@@ -12,10 +12,7 @@ from custom_components.zigsight.analytics import (
     DeviceAnalytics,
     as_datetime,
 )
-from custom_components.zigsight.const import (
-    END_DEVICE_CONNECTIVITY_TIMEOUT,
-    ROUTER_CONNECTIVITY_TIMEOUT,
-)
+from custom_components.zigsight.const import SILENT_DEVICE_TIMEOUT
 
 NOW = datetime(2026, 9, 24, 12, 0, tzinfo=dt_util.UTC)
 
@@ -36,26 +33,21 @@ class TestInit:
         analytics = DeviceAnalytics()
         assert analytics.reconnect_rate_window_hours == 24
         assert analytics.battery_drain_threshold == 10
-        assert analytics.router_timeout == ROUTER_CONNECTIVITY_TIMEOUT
-        assert analytics.end_device_timeout == END_DEVICE_CONNECTIVITY_TIMEOUT
+        assert analytics.silent_timeout == SILENT_DEVICE_TIMEOUT == timedelta(hours=25)
 
     def test_custom(self) -> None:
-        """Custom thresholds."""
+        """Custom thresholds; the silent timeout doesn't depend on the type."""
         analytics = DeviceAnalytics(
             reconnect_rate_window_hours=12,
             battery_drain_threshold=5.0,
-            router_timeout=timedelta(minutes=3),
-            end_device_timeout=timedelta(hours=2),
+            silent_timeout=timedelta(hours=2),
         )
         assert analytics.reconnect_rate_window_hours == 12
         assert analytics.battery_drain_threshold == 5.0
-        assert analytics.connectivity_timeout({"type": "Router"}) == timedelta(
-            minutes=3
-        )
-        assert analytics.connectivity_timeout({"type": "EndDevice"}) == timedelta(
-            hours=2
-        )
-        assert analytics.connectivity_timeout({}) == timedelta(hours=2)
+        for device_type in ("Router", "EndDevice", None):
+            assert analytics.connectivity_timeout({"type": device_type}) == timedelta(
+                hours=2
+            )
 
 
 class TestAsDatetime:
@@ -68,6 +60,7 @@ class TestAsDatetime:
         assert as_datetime("2026-09-24T14:00:00+02:00") == NOW
         assert as_datetime("2026-09-24T12:00:00") == NOW
         assert as_datetime("garbage") is None
+        assert as_datetime("2026-13-45T10:00:00Z") is None
         assert as_datetime(None) is None
         assert as_datetime(123) is None
 
@@ -181,18 +174,21 @@ class TestConnectivity:
     @pytest.mark.parametrize(
         ("device_type", "silent_for", "warning"),
         [
-            ("Router", timedelta(minutes=5), False),
-            ("Router", timedelta(minutes=11), True),
+            # Without availability, quiet routers (idle bulbs/plugs) must not
+            # be flagged after a few minutes: ZigSight doesn't ping them.
+            ("Router", timedelta(minutes=11), False),
+            ("Router", timedelta(hours=12), False),
+            ("Router", timedelta(hours=26), True),
             ("EndDevice", timedelta(hours=2), False),
             ("EndDevice", timedelta(hours=24), False),
             ("EndDevice", timedelta(hours=26), True),
             (None, timedelta(hours=2), False),
         ],
     )
-    def test_type_dependent_timeouts(
+    def test_untracked_devices_use_silent_timeout(
         self, device_type: str | None, silent_for: timedelta, warning: bool
     ) -> None:
-        """Routers must be chatty, sleepy end devices may be silent for hours."""
+        """Untracked devices are only flagged after the long silent timeout."""
         device = {
             "type": device_type,
             "metrics": {"last_seen": (NOW - silent_for).isoformat()},
@@ -213,7 +209,7 @@ class TestConnectivity:
         analytics = DeviceAnalytics()
         half = {
             "type": "Router",
-            "metrics": {"last_seen": (NOW - timedelta(minutes=5)).isoformat()},
+            "metrics": {"last_seen": (NOW - timedelta(hours=12.5)).isoformat()},
         }
         assert analytics.compute_connectivity_score(half, NOW) == pytest.approx(50.0)
 

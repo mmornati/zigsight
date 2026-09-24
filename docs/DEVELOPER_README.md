@@ -157,8 +157,11 @@ The analytics engine (`analytics.py`) provides metrics computation for device he
     `raw`, requested on demand with `async_request_network_map()`) are stored
     for the topology/channel features.
 - **ZHA**: the periodic refresh polls `ZHACollector`.
-- **Entities** are created per device when the coordinator sends the
-  `signal_new_device` dispatcher signal (`entity.async_setup_device_platform`)
+- **Entities** are created when the coordinator sends the
+  `signal_new_device` dispatcher signal (`entity.async_setup_device_platform`).
+  Zigbee2MQTT devices only get entities once interviewed; the entity set comes
+  from `ZigSightCoordinator.entity_keys()` and is tracked per unique id, so
+  entities for newly gained capabilities are added later
   and write their state on the per-device `device_signal(ieee)`; the global
   coordinator listeners only run on the 60 s periodic refresh, which also
   recomputes time based analytics.
@@ -171,8 +174,7 @@ The analytics engine (`analytics.py`) provides metrics computation for device he
 def __init__(
     reconnect_rate_window_hours: int = 24,
     battery_drain_threshold: float = 10.0,
-    router_timeout: timedelta = ROUTER_CONNECTIVITY_TIMEOUT,  # 10 minutes
-    end_device_timeout: timedelta = END_DEVICE_CONNECTIVITY_TIMEOUT,  # 25 hours
+    silent_timeout: timedelta = SILENT_DEVICE_TIMEOUT,  # 25 hours
 ) -> None
 ```
 
@@ -257,8 +259,9 @@ def check_connectivity_warning(
 
 True if the reconnect rate reaches the threshold, if Zigbee2MQTT reports the
 device offline or, when availability is unknown, if the device has been
-silent for longer than `connectivity_timeout(device)` (routers 10 minutes,
-end devices 25 hours, or Zigbee2MQTT's configured availability timeouts).
+silent for longer than the silent device timeout (25 hours for every device
+type, or Zigbee2MQTT's configured passive availability timeout). ZigSight
+doesn't ping devices, so a short router timeout would flag idle routers.
 
 ### Data Retention Policy
 

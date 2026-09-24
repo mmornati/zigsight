@@ -54,17 +54,16 @@ from .const import (
     DEVICE_TYPE_END_DEVICE,
     DEVICE_TYPE_ROUTER,
     DOMAIN,
-    END_DEVICE_CONNECTIVITY_TIMEOUT,
     EVENT_DEVICE_UPDATE,
     EVENT_MIN_INTERVAL,
     HISTORY_MAX_ENTRIES,
     HISTORY_MIN_INTERVAL,
     HISTORY_MIN_INTERVAL_ON_BATTERY_CHANGE,
     RECONNECT_EVENTS_MAX,
-    ROUTER_CONNECTIVITY_TIMEOUT,
     SIGNAL_DEVICE_REMOVED,
     SIGNAL_DEVICE_UPDATE,
     SIGNAL_NEW_DEVICE,
+    SILENT_DEVICE_TIMEOUT,
     UPDATE_INTERVAL,
 )
 from .z2m import (
@@ -99,6 +98,13 @@ LEGACY_ENTITY_KEYS: tuple[tuple[str, str], ...] = (
     ("binary_sensor", "battery_drain_warning"),
     ("binary_sensor", "connectivity_warning"),
 )
+
+# Entity keys created for every device / only for battery powered devices
+# (the platforms build their entities from ZigSightCoordinator.entity_keys).
+BASE_ENTITY_KEYS = frozenset(
+    {"link_quality", "reconnect_rate", "health_score", "connectivity_warning"}
+)
+BATTERY_ENTITY_KEYS = frozenset({"battery", "battery_trend", "battery_drain_warning"})
 
 # Maximum number of messages buffered for not-yet-known friendly names (e.g.
 # retained availability delivered before the retained bridge/devices).
@@ -158,6 +164,8 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._analytics_computed_at: dict[str, datetime] = {}
         self._last_event: dict[str, tuple[datetime, tuple[Any, ...]]] = {}
         self._pending: dict[tuple[str, str], tuple[Any, datetime]] = {}
+        self._migrated: set[str] = set()
+        self._registry_reconciled = False
 
         # Network level information (Zigbee2MQTT)
         self.bridge_state: str | None = None
@@ -352,7 +360,23 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if state is None:
             self.logger.debug("Ignoring unexpected bridge/state payload: %s", payload)
             return
-        self.bridge_state = state
+        previous, self.bridge_state = self.bridge_state, state
+        if state != "offline" or previous == "offline":
+            return
+        # While Zigbee2MQTT is down nobody tracks the devices: their last
+        # availability is stale. Make it unknown so that no warning is based
+        # on it, and so that the "online" Zigbee2MQTT publishes after its
+        # restart is not counted as a reconnect.
+        now = dt_util.utcnow()
+        for ieee, record in self._devices.items():
+            if (
+                record["source"] != DEVICE_SOURCE_ZIGBEE2MQTT
+                or record.get("available") is None
+            ):
+                continue
+            record["available"] = None
+            self._maybe_update_analytics(ieee, now, force=True)
+            async_dispatcher_send(self.hass, self.device_signal(ieee))
 
     @callback
     def _handle_bridge_info(self, payload: Any) -> None:
@@ -361,13 +385,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.logger.debug("Ignoring unexpected bridge/info payload")
             return
         self.bridge_info = info
-        # Use Zigbee2MQTT's own availability timeouts when configured.
-        self._analytics.router_timeout = (
-            info.active_timeout or ROUTER_CONNECTIVITY_TIMEOUT
-        )
-        self._analytics.end_device_timeout = (
-            info.passive_timeout or END_DEVICE_CONNECTIVITY_TIMEOUT
-        )
+        # Zigbee2MQTT's "passive" availability timeout is the longest time it
+        # lets a device stay silent; use it when configured.
+        self._analytics.silent_timeout = info.passive_timeout or SILENT_DEVICE_TIMEOUT
         if self.config_entry is not None:
             dev_reg = dr.async_get(self.hass)
             if device := dev_reg.async_get_device(identifiers={self.bridge_identifier}):
@@ -394,10 +414,14 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if devices is None:
             self.logger.debug("Ignoring unexpected bridge/devices payload")
             return
+        if not any(not device.is_coordinator for device in devices):
+            # An empty list (e.g. a retained "[]" left by a broken or freshly
+            # reset Zigbee2MQTT) must not wipe every device and its history.
+            self.logger.warning("Ignoring a Zigbee2MQTT device list without any device")
+            return
 
         name_map: dict[str, str] = {}
         seen: set[str] = set()
-        new: list[str] = []
         changed: list[str] = []
         for device in devices:
             if device.is_coordinator:
@@ -414,8 +438,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     ieee, DEVICE_SOURCE_ZIGBEE2MQTT, device.friendly_name, received_at
                 )
                 self._devices[ieee] = record
-                new.append(ieee)
-            elif previous is not None and previous.as_dict() != device.as_dict():
+            elif previous is not None and previous != device:
+                # Dataclass equality: covers renames, re-interviews and
+                # capability changes (battery / voltage exposes).
                 changed.append(ieee)
             self._apply_definition(record, device)
 
@@ -428,19 +453,50 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for ieee in removed:
             self._remove_device(ieee)
 
-        if new:
-            self._migrate_legacy_registry_entries(new)
+        # Registry migration only once a device is fully known (interviewed),
+        # so that its final entity set is known.
+        self._migrate_legacy_registry_entries(
+            [
+                ieee
+                for ieee in self._devices
+                if ieee not in self._migrated and self.wants_entities(ieee)
+            ]
+        )
+        if not self._registry_reconciled:
+            self._registry_reconciled = True
+            self._remove_stale_registry_devices()
         for ieee in changed:
             self._update_registry_device(ieee)
             async_dispatcher_send(self.hass, self.device_signal(ieee))
-        # Platforms de-duplicate; re-sending for known devices lets them pick
-        # up devices that were re-enabled in Zigbee2MQTT.
+        # Platforms de-duplicate per unique id; re-sending for known devices
+        # lets them add entities for devices that finished their interview,
+        # gained capabilities or were re-enabled in Zigbee2MQTT.
         for ieee in self._devices:
             if self.wants_entities(ieee):
                 async_dispatcher_send(self.hass, self.signal_new_device, ieee)
 
         self._replay_pending()
         self.async_set_updated_data(self._build_data())
+
+    @callback
+    def _remove_stale_registry_devices(self) -> None:
+        """Remove registry devices of this entry unknown to Zigbee2MQTT.
+
+        Runs on the first device list after start-up, so devices removed from
+        Zigbee2MQTT while Home Assistant was not running are cleaned up too.
+        """
+        if self.config_entry is None:
+            return
+        dev_reg = dr.async_get(self.hass)
+        entry_id = self.config_entry.entry_id
+        for device in dr.async_entries_for_config_entry(dev_reg, entry_id):
+            ids = {ident for domain, ident in device.identifiers if domain == DOMAIN}
+            if not ids or self.bridge_identifier[1] in ids:
+                continue
+            if ids & self._devices.keys():
+                continue
+            self.logger.debug("Removing stale device %s", device.name)
+            dev_reg.async_update_device(device.id, remove_config_entry_id=entry_id)
 
     @callback
     def _handle_device_state(
@@ -561,6 +617,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "power_source": device.power_source,
                 "sw_version": device.software_build_id,
                 "interview_state": device.interview_state,
+                "has_definition": device.model is not None,
                 "supported": device.supported,
                 "disabled": device.disabled,
                 "battery_powered": device.is_battery_powered,
@@ -643,17 +700,31 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         was the Zigbee2MQTT friendly name. This runs synchronously before the
         platforms are told about the devices, so the entities are added with
         their migrated registry entries (keeping entity ids and history).
+
+        Legacy entities whose key is no longer created for the device (e.g.
+        battery sensors of mains powered devices, voltage without a voltage
+        expose) are removed instead of lingering as "no longer provided".
         """
-        if self.config_entry is None:
+        ieees = list(ieees)
+        self._migrated.update(ieees)
+        if self.config_entry is None or not ieees:
             return
         ent_reg = er.async_get(self.hass)
         dev_reg = dr.async_get(self.hass)
         entry_id = self.config_entry.entry_id
         for legacy, ieee in self._legacy_id_map(ieees).items():
+            keys = self.entity_keys(ieee)
             for domain, key in LEGACY_ENTITY_KEYS:
                 old_unique_id = f"{DOMAIN}_{legacy}_{key}"
                 entity_id = ent_reg.async_get_entity_id(domain, DOMAIN, old_unique_id)
                 if entity_id is None:
+                    continue
+                if key not in keys:
+                    self.logger.info(
+                        "Removing legacy entity %s: not provided for this device",
+                        entity_id,
+                    )
+                    ent_reg.async_remove(entity_id)
                     continue
                 new_unique_id = f"{ieee}_{key}"
                 if ent_reg.async_get_entity_id(domain, DOMAIN, new_unique_id):
@@ -761,7 +832,11 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Fire a slim, rate limited ``zigsight_device_update`` event."""
         record = self._devices[ieee]
         metrics = record["metrics"]
-        snapshot = tuple(metrics.get(key) for key in _TRACKED_METRICS) + (
+        # Link quality changes with nearly every report: it is included in the
+        # payload but doesn't trigger an event on its own.
+        snapshot = (
+            metrics.get("battery"),
+            metrics.get("voltage"),
             record.get("available"),
         )
         last = self._last_event.get(ieee)
@@ -805,7 +880,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if self._process_zha_device_update(device_id, device_data):
                 new.append(device_id)
         if new:
-            self._migrate_legacy_registry_entries(new)
+            self._migrate_legacy_registry_entries(
+                ieee for ieee in new if ieee not in self._migrated
+            )
             for ieee in new:
                 async_dispatcher_send(self.hass, self.signal_new_device, ieee)
         self.logger.debug("Collected %d ZHA devices", len(zha_devices))
@@ -822,7 +899,10 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             try:
                 parsed = dt_util.utc_from_timestamp(float(value))
             except ValueError:
-                parsed = dt_util.parse_datetime(value)
+                try:
+                    parsed = dt_util.parse_datetime(value)
+                except ValueError:
+                    parsed = None
         if parsed is None:
             return now.isoformat()
         # Naive values come from datetime.now(), i.e. local time.
@@ -898,9 +978,30 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return list(self._devices)
 
     def wants_entities(self, ieee: str) -> bool:
-        """Return True if entities should exist for this device."""
+        """Return True if entities should exist for this device.
+
+        Zigbee2MQTT devices need a completed interview (or a definition):
+        before that, their power source and exposes, which decide the entity
+        set, are unknown.
+        """
         record = self._devices.get(ieee)
-        return record is not None and not record.get("disabled")
+        if record is None or record.get("disabled"):
+            return False
+        if record["source"] != DEVICE_SOURCE_ZIGBEE2MQTT:
+            return True
+        return record.get("interview_state") == "SUCCESSFUL" or bool(
+            record.get("has_definition")
+        )
+
+    def entity_keys(self, ieee: str) -> set[str]:
+        """Return the entity description keys to create for a device."""
+        record = self._devices.get(ieee) or {}
+        keys = set(BASE_ENTITY_KEYS)
+        if record.get("battery_powered"):
+            keys |= BATTERY_ENTITY_KEYS
+        if record.get("has_voltage"):
+            keys.add("voltage")
+        return keys
 
     def device_info(self, ieee: str) -> DeviceInfo:
         """Return the DeviceInfo for a tracked device."""

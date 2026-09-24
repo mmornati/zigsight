@@ -42,8 +42,9 @@ DEFAULT_MQTT_TOPIC_PREFIX = "zigbee2mqtt"
 # Event types
 EVENT_DEVICE_UPDATE = "zigsight_device_update"
 # The device update event is rate limited per device: it is fired when the
-# availability changes, or when a tracked metric changed and at least this
-# long has passed since the previous event for that device.
+# availability changes, or when the battery / voltage changed and at least
+# this long has passed since the previous event for that device (link
+# quality changes alone don't fire it).
 EVENT_MIN_INTERVAL = timedelta(seconds=60)
 
 # Dispatcher signals (formatted with the config entry id / device IEEE).
@@ -73,13 +74,15 @@ DEFAULT_BATTERY_DRAIN_THRESHOLD = 10.0  # percentage per hour
 DEFAULT_RECONNECT_RATE_THRESHOLD = 5.0  # events per hour
 DEFAULT_RECONNECT_RATE_WINDOW_HOURS = 24  # hours
 
-# Connectivity timeouts used when Zigbee2MQTT availability is not enabled
-# (mirrors Zigbee2MQTT's own availability defaults: "active" devices, i.e.
-# routers / mains powered, 10 minutes; "passive" devices, i.e. sleepy
-# battery end devices, 1500 minutes = 25 hours). When Zigbee2MQTT publishes
-# its availability configuration in bridge/info, those values win.
-ROUTER_CONNECTIVITY_TIMEOUT = timedelta(minutes=10)
-END_DEVICE_CONNECTIVITY_TIMEOUT = timedelta(hours=25)
+# How long a device may stay silent before ZigSight raises a connectivity
+# warning, used only when Zigbee2MQTT availability is not tracking the device
+# (availability is disabled by default in Zigbee2MQTT 2.x). Unlike
+# Zigbee2MQTT, ZigSight doesn't ping devices, and idle routers (bulbs, plugs)
+# can stay silent for hours, so the same long timeout applies to every device
+# type. It mirrors Zigbee2MQTT's "passive" availability default (1500 minutes);
+# Zigbee2MQTT's configured passive timeout from bridge/info wins. When
+# availability is tracked, Zigbee2MQTT's online/offline state is used instead.
+SILENT_DEVICE_TIMEOUT = timedelta(hours=25)
 
 # Analytics are recomputed at most this often per device when messages
 # arrive; the coordinator's periodic refresh recomputes every device anyway.

@@ -67,7 +67,8 @@ async def test_config_entry_diagnostics(
     assert coordinator["network"]["extended_pan_id"] == "**REDACTED**"
     assert coordinator["device_count"] == 5
     assert coordinator["network_links"] == 5
-    assert coordinator["analytics_config"]["router_timeout_seconds"] == 600
+    # Zigbee2MQTT's passive availability timeout (1500 min)
+    assert coordinator["analytics_config"]["silent_device_timeout_seconds"] == 90000
 
     climate = diagnostics["devices"][CLIMATE]
     assert climate["friendly_name"] == "Bedroom Climate"

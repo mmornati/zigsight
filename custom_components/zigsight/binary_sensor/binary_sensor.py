@@ -21,15 +21,12 @@ class ZigSightBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes a ZigSight binary sensor."""
 
     value_fn: Callable[[ZigSightCoordinator, str], bool]
-    # Only created for battery powered devices
-    battery_only: bool = False
 
 
 BATTERY_DRAIN_WARNING = ZigSightBinarySensorEntityDescription(
     key="battery_drain_warning",
     translation_key="battery_drain_warning",
     device_class=BinarySensorDeviceClass.PROBLEM,
-    battery_only=True,
     value_fn=lambda coordinator, ieee: coordinator.get_device_battery_drain_warning(
         ieee
     ),
@@ -77,10 +74,9 @@ def build_binary_sensors(
     coordinator: ZigSightCoordinator, ieee: str
 ) -> Iterable[BinarySensorEntity]:
     """Return the binary sensors to create for one device."""
-    record = coordinator.get_device(ieee) or {}
-    battery_powered = bool(record.get("battery_powered"))
+    keys = coordinator.entity_keys(ieee)
     return [
         ZigSightBinarySensor(coordinator, ieee, description)
         for description in BINARY_SENSOR_DESCRIPTIONS
-        if battery_powered or not description.battery_only
+        if description.key in keys
     ]

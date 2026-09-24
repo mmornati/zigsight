@@ -459,7 +459,11 @@ def parse_last_seen(value: Any, now: datetime | None = None) -> datetime | None:
         except (OverflowError, OSError, ValueError):
             return None
     elif isinstance(value, str) and value:
-        parsed = dt_util.parse_datetime(value)
+        try:
+            parsed = dt_util.parse_datetime(value)
+        except ValueError:
+            # Well formed but impossible dates (e.g. month 13)
+            return None
         if parsed is None:
             return None
         if parsed.tzinfo is None:

@@ -62,8 +62,7 @@ async def async_get_config_entry_diagnostics(
                 "reconnect_rate_window_hours": coordinator._analytics.reconnect_rate_window_hours,
                 "battery_drain_threshold": coordinator._analytics.battery_drain_threshold,
                 "reconnect_rate_threshold": coordinator._reconnect_rate_threshold,
-                "router_timeout_seconds": coordinator._analytics.router_timeout.total_seconds(),
-                "end_device_timeout_seconds": coordinator._analytics.end_device_timeout.total_seconds(),
+                "silent_device_timeout_seconds": coordinator._analytics.silent_timeout.total_seconds(),
             },
         },
         "devices": {

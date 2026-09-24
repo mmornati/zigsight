@@ -70,7 +70,9 @@ Friendly names containing `/` (e.g. `Kitchen/Motion Sensor`) are supported. Comm
 ### Devices and entities
 
 - Every enabled, non-coordinator device from `bridge/devices` becomes a device in Home Assistant, identified by its **IEEE address**, named after its Zigbee2MQTT friendly name, with model and manufacturer from Zigbee2MQTT. All devices are linked to a "Zigbee2MQTT bridge" service device.
-- Devices paired later get their entities automatically; devices removed from Zigbee2MQTT are removed from Home Assistant; renaming a device in Zigbee2MQTT renames the Home Assistant device (entity ids are kept).
+- Devices paired later get their entities automatically once Zigbee2MQTT has finished interviewing them (before that their power source and features are unknown); if a device later gains a feature (e.g. a battery or voltage expose after a Zigbee2MQTT update), the missing entities are added.
+- Devices removed from Zigbee2MQTT are removed from Home Assistant, including devices removed while Home Assistant was not running (checked against the first device list after start-up). A device list without any device (e.g. a stale retained `[]`) is ignored rather than deleting everything.
+- Renaming a device in Zigbee2MQTT renames the Home Assistant device (entity ids are kept).
 - Devices disabled in Zigbee2MQTT get no entities (existing ones become unavailable).
 - Stale ZigSight devices can be deleted from the device page.
 
@@ -100,7 +102,7 @@ Entity ids are derived from the friendly name, e.g. `sensor.kitchen_motion_senso
 
 ### Event
 
-`zigsight_device_update` is fired when a device's availability changes, or when its link quality / battery / voltage changed and at least 60 seconds passed since the previous event for that device. Event data:
+`zigsight_device_update` is fired when a device's availability changes, or when its battery / voltage changed and at least 60 seconds passed since the previous event for that device. Link quality changes alone (nearly every report) don't fire it, but the current link quality is included. Event data:
 
 ```yaml
 device_id: "0x00158d0001a2b3c4"   # IEEE address
@@ -134,9 +136,9 @@ ZigSight waits for Home Assistant's MQTT integration. Check **Settings > Devices
 
 4. **Diagnostics**: download the ZigSight diagnostics from the integration page.
 
-### No reconnect rate / connectivity warnings on idle routers
+### No reconnect rate / late connectivity warnings
 
-Enable availability in Zigbee2MQTT. Without it ZigSight can't see reconnects and falls back to "not seen for 10 minutes" for routers, which idle devices (e.g. bulbs that are not switched) can exceed.
+Enable availability in Zigbee2MQTT. Without it ZigSight can't see reconnects, and only flags a device after it has been silent for 25 hours (ZigSight doesn't ping devices, so idle routers such as bulbs can't be distinguished from dead ones sooner).
 
 ### Missing Link Quality
 

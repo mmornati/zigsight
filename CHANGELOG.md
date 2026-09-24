@@ -20,10 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Payload `last_seen` (ISO 8601 / ISO 8601 local / epoch ms) is used; all
   timestamps are timezone aware.
 - Reconnects are Zigbee2MQTT availability transitions offline -> online
-  instead of "any gap > 5 minutes"; connectivity warnings use device-type
-  timeouts (routers 10 minutes, end devices 25 hours, or Zigbee2MQTT's own
-  availability timeouts) instead of "not seen for 1 hour", which flagged every
-  sleepy battery device.
+  instead of "any gap > 5 minutes"; connectivity warnings use Zigbee2MQTT
+  availability, or, when availability doesn't track a device, a 25 hour
+  silence timeout for every device type (or Zigbee2MQTT's passive
+  availability timeout) instead of "not seen for 1 hour", which flagged every
+  sleepy battery device. When Zigbee2MQTT goes offline, device availability
+  becomes unknown (no stale warnings, no reconnects counted on its restart).
 - Battery trend no longer ignores readings below 20% and needs readings
   spanning at least one hour.
 - Voltage sensors use the unit declared by the device (Zigbee2MQTT battery
@@ -44,8 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Existing friendly-name based entities and devices are migrated
   automatically (entity ids are kept).
 - Renamed Zigbee2MQTT devices keep their Home Assistant device, entities and
-  history; devices removed from Zigbee2MQTT are removed from Home Assistant;
+  history; devices removed from Zigbee2MQTT (also while Home Assistant was
+  down) are removed from Home Assistant; an empty device list is ignored;
   stale devices can be deleted from the UI.
+- Entities are created once a device's interview is complete, and missing
+  entities are added when a device gains capabilities.
+- Legacy battery / voltage entities of devices that no longer get them (e.g.
+  mains powered devices) are removed during the migration.
 - Battery / battery trend / battery drain warning entities are only created
   for battery powered devices, voltage only for devices exposing a voltage.
 - The connectivity warning uses the `problem` device class ("on" means there
@@ -54,8 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   analytics refresh); analytics are throttled; the volatile `last_update`
   attribute was removed.
 - `zigsight_device_update` event: slim payload (no full MQTT message) and
-  rate limited (availability changes, or metric changes at most once a minute
-  per device).
+  rate limited (availability changes, or battery / voltage changes at most
+  once a minute per device; link quality changes alone don't fire it).
 - History is bounded (numeric metrics only, at most 400 samples per device)
   and purged for removed devices.
 - `single_config_entry` is declared in the manifest.

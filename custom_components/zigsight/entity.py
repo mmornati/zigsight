@@ -72,8 +72,10 @@ def async_setup_device_platform(
     """Add entities for known devices now and for new devices later.
 
     The coordinator sends ``signal_new_device`` whenever a device may need
-    entities (first seen, or re-enabled in Zigbee2MQTT); entities are only
-    created once per device, until the device is removed.
+    entities: first seen, interview completed, capabilities changed (e.g. a
+    battery expose appeared) or re-enabled in Zigbee2MQTT. Entities are
+    tracked per unique id, so only the missing ones are added; a removed
+    device forgets its entities so they are recreated if it re-joins.
     """
     coordinator: ZigSightCoordinator = hass.data[DOMAIN][entry.entry_id]
     added: set[str] = set()
@@ -82,10 +84,13 @@ def async_setup_device_platform(
     def _async_add(ieees: Iterable[str]) -> None:
         entities: list[Entity] = []
         for ieee in ieees:
-            if ieee in added or not coordinator.wants_entities(ieee):
+            if not coordinator.wants_entities(ieee):
                 continue
-            added.add(ieee)
-            entities.extend(build_entities(coordinator, ieee))
+            for entity in build_entities(coordinator, ieee):
+                if entity.unique_id is None or entity.unique_id in added:
+                    continue
+                added.add(entity.unique_id)
+                entities.append(entity)
         if entities:
             async_add_entities(entities)
 
@@ -95,7 +100,10 @@ def async_setup_device_platform(
 
     @callback
     def _async_device_removed(ieee: str) -> None:
-        added.discard(ieee)
+        prefix = f"{ieee}_"
+        added.difference_update(
+            [unique_id for unique_id in added if unique_id.startswith(prefix)]
+        )
 
     entry.async_on_unload(
         async_dispatcher_connect(hass, coordinator.signal_new_device, _async_new_device)

@@ -199,6 +199,22 @@ def _default_for_field(field: dict[str, Any], overrides: dict[str, Any]) -> Any:
             if value is not _MISSING:
                 nested[sub_name] = value
         return nested
+    if field.get("type") == "boolean":
+        # No explicit default serialized for this boolean selector (seen for
+        # e.g. MQTT's "set_client_cert"/"set_ca_cert" toggles on some HA
+        # releases) -- False (don't enable the optional extra) is the safe
+        # choice for every such field this bootstrap script cares about.
+        return False
+    options = field.get("options")
+    if options:
+        first = options[0]
+        # HA renders select options either as [value, label] pairs or as
+        # {"value": ..., "label": ...} dicts, depending on the selector.
+        if isinstance(first, list | tuple):
+            return first[0]
+        if isinstance(first, dict) and "value" in first:
+            return first["value"]
+        return first
     return _MISSING
 
 

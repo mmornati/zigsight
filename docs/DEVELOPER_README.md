@@ -45,8 +45,8 @@ This document provides information for developers contributing to the ZigSight p
 
 ## Development Environment
 
-- **Python**: 3.11 – 3.13 (CI defaults to 3.13)
-- **Home Assistant compatibility**: `homeassistant>=2025.10.0`
+- **Python**: 3.13 only (matches Home Assistant's own minimum runtime)
+- **Home Assistant compatibility**: `>=2025.10.0`
 
 ### Quick Start
 
@@ -265,8 +265,7 @@ def check_connectivity_warning(
 
 ### Data Retention Policy
 
-- **Maximum History**: 1000 entries per device (last entries kept, FIFO)
-- **Retention Period**: Configurable via `retention_days` (default: 30 days)
+- **Maximum History**: 1000 entries per device (last entries kept, FIFO, in-memory only)
 - **Memory Usage**: Approximately 10-50 KB per device depending on history size
 
 History is stored in-memory in the coordinator. For persistent storage, use Home Assistant's built-in history features.
@@ -309,10 +308,12 @@ Accepts pre-scanned data from user input.
 
 **Usage:**
 ```python
-scanner = ManualScanner(scan_data=[
-    {"channel": 1, "rssi": -45, "ssid": "Network1"},
-    {"channel": 6, "rssi": -60}
-])
+scanner = ManualScanner(
+    scan_data=[
+        {"channel": 1, "rssi": -45, "ssid": "Network1"},
+        {"channel": 6, "rssi": -60},
+    ]
+)
 aps = await scanner.scan()
 ```
 
@@ -356,10 +357,7 @@ Use `create_scanner()` to instantiate the appropriate scanner:
 from custom_components.zigsight.wifi_scanner import create_scanner
 
 # Manual mode
-scanner = create_scanner(
-    mode="manual",
-    scan_data=[{"channel": 1, "rssi": -45}]
-)
+scanner = create_scanner(mode="manual", scan_data=[{"channel": 1, "rssi": -45}])
 
 # Router API mode
 scanner = create_scanner(
@@ -368,15 +366,12 @@ scanner = create_scanner(
         "router_type": "unifi",
         "host": "192.168.1.1",
         "username": "admin",
-        "password": "secret"
-    }
+        "password": "secret",
+    },
 )
 
 # Host scan mode
-scanner = create_scanner(
-    mode="host_scan",
-    host_config={"interface": "wlan0"}
-)
+scanner = create_scanner(mode="host_scan", host_config={"interface": "wlan0"})
 ```
 
 ### Adding a New Router Adapter
@@ -395,17 +390,13 @@ async def _scan_your_router(self) -> list[dict[str, Any]]:
         # Query scan endpoint
         async with session.get(
             f"http://{self.host}/api/wifi/scan",
-            headers={"Authorization": f"Bearer {auth_data['token']}"}
+            headers={"Authorization": f"Bearer {auth_data['token']}"},
         ) as response:
             data = await response.json()
 
         # Parse response into standard format
         return [
-            {
-                "channel": ap["chan"],
-                "rssi": ap["signal"],
-                "ssid": ap.get("name")
-            }
+            {"channel": ap["chan"], "rssi": ap["signal"], "ssid": ap.get("name")}
             for ap in data["access_points"]
         ]
 ```

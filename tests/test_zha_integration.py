@@ -44,13 +44,13 @@ async def test_coordinator_with_zha_enabled(
     mock_hass.data["zha"] = {"gateway": mock_gateway}
 
     # Mock registries
-    with patch(
-        "custom_components.zigsight.zha_collector.dr.async_get"
-    ) as mock_dr_get, patch(
-        "custom_components.zigsight.zha_collector.er.async_get"
-    ) as mock_er_get, patch(
-        "custom_components.zigsight.coordinator.mqtt.async_wait_for_mqtt_client"
-    ) as mock_mqtt:
+    with (
+        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
+        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
+        patch(
+            "custom_components.zigsight.coordinator.mqtt.async_wait_for_mqtt_client"
+        ) as mock_mqtt,
+    ):
         mock_device_registry = MagicMock()
         mock_device_registry.async_get_device.return_value = None
         mock_dr_get.return_value = mock_device_registry
@@ -114,13 +114,13 @@ async def test_coordinator_zha_updates_analytics(
     mock_gateway.devices = {ieee: mock_zha_device}
     mock_hass.data["zha"] = {"gateway": mock_gateway}
 
-    with patch(
-        "custom_components.zigsight.zha_collector.dr.async_get"
-    ) as mock_dr_get, patch(
-        "custom_components.zigsight.zha_collector.er.async_get"
-    ) as mock_er_get, patch(
-        "custom_components.zigsight.coordinator.mqtt.async_wait_for_mqtt_client"
-    ) as mock_mqtt:
+    with (
+        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
+        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
+        patch(
+            "custom_components.zigsight.coordinator.mqtt.async_wait_for_mqtt_client"
+        ) as mock_mqtt,
+    ):
         mock_device_registry = MagicMock()
         mock_device_registry.async_get_device.return_value = None
         mock_dr_get.return_value = mock_device_registry
@@ -153,13 +153,13 @@ async def test_coordinator_zha_fires_events(
     mock_gateway.devices = {ieee: mock_zha_device}
     mock_hass.data["zha"] = {"gateway": mock_gateway}
 
-    with patch(
-        "custom_components.zigsight.zha_collector.dr.async_get"
-    ) as mock_dr_get, patch(
-        "custom_components.zigsight.zha_collector.er.async_get"
-    ) as mock_er_get, patch(
-        "custom_components.zigsight.coordinator.mqtt.async_wait_for_mqtt_client"
-    ) as mock_mqtt:
+    with (
+        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
+        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
+        patch(
+            "custom_components.zigsight.coordinator.mqtt.async_wait_for_mqtt_client"
+        ) as mock_mqtt,
+    ):
         mock_device_registry = MagicMock()
         mock_device_registry.async_get_device.return_value = None
         mock_dr_get.return_value = mock_device_registry

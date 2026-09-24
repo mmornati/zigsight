@@ -83,14 +83,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         mqtt_username = mqtt_username_raw if mqtt_username_raw else None
         mqtt_password = mqtt_password_raw if mqtt_password_raw else None
 
-    battery_drain_threshold = entry.data.get(
-        CONF_BATTERY_DRAIN_THRESHOLD, DEFAULT_BATTERY_DRAIN_THRESHOLD
+    # Analytics thresholds can be tuned later via the options flow; options
+    # (when set) take precedence over the original config-entry data.
+    battery_drain_threshold = entry.options.get(
+        CONF_BATTERY_DRAIN_THRESHOLD,
+        entry.data.get(CONF_BATTERY_DRAIN_THRESHOLD, DEFAULT_BATTERY_DRAIN_THRESHOLD),
     )
-    reconnect_rate_threshold = entry.data.get(
-        CONF_RECONNECT_RATE_THRESHOLD, DEFAULT_RECONNECT_RATE_THRESHOLD
+    reconnect_rate_threshold = entry.options.get(
+        CONF_RECONNECT_RATE_THRESHOLD,
+        entry.data.get(CONF_RECONNECT_RATE_THRESHOLD, DEFAULT_RECONNECT_RATE_THRESHOLD),
     )
-    reconnect_rate_window_hours = entry.data.get(
-        CONF_RECONNECT_RATE_WINDOW_HOURS, DEFAULT_RECONNECT_RATE_WINDOW_HOURS
+    reconnect_rate_window_hours = entry.options.get(
+        CONF_RECONNECT_RATE_WINDOW_HOURS,
+        entry.data.get(
+            CONF_RECONNECT_RATE_WINDOW_HOURS, DEFAULT_RECONNECT_RATE_WINDOW_HOURS
+        ),
     )
 
     coordinator = ZigSightCoordinator(
@@ -127,6 +134,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register frontend panel (only once)
     await _async_register_panel(hass)
+
+    # Note: reloading the entry when options change (e.g. analytics
+    # thresholds tuned via the options flow) is handled by
+    # ZigSightOptionsFlowHandler extending OptionsFlowWithReload
+    # (see options_flow.py) rather than a config-entry update listener here
+    # -- HA does not allow combining both on the same entry.
 
     return True
 

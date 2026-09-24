@@ -103,6 +103,7 @@ Always use type hints:
 from typing import Any
 from homeassistant.core import HomeAssistant
 
+
 def my_function(hass: HomeAssistant, value: str) -> bool:
     """Function description."""
     return True
@@ -127,6 +128,19 @@ async def async_setup(hass: HomeAssistant) -> bool:
 - **Minimum 85% code coverage is enforced by CI** - PRs failing this check will be rejected
 - Use pytest fixtures from `conftest.py`
 - Follow the existing test structure
+- Prefer the real `hass` fixture (from `pytest-homeassistant-custom-component`)
+  and `MockConfigEntry` for anything that exercises `async_setup_entry`, the
+  config/options flow, or platform setup - reserve `MagicMock` hass objects
+  for tests of pure logic (analytics, recommender, etc.)
+- Note: `requirements-dev.txt` pins `pytest-homeassistant-custom-component`,
+  which pulls in a specific `homeassistant` core release (currently
+  `2026.2.3`) as a transitive dependency. That's newer than ZigSight's
+  documented minimum supported Home Assistant version (`2025.10.0` in
+  `manifest.json`/`hacs.json`) - the pin tracks a recent release that still
+  resolves cleanly on Python 3.13 so CI stays close to what HACS users
+  actually run, not the oldest supported version. If you need to validate
+  against the minimum supported version specifically, install
+  `homeassistant==2025.10.0` separately in a scratch environment.
 
 ### Running Tests
 
@@ -154,15 +168,18 @@ Tests can be marked for categorization:
 ```python
 import pytest
 
+
 @pytest.mark.slow
 def test_long_running_operation():
     """Test that takes a long time."""
     pass
 
+
 @pytest.mark.integration
 def test_integration_with_mqtt():
     """Test that requires external services."""
     pass
+
 
 @pytest.mark.unit
 def test_pure_function():
@@ -202,6 +219,7 @@ pytest tests/ --cov=custom_components/zigsight --cov-report=xml
 
 ```python
 """Test module."""
+
 import pytest
 from unittest.mock import MagicMock
 
@@ -228,7 +246,7 @@ async def test_coordinator_construction(mock_hass):
 def test_analytics_compute():
     """Test analytics computation."""
     from custom_components.zigsight.analytics import DeviceAnalytics
-    
+
     analytics = DeviceAnalytics()
     result = analytics.compute_reconnect_rate([])
     assert result == 0.0
@@ -240,6 +258,7 @@ For testing async code, use `pytest-asyncio`:
 
 ```python
 import pytest
+
 
 @pytest.mark.asyncio
 async def test_async_function():

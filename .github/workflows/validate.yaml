@@ -75,7 +75,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest pytest-asyncio pytest-cov pytest-timeout "homeassistant>=2025.10.0"
+          python3 -m pip install -r requirements-dev.txt
 
       - name: Run tests with coverage
         run: |

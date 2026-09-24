@@ -80,11 +80,10 @@ async def test_collect_devices_with_devices(
     mock_hass.data["zha"] = {"gateway": mock_gateway}
 
     # Mock the device and entity registries
-    with patch(
-        "custom_components.zigsight.zha_collector.dr.async_get"
-    ) as mock_dr_get, patch(
-        "custom_components.zigsight.zha_collector.er.async_get"
-    ) as mock_er_get:
+    with (
+        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
+        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
+    ):
         mock_device_registry = MagicMock()
         mock_device_registry.async_get_device.return_value = None
         mock_dr_get.return_value = mock_device_registry
@@ -110,11 +109,10 @@ async def test_collect_device_metrics(
     mock_hass: MagicMock, mock_zha_device: Mock
 ) -> None:
     """Test _collect_device_metrics extracts correct metrics."""
-    with patch(
-        "custom_components.zigsight.zha_collector.dr.async_get"
-    ) as mock_dr_get, patch(
-        "custom_components.zigsight.zha_collector.er.async_get"
-    ) as mock_er_get:
+    with (
+        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
+        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
+    ):
         mock_dr_get.return_value = MagicMock()
         mock_er_get.return_value = MagicMock()
 
@@ -140,11 +138,10 @@ async def test_collect_device_metrics_minimal(mock_hass: MagicMock) -> None:
     device.rssi = None
     device.device_info = None
 
-    with patch(
-        "custom_components.zigsight.zha_collector.dr.async_get"
-    ) as mock_dr_get, patch(
-        "custom_components.zigsight.zha_collector.er.async_get"
-    ) as mock_er_get:
+    with (
+        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
+        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
+    ):
         mock_dr_get.return_value = MagicMock()
         mock_er_get.return_value = MagicMock()
 
@@ -159,11 +156,10 @@ async def test_collect_device_metrics_minimal(mock_hass: MagicMock) -> None:
 @pytest.mark.asyncio
 async def test_collect_entity_metrics_no_device(mock_hass: MagicMock) -> None:
     """Test _collect_entity_metrics returns empty when device not found."""
-    with patch(
-        "custom_components.zigsight.zha_collector.dr.async_get"
-    ) as mock_dr_get, patch(
-        "custom_components.zigsight.zha_collector.er.async_get"
-    ) as mock_er_get:
+    with (
+        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
+        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
+    ):
         mock_device_registry = MagicMock()
         mock_device_registry.async_get_device.return_value = None
         mock_dr_get.return_value = mock_device_registry
@@ -203,11 +199,14 @@ async def test_collect_entity_metrics_with_entities(mock_hass: MagicMock) -> Non
         mock_entity_battery.entity_id = "sensor.test_device_battery"
         mock_entity_battery.domain = "sensor"
 
-        with patch(
-            "custom_components.zigsight.zha_collector.er.async_get"
-        ) as mock_er_get, patch(
-            "custom_components.zigsight.zha_collector.er.async_entries_for_device"
-        ) as mock_entries:
+        with (
+            patch(
+                "custom_components.zigsight.zha_collector.er.async_get"
+            ) as mock_er_get,
+            patch(
+                "custom_components.zigsight.zha_collector.er.async_entries_for_device"
+            ) as mock_entries,
+        ):
             mock_er_get.return_value = MagicMock()
             mock_entries.return_value = [
                 mock_entity_rssi,

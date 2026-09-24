@@ -56,26 +56,26 @@ def test_blueprint_is_valid(blueprint_file: str) -> None:
         # Check blueprint metadata
         blueprint = data.get("blueprint", {})
         assert "name" in blueprint, f"{blueprint_file} blueprint missing 'name'"
-        assert (
-            "description" in blueprint
-        ), f"{blueprint_file} blueprint missing 'description'"
-        assert (
-            blueprint.get("domain") == "automation"
-        ), f"{blueprint_file} domain should be 'automation'"
+        assert "description" in blueprint, (
+            f"{blueprint_file} blueprint missing 'description'"
+        )
+        assert blueprint.get("domain") == "automation", (
+            f"{blueprint_file} domain should be 'automation'"
+        )
 
         # Check triggers and actions are lists
-        assert isinstance(
-            data.get("trigger"), list
-        ), f"{blueprint_file} trigger should be a list"
-        assert isinstance(
-            data.get("action"), list
-        ), f"{blueprint_file} action should be a list"
-        assert (
-            len(data.get("trigger", [])) > 0
-        ), f"{blueprint_file} should have at least one trigger"
-        assert (
-            len(data.get("action", [])) > 0
-        ), f"{blueprint_file} should have at least one action"
+        assert isinstance(data.get("trigger"), list), (
+            f"{blueprint_file} trigger should be a list"
+        )
+        assert isinstance(data.get("action"), list), (
+            f"{blueprint_file} action should be a list"
+        )
+        assert len(data.get("trigger", [])) > 0, (
+            f"{blueprint_file} should have at least one trigger"
+        )
+        assert len(data.get("action", [])) > 0, (
+            f"{blueprint_file} should have at least one action"
+        )
 
     except yaml.YAMLError as e:
         pytest.fail(f"{blueprint_file} contains invalid YAML: {e}")

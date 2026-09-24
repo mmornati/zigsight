@@ -233,8 +233,7 @@ reconnect_rate_window_hours: 24
 
 Analytics calculations use device history stored in memory:
 
-- **Maximum History**: 1000 entries per device (last entries kept)
-- **Retention Period**: Configurable via `retention_days` (default: 30 days)
+- **Maximum History**: 1000 entries per device (last entries kept, in-memory only, not persisted across restarts)
 - **Memory Usage**: Approximately 10-50 KB per device depending on history size
 
 For persistent storage and long-term analysis, use Home Assistant's built-in history features to record sensor values.

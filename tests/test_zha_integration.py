@@ -21,6 +21,7 @@ from custom_components.zigsight.const import (
 )
 from custom_components.zigsight.zha_collector import ZHA_DOMAIN, async_discover_devices
 
+from .registry_helpers import get_device
 from .zha_test_helpers import add_mock_zha_config_entry, add_mock_zha_device
 
 IEEE = "00:11:22:33:44:55:66:77"
@@ -285,13 +286,13 @@ async def test_zha_device_removed_from_registry_is_dropped(hass: HomeAssistant) 
     assert coordinator.get_device(IEEE) is not None
 
     dev_reg = dr.async_get(hass)
-    zigsight_device = dev_reg.async_get_device(identifiers={(DOMAIN, IEEE)})
+    zigsight_device = get_device(hass, (DOMAIN, IEEE))
     assert zigsight_device is not None
     # Before the removal, the UI "delete device" button is refused: the
     # coordinator still considers the device known.
     assert not await async_remove_config_entry_device(hass, entry, zigsight_device)
 
-    zha_device = dev_reg.async_get_device(identifiers={(ZHA_DOMAIN, IEEE)})
+    zha_device = get_device(hass, (ZHA_DOMAIN, IEEE))
     assert zha_device is not None
     dev_reg.async_remove_device(zha_device.id)
 
@@ -302,4 +303,4 @@ async def test_zha_device_removed_from_registry_is_dropped(hass: HomeAssistant) 
     # The coordinator's own removal already unlinked/deleted the ZigSight
     # device (it had no other config entries), so there is nothing left
     # for the user to manually delete.
-    assert dev_reg.async_get_device(identifiers={(DOMAIN, IEEE)}) is None
+    assert get_device(hass, (DOMAIN, IEEE)) is None

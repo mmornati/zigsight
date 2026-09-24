@@ -35,6 +35,7 @@ from custom_components.zigsight.const import (
 )
 from custom_components.zigsight.coordinator import ZigSightCoordinator
 
+from .registry_helpers import get_device
 from .z2m_replay import (
     async_fire,
     async_fire_messages,
@@ -167,14 +168,14 @@ async def test_device_registry(
 ) -> None:
     """Devices carry model/manufacturer from bridge/devices, via the bridge."""
     dev_reg = dr.async_get(hass)
-    bridge = dev_reg.async_get_device(identifiers={coordinator.bridge_identifier})
+    bridge = get_device(hass, coordinator.bridge_identifier)
     assert bridge is not None
     assert bridge.entry_type is dr.DeviceEntryType.SERVICE
     # bridge/info updated the bridge device
     assert bridge.sw_version == "2.1.3"
     assert bridge.model == "zStack3x0"
 
-    climate = dev_reg.async_get_device(identifiers={(DOMAIN, CLIMATE)})
+    climate = get_device(hass, (DOMAIN, CLIMATE))
     assert climate is not None
     assert climate.name == "Bedroom Climate"
     assert climate.manufacturer == "Aqara"
@@ -182,14 +183,14 @@ async def test_device_registry(
     assert climate.model_id == "WSDCGQ11LM"
     assert climate.via_device_id == bridge.id
 
-    lamp = dev_reg.async_get_device(identifiers={(DOMAIN, LAMP)})
+    lamp = get_device(hass, (DOMAIN, LAMP))
     assert lamp is not None
     assert lamp.manufacturer == "Philips"
     assert lamp.sw_version == "1.93.11"
     assert lamp.via_device_id == bridge.id
 
-    assert dev_reg.async_get_device(identifiers={(DOMAIN, COORDINATOR)}) is None
-    assert dev_reg.async_get_device(identifiers={(DOMAIN, DOOR)}) is None
+    assert get_device(hass, (DOMAIN, COORDINATOR)) is None
+    assert get_device(hass, (DOMAIN, DOOR)) is None
     devices = dr.async_entries_for_config_entry(dev_reg, entry.entry_id)
     # 4 Zigbee devices + the ZigSight bridge device
     assert len(devices) == 5
@@ -361,7 +362,7 @@ async def test_rename_keeps_device_and_entities(
     async_fire(hass, BASE, "bridge/devices", devices)
     await hass.async_block_till_done()
 
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, CLIMATE)})
+    device = get_device(hass, (DOMAIN, CLIMATE))
     assert device is not None
     assert device.name == "Bedroom Weather"
     assert _entity_id(hass, "sensor", f"{CLIMATE}_battery") == entity_id
@@ -390,7 +391,7 @@ async def test_device_removed(
 
     assert coordinator.get_device(PLUG) is None
     assert coordinator.get_device_history(PLUG) == []
-    assert dr.async_get(hass).async_get_device(identifiers={(DOMAIN, PLUG)}) is None
+    assert get_device(hass, (DOMAIN, PLUG)) is None
     assert er.async_get(hass).async_get(entity_id) is None
     assert hass.states.get(entity_id) is None
 
@@ -421,7 +422,7 @@ async def test_new_device_joins(
 
     assert _state(hass, "sensor", f"{new_ieee}_battery").state == "100"
     assert _state(hass, "sensor", f"{new_ieee}_link_quality").state == "130"
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, new_ieee)})
+    device = get_device(hass, (DOMAIN, new_ieee))
     assert device is not None
     assert device.model_id == "MCCGQ11LM"
 
@@ -490,7 +491,7 @@ async def test_empty_device_list_is_ignored(
     await hass.async_block_till_done()
     assert len(coordinator.device_ids()) == 5
     assert _entity_id(hass, "sensor", f"{PLUG}_link_quality")
-    assert dr.async_get(hass).async_get_device(identifiers={(DOMAIN, PLUG)})
+    assert get_device(hass, (DOMAIN, PLUG))
 
 
 async def test_invalid_last_seen_falls_back_to_receipt_time(
@@ -540,9 +541,7 @@ async def test_stale_registry_devices_removed_on_startup(
     assert dev_reg.async_get(gone.id) is None
     assert ent_reg.async_get(gone_entity.entity_id) is None
     assert dev_reg.async_get(kept.id) is not None
-    bridge = dev_reg.async_get_device(
-        identifiers={(DOMAIN, f"{entry.entry_id}_bridge")}
-    )
+    bridge = get_device(hass, (DOMAIN, f"{entry.entry_id}_bridge"))
     assert bridge is not None
 
 
@@ -908,8 +907,8 @@ async def test_remove_config_entry_device(
 ) -> None:
     """Only stale devices can be removed from the UI."""
     dev_reg = dr.async_get(hass)
-    live = dev_reg.async_get_device(identifiers={(DOMAIN, LAMP)})
-    bridge = dev_reg.async_get_device(identifiers={coordinator.bridge_identifier})
+    live = get_device(hass, (DOMAIN, LAMP))
+    bridge = get_device(hass, coordinator.bridge_identifier)
     stale = dev_reg.async_get_or_create(
         config_entry_id=entry.entry_id, identifiers={(DOMAIN, "Stale Name")}
     )
@@ -959,3 +958,42 @@ async def test_bridge_devices_mutation_does_not_leak(
     bridge_devices = coordinator.get_bridge_devices()
     assert bridge_devices[0]["type"] == "Coordinator"
     assert len(bridge_devices) == 6
+
+
+async def test_no_deprecated_home_assistant_api_usage(
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+    coordinator: ZigSightCoordinator,
+) -> None:
+    """Setup, rename and removal don't use deprecated Home Assistant APIs.
+
+    Home Assistant reports deprecated API usage by a custom integration with
+    a "Detected that custom integration 'zigsight' ..." warning (e.g. the
+    device registry APIs deprecated in 2026.9). This only bites on Home
+    Assistant versions deprecating an API we still use, as the e2e HA log
+    gate does against the latest Home Assistant release.
+    """
+    devices = load_fixture("bridge_devices.json")
+    for device in devices:
+        if device["ieee_address"] == CLIMATE:
+            device["friendly_name"] = "Bedroom Weather"
+    async_fire(hass, BASE, "bridge/devices", devices)
+    await hass.async_block_till_done()
+    async_fire(
+        hass,
+        BASE,
+        "bridge/devices",
+        [d for d in devices if d["ieee_address"] != PLUG],
+    )
+    await hass.async_block_till_done()
+    assert get_device(hass, (DOMAIN, PLUG)) is None
+
+    reports = [
+        record.getMessage()
+        for record in (*caplog.get_records("setup"), *caplog.records)
+        if f"custom integration '{DOMAIN}'" in record.getMessage()
+        and (
+            "deprecated" in record.getMessage() or "stop working" in record.getMessage()
+        )
+    ]
+    assert not reports

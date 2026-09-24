@@ -22,6 +22,7 @@ from custom_components.zigsight.const import (
     INTEGRATION_TYPE_ZIGBEE2MQTT,
 )
 
+from .registry_helpers import get_device
 from .z2m_replay import (
     async_fire,
     async_fire_messages,
@@ -213,7 +214,7 @@ async def test_legacy_entities_are_migrated_to_ieee_unique_ids(
     assert device.identifiers == {(DOMAIN, CLIMATE)}
     assert device.via_device_id != device.id
     assert device.manufacturer == "Aqara"
-    assert dev_reg.async_get_device(identifiers={(DOMAIN, "Bedroom Climate")}) is None
+    assert get_device(hass, (DOMAIN, "Bedroom Climate")) is None
     # No duplicate entity was created
     assert (
         len(

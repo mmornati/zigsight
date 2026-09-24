@@ -15,7 +15,6 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import ServiceValidationError, Unauthorized
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import (
@@ -33,6 +32,7 @@ from custom_components.zigsight.const import (
     INTEGRATION_TYPE_ZIGBEE2MQTT,
 )
 
+from .registry_helpers import get_device
 from .z2m_replay import load_fixture_text
 from .zha_test_helpers import add_mock_zha_config_entry
 
@@ -65,9 +65,7 @@ async def test_setup_and_unload_zigbee2mqtt_entry(
     assert "zigbee2mqtt/#" in subscribed_topics
 
     # The ZigSight bridge device exists before any Zigbee device
-    bridge = dr.async_get(hass).async_get_device(
-        identifiers={(DOMAIN, f"{entry.entry_id}_bridge")}
-    )
+    bridge = get_device(hass, (DOMAIN, f"{entry.entry_id}_bridge"))
     assert bridge is not None
     assert bridge.name == "Zigbee2MQTT bridge"
 
@@ -102,9 +100,7 @@ async def test_setup_and_unload_zha_entry(hass: HomeAssistant) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
     assert coordinator.data is not None
     assert coordinator.data["devices"] == {}
-    bridge = dr.async_get(hass).async_get_device(
-        identifiers={(DOMAIN, f"{entry.entry_id}_bridge")}
-    )
+    bridge = get_device(hass, (DOMAIN, f"{entry.entry_id}_bridge"))
     assert bridge is not None
     assert bridge.name == "ZHA network"
 

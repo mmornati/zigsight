@@ -8,12 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security / Fixed (API hardening and cleanups)
-- All GET data endpoints (`devices`, `topology`, `analytics/overview`,
-  `analytics/trends`, `analytics/export`, `channel-recommendation`,
-  `recommendation-history`) now require an admin user, matching the
-  admin-only panel that is their only intended caller (previously any
-  authenticated, non-admin user could read them). **This is a breaking
-  change if you scripted against these endpoints with a non-admin token.**
+- GET data endpoints (`devices`, `analytics/overview`, `analytics/trends`,
+  `analytics/export`, `channel-recommendation`, `recommendation-history`)
+  now require an admin user, matching the admin-only panel that is their
+  only intended caller (previously any authenticated, non-admin user could
+  read them). **This is a breaking change if you scripted against these
+  endpoints with a non-admin token.** `topology` is deliberately left
+  readable by any authenticated user: the `zigsight-topology-card` /
+  `zigsight-topology-visualization` Lovelace cards (usable on a dashboard a
+  non-admin can view) poll it every 60 seconds, and a rejected admin check
+  on every such poll trips Home Assistant's login-attempt tracking
+  (`process_wrong_login`) like a failed login, spamming notifications and
+  IP-banning the viewer when `ip_ban_enabled` is on.
 - `analytics/export` CSV: cell values starting with `=`, `+`, `-`, `@`, a
   tab or a carriage return are now prefixed with `'` to prevent CSV formula
   injection when the file is opened in a spreadsheet application.
@@ -25,13 +31,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runs `iwlist`/`nmcli` subprocesses on the Home Assistant host), supports
   `SupportsResponse` (returns the recommendation instead of only logging
   it), validates `mode` against the two actually supported values
-  (`manual`, `host_scan` -- `router_api` was a non-functional placeholder)
-  and reuses the API's Wi-Fi scan data schema. `services.yaml` no longer
-  declares an unused `input_select` entity target.
+  (`manual`, `host_scan`), raises `ServiceValidationError` (not a generic
+  failure) when manual mode is called without `wifi_scan_data`, and shares
+  its scan/compute/store logic with the REST API so both record the call in
+  `recommendation_history` identically. `services.yaml` no longer declares
+  an unused `input_select` entity target.
+- Removed the non-functional `router_api` scanner mode (`RouterAPIScanner`
+  in `wifi_scanner.py` was a placeholder that always returned no access
+  points); `manual` and `host_scan` are the only supported modes now, in
+  the service, the REST API and the docs.
 - `wifi_scanner`: a Wi-Fi scan subprocess (`iwlist`/`nmcli`) that times out
   is now killed instead of left running in the background; `nmcli -t`
   output is parsed with an escape-aware splitter so an SSID containing a
-  (nmcli-escaped) `:` no longer gets cut into the wrong fields.
+  (nmcli-escaped) `:` no longer gets cut into the wrong fields; host scan
+  results are filtered to the 2.4 GHz Wi-Fi channels (1-14) since Zigbee
+  never overlaps with 5 GHz networks a dual-band adapter might report.
 - `tests/bandit.yaml` no longer skips B601 (`paramiko_calls`, unrelated to
   this integration -- the comment describing it as a subprocess/shell skip
   was misleading); removed the duplicate, stale `[bandit]` section in
@@ -41,9 +55,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`if: false`) behind an outdated "documentation not yet available"
   comment even though `docs/` and `mkdocs.yml` exist; it now runs
   `mkdocs build --strict` on PRs touching the docs and uploads the built
-  site as a downloadable preview artifact.
+  site as a downloadable preview artifact (its PR-comment steps are skipped
+  on fork PRs, whose `GITHUB_TOKEN` can't post comments).
 - Removed `setup.cfg`; `pyproject.toml` already carries the same package
   metadata and is the file the dev tooling (ruff/mypy/pytest) reads.
+- `zigsight-panel.js`: fixed a network-map polling leak where disconnecting
+  and reconnecting the panel within one 10 second poll tick left the old
+  poll loop running alongside a freshly started one (doubling
+  `GET /api/zigsight/topology` calls); a per-run token now invalidates a
+  stale loop as soon as the panel disconnects or a newer poll starts.
 
 ### Fixed (Zigbee2MQTT)
 - Devices and entities are now actually created with Zigbee2MQTT: devices come

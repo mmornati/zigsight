@@ -343,7 +343,6 @@ async def test_topology_requires_auth(
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/zigsight/topology",
         "/api/zigsight/devices",
         "/api/zigsight/analytics/overview",
         "/api/zigsight/analytics/trends",
@@ -359,7 +358,12 @@ async def test_get_endpoints_require_admin(
     hass_read_only_access_token: str,
     path: str,
 ) -> None:
-    """All GET data endpoints are admin-only, like the panel that uses them."""
+    """Device/analytics/recommendation GET endpoints are admin-only.
+
+    Unlike topology (see test_topology_readable_by_any_authenticated_user),
+    these aren't polled by any card a non-admin dashboard viewer might see,
+    only by the admin-only panel, so they stay admin-gated.
+    """
     admin_client = await hass_client()
     response = await admin_client.get(path)
     assert response.status == 200, await response.text()
@@ -367,6 +371,25 @@ async def test_get_endpoints_require_admin(
     read_only_client = await hass_client(hass_read_only_access_token)
     response = await read_only_client.get(path)
     assert response.status == 401
+
+
+async def test_topology_readable_by_any_authenticated_user(
+    hass: HomeAssistant,
+    coordinator: ZigSightCoordinator,
+    hass_client: ClientSessionGenerator,
+    hass_read_only_access_token: str,
+) -> None:
+    """Topology is deliberately not admin-only.
+
+    ``topology-card.js`` and ``topology-visualization.js`` (Lovelace cards
+    any authenticated user may have on a dashboard) poll this endpoint every
+    60 seconds; gating it behind @require_admin turned every such poll from
+    a non-admin viewer into a failed admin check, which Home Assistant's
+    login-attempt tracking (ip_ban_enabled) treats like a failed login.
+    """
+    read_only_client = await hass_client(hass_read_only_access_token)
+    response = await read_only_client.get("/api/zigsight/topology")
+    assert response.status == 200, await response.text()
 
 
 async def test_request_network_map_admin(
@@ -438,15 +461,17 @@ async def test_request_network_map_non_admin(
     hass_client: ClientSessionGenerator,
     hass_read_only_access_token: str,
 ) -> None:
-    """Non-admin users can't trigger a scan, or read ZigSight data."""
+    """Non-admin users can't trigger a (mesh loading) network scan."""
     client = await hass_client(hass_read_only_access_token)
     response = await client.post("/api/zigsight/topology/networkmap")
     assert response.status == 401
     mqtt_mock.async_publish.assert_not_called()
 
-    # The panel itself is admin-only, so its data endpoints are too.
+    # Reading the topology is fine for any authenticated user: the
+    # Lovelace topology cards poll it regardless of who's viewing the
+    # dashboard (see test_topology_readable_by_any_authenticated_user).
     response = await client.get("/api/zigsight/topology")
-    assert response.status == 401
+    assert response.status == 200
 
 
 async def test_request_network_map_unsupported(

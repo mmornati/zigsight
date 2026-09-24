@@ -134,15 +134,23 @@ Assistant session):
 
 | Method | Path | Access | Purpose |
 |--------|------|--------|---------|
-| GET | `/api/zigsight/devices` | user | device records |
-| GET | `/api/zigsight/topology` | user | nodes, edges, network map status, network info (see [UI](ui.md#data-source)) |
+| GET | `/api/zigsight/devices` | admin | device records |
+| GET | `/api/zigsight/topology` | user | nodes, edges, network map status, network info (see [UI](ui.md#data-source)); also polled by the `zigsight-topology-card`/`zigsight-topology-visualization` Lovelace cards, so it stays readable by any authenticated user, not just admins |
 | POST | `/api/zigsight/topology/networkmap` | admin | request a raw network map (returns 202) |
-| GET | `/api/zigsight/channel-recommendation` | user | current channel and last recommendation |
+| GET | `/api/zigsight/analytics/overview` | admin | fleet-wide health/battery/link-quality summary |
+| GET | `/api/zigsight/analytics/trends` | admin | a metric's history for one device, or the network |
+| GET | `/api/zigsight/analytics/export` | admin | devices as JSON or CSV (`?format=csv`) |
+| GET | `/api/zigsight/channel-recommendation` | admin | current channel and last recommendation |
 | POST | `/api/zigsight/channel-recommendation` | admin | compute a recommendation: `{"mode": "manual", "wifi_scan_data": [...]}` |
-| GET | `/api/zigsight/recommendation-history` | user | last 10 recommendations |
+| GET | `/api/zigsight/recommendation-history` | admin | last 10 recommendations |
 
-Invalid requests get a `400` with an `error` message; non admin users get
-`401` on the admin endpoints.
+Invalid requests get a `400` with an `error` message; non-admin users get
+`401` on every admin endpoint above. `topology` is the one exception (see
+its row): it is intentionally readable by any authenticated user, because
+the Lovelace cards that poll it every 60 seconds may be on a dashboard a
+non-admin user can see, and Home Assistant's login-attempt tracking treats
+a rejected admin check on a repeating poll like a failed login attempt
+(spamming notifications and, with `ip_ban_enabled`, banning the viewer).
 
 ## Troubleshooting
 

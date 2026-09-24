@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
@@ -290,7 +291,7 @@ class TestZigSightAnalyticsExportView:
         self, mock_hass, mock_coordinator
     ):
         """Values starting with =, +, -, @ are prefixed with a quote in CSV."""
-        devices = dict(mock_coordinator.get_all_devices.return_value)
+        devices = copy.deepcopy(mock_coordinator.get_all_devices.return_value)
         devices["device1"]["friendly_name"] = "=cmd|' /C calc'!A1"
         mock_coordinator.get_all_devices.return_value = devices
 

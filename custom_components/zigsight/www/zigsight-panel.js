@@ -105,10 +105,14 @@ class ZigSightPanel extends LitElement {
     this._disconnected = true;
     clearTimeout(this._mapPollTimer);
     this._mapPollTimer = null;
+    // Drop any status text from the interrupted poll; if a scan is still
+    // pending, connectedCallback's _loadData() will resume polling (see
+    // _loadData below) and _startMapPolling will set a fresh message.
+    this._mapStatus = null;
     // Invalidate any in-flight poll loop so that, if the panel is
     // reconnected before its next tick, it can't keep running alongside a
     // freshly started one (both would then race to update _topology).
-    this._mapPollToken = (this._mapPollToken || 0) + 1;
+    this._mapPollToken += 1;
   }
 
   updated(changed) {
@@ -610,7 +614,7 @@ class ZigSightPanel extends LitElement {
   _startMapPolling(before) {
     clearTimeout(this._mapPollTimer);
     const started = Date.now();
-    const token = (this._mapPollToken = (this._mapPollToken || 0) + 1);
+    const token = (this._mapPollToken += 1);
     const stale = () => this._disconnected || this._mapPollToken !== token;
     const poll = async () => {
       if (stale()) return;

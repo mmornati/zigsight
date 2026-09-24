@@ -81,11 +81,10 @@ High reconnect rates may indicate interference, weak signal, or device issues.
 
 ### How do I get a channel recommendation?
 
-Use the `zigsight.recommend_channel` service with one of three modes:
+Use the `zigsight.recommend_channel` service (admin only) with one of two modes:
 
 1. **Manual**: Upload Wi-Fi scan data you've collected
-2. **Router API**: Query your router directly (limited router support)
-3. **Host Scan**: Scan using your Home Assistant host's Wi-Fi adapter
+2. **Host Scan**: Scan using your Home Assistant host's Wi-Fi adapter
 
 See [Wi-Fi Recommendation](wifi_recommendation.md) for detailed instructions.
 

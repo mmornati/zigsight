@@ -92,6 +92,68 @@ def _current_channel(coordinator: ZigSightCoordinator | None) -> int | None:
     return channel if isinstance(channel, int) else None
 
 
+class ChannelRecommendationError(HomeAssistantError):
+    """A Wi-Fi scan or channel recommendation computation failed.
+
+    The underlying error (which may contain host/network details, e.g. a
+    subprocess error message) is logged with a traceback where this is
+    raised; only this generic message is meant to reach the caller.
+    """
+
+
+async def async_generate_channel_recommendation(
+    hass: HomeAssistant, mode: str, wifi_scan_data: Any
+) -> dict[str, Any]:
+    """Scan, compute and store a channel recommendation.
+
+    Shared by the REST API (POST /api/zigsight/channel-recommendation) and
+    the ``recommend_channel`` service so both behave identically: same
+    manual-mode validation, same ``last_recommendation`` /
+    ``recommendation_history`` bookkeeping.
+
+    Raises:
+        ValueError: manual mode without (non-empty) ``wifi_scan_data``, a
+            caller-input problem the caller should surface directly.
+        ChannelRecommendationError: the scan or computation itself failed;
+            already logged with a traceback here.
+    """
+    if mode == "manual" and not wifi_scan_data:
+        raise ValueError("wifi_scan_data is required in manual mode")
+
+    try:
+        scanner = create_scanner(mode=mode, scan_data=wifi_scan_data)
+        wifi_aps = await scanner.scan()
+        result = recommend_zigbee_channel(wifi_aps)
+    except Exception as err:
+        _LOGGER.exception("Error during channel recommendation")
+        raise ChannelRecommendationError(
+            "Failed to generate a channel recommendation"
+        ) from err
+
+    timestamp = dt_util.utcnow().isoformat()
+    _LOGGER.info(
+        "Zigbee channel recommendation: channel %s (score: %.1f)",
+        result["recommended_channel"],
+        result["scores"][result["recommended_channel"]],
+    )
+    _LOGGER.info("Recommendation: %s", result["explanation"])
+
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    domain_data["last_recommendation"] = {**result, "timestamp": timestamp}
+    history = domain_data.setdefault("recommendation_history", [])
+    history.append({**result, "timestamp": timestamp, "wifi_aps_count": len(wifi_aps)})
+    del history[:-RECOMMENDATION_HISTORY_MAX]
+
+    return {
+        "recommended_channel": result["recommended_channel"],
+        "scores": result["scores"],
+        "explanation": result["explanation"],
+        "wifi_aps": wifi_aps,
+        "wifi_aps_count": len(wifi_aps),
+        "timestamp": timestamp,
+    }
+
+
 class ZigSightTopologyView(HomeAssistantView):
     """View to serve network topology data."""
 
@@ -103,12 +165,20 @@ class ZigSightTopologyView(HomeAssistantView):
         """Initialize the topology view."""
         self.hass = hass
 
-    @require_admin
     async def get(self, request: web.Request) -> web.Response:
-        """Handle GET request for topology data (admin only).
+        """Handle GET request for topology data.
 
-        The ZigSight panel is admin-only, so its data endpoints are too, for
-        consistency and to avoid exposing network topology to non-admins.
+        Deliberately *not* admin-only, unlike the other ZigSight GET
+        endpoints: ``topology-card.js`` and ``topology-visualization.js``
+        (Lovelace cards usable by any authenticated user, on dashboards a
+        non-admin may view) poll this endpoint every 60 seconds. Gating it
+        behind ``@require_admin`` made every such poll a failed admin check,
+        which Home Assistant's login-attempt tracking treats like a failed
+        login (``process_wrong_login``), spamming "Login attempt failed"
+        notifications and eventually IP-banning the viewer (or a reverse
+        proxy) when ``ip_ban_enabled`` is on. The same device/network data
+        is already visible to any authenticated user through entity states,
+        so there is nothing gained by restricting it here.
         """
         try:
             coordinator = get_coordinator(self.hass)
@@ -674,46 +744,25 @@ class ZigSightChannelRecommendationView(HomeAssistantView):
             )
         mode = data["mode"]
         wifi_scan_data = data.get("wifi_scan_data")
-        if mode == "manual" and not wifi_scan_data:
-            return self.json(
-                {"error": "wifi_scan_data is required in manual mode"},
-                status_code=400,
-            )
 
         try:
-            scanner = create_scanner(mode=mode, scan_data=wifi_scan_data)
-            wifi_aps = await scanner.scan()
-            result = recommend_zigbee_channel(wifi_aps)
-        except Exception:
-            _LOGGER.exception("Error during channel recommendation")
-            return self.json(
-                {"error": "Failed to generate channel recommendation"},
-                status_code=500,
+            outcome = await async_generate_channel_recommendation(
+                self.hass, mode, wifi_scan_data
             )
-
-        timestamp = dt_util.utcnow().isoformat()
-        _LOGGER.info(
-            "Zigbee channel recommendation: channel %s (score: %.1f)",
-            result["recommended_channel"],
-            result["scores"][result["recommended_channel"]],
-        )
-        domain_data = self.hass.data.setdefault(DOMAIN, {})
-        domain_data["last_recommendation"] = {**result, "timestamp": timestamp}
-        history = domain_data.setdefault("recommendation_history", [])
-        history.append(
-            {**result, "timestamp": timestamp, "wifi_aps_count": len(wifi_aps)}
-        )
-        del history[:-RECOMMENDATION_HISTORY_MAX]
+        except ValueError as err:
+            return self.json({"error": str(err)}, status_code=400)
+        except ChannelRecommendationError as err:
+            return self.json({"error": str(err)}, status_code=500)
 
         return self.json(
             {
                 "has_recommendation": True,
-                "recommended_channel": result["recommended_channel"],
+                "recommended_channel": outcome["recommended_channel"],
                 "current_channel": _current_channel(get_coordinator(self.hass)),
-                "scores": result["scores"],
-                "explanation": result["explanation"],
-                "wifi_aps": wifi_aps,
-                "timestamp": timestamp,
+                "scores": outcome["scores"],
+                "explanation": outcome["explanation"],
+                "wifi_aps": outcome["wifi_aps"],
+                "timestamp": outcome["timestamp"],
             }
         )
 

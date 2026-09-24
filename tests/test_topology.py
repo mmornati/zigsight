@@ -257,3 +257,53 @@ def test_build_topology_with_missing_metrics() -> None:
     assert device_node["link_quality"] is None
     assert device_node["battery"] is None
     assert device_node["health_score"] is None
+
+
+def test_build_topology_with_source() -> None:
+    """Test topology building includes device source field."""
+    devices = {
+        "device1": {
+            "friendly_name": "ZHA Device",
+            "source": "zha",
+            "metrics": {
+                "link_quality": 150,
+                "last_message": {"type": "EndDevice"},
+            },
+            "analytics_metrics": {},
+        },
+        "device2": {
+            "friendly_name": "Zigbee2MQTT Device",
+            "source": "zigbee2mqtt",
+            "metrics": {
+                "link_quality": 200,
+                "last_message": {"type": "Router"},
+            },
+            "analytics_metrics": {},
+        },
+        "device3": {
+            "friendly_name": "Unknown Source Device",
+            "metrics": {
+                "last_message": {"type": "EndDevice"},
+            },
+            "analytics_metrics": {},
+        },
+    }
+
+    topology = build_topology(devices)
+
+    assert topology is not None
+
+    # Check ZHA device has correct source
+    zha_node = next((n for n in topology["nodes"] if n["id"] == "device1"), None)
+    assert zha_node is not None
+    assert zha_node["source"] == "zha"
+
+    # Check Zigbee2MQTT device has correct source
+    z2m_node = next((n for n in topology["nodes"] if n["id"] == "device2"), None)
+    assert z2m_node is not None
+    assert z2m_node["source"] == "zigbee2mqtt"
+
+    # Check device without source defaults to "unknown"
+    unknown_node = next((n for n in topology["nodes"] if n["id"] == "device3"), None)
+    assert unknown_node is not None
+    assert unknown_node["source"] == "unknown"

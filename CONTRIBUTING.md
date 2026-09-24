@@ -26,7 +26,7 @@ cd zigsight
 
 ```bash
 # Create virtual environment
-python3.11 -m venv venv
+python3.13 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies

@@ -1,23 +1,33 @@
 {
   "config": {
     "step": {
-            "user": {
-              "title": "ZigSight Setup",
-              "description": "Configure ZigSight to monitor your Zigbee network",
-              "data": {
-                "mqtt_broker": "MQTT Broker",
-                "mqtt_port": "MQTT Port",
-                "mqtt_username": "MQTT Username",
-                "mqtt_password": "MQTT Password",
-                "mqtt_topic_prefix": "MQTT Topic Prefix"
-              }
-            },
+      "user": {
+        "title": "ZigSight Setup",
+        "description": "Select your Zigbee integration type",
+        "data": {
+          "integration_type": "Zigbee Integration"
+        }
+      },
       "zigbee2mqtt": {
         "title": "Zigbee2MQTT Configuration",
-        "description": "Configure Zigbee2MQTT connection",
+        "description": "Configure Zigbee2MQTT MQTT connection parameters",
         "data": {
-          "mqtt_topic_prefix": "MQTT Topic Prefix",
-          "reconnect_threshold": "Reconnect Threshold"
+          "mqtt_broker": "MQTT Broker",
+          "mqtt_port": "MQTT Port",
+          "mqtt_username": "MQTT Username (optional)",
+          "mqtt_password": "MQTT Password (optional)",
+          "mqtt_topic_prefix": "MQTT Topic Prefix"
+        }
+      },
+      "common": {
+        "title": "Common Configuration",
+        "description": "Configure common ZigSight settings",
+        "data": {
+          "reconnect_threshold": "Reconnect Threshold",
+          "retention_days": "Data Retention (days)",
+          "battery_drain_threshold": "Battery Drain Threshold (%/hour)",
+          "reconnect_rate_threshold": "Reconnect Rate Threshold (events/hour)",
+          "reconnect_rate_window_hours": "Reconnect Rate Window (hours)"
         }
       },
       "zha": {
@@ -43,7 +53,8 @@
     "abort": {
       "already_configured": "ZigSight is already configured",
       "single_instance_allowed": "Only a single instance of ZigSight is allowed",
-      "mqtt_not_available": "MQTT is not available. Please configure MQTT integration first."
+      "mqtt_not_available": "MQTT is not available. Please configure MQTT integration first.",
+      "invalid_integration_type": "Invalid integration type selected"
     }
   },
   "options": {

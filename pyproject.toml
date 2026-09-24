@@ -130,7 +130,6 @@ omit = [
     "custom_components/zigsight/config_flow.py",
     "custom_components/zigsight/options_flow.py",
     "custom_components/zigsight/diagnostics.py",
-    "custom_components/zigsight/api.py",
     # Sensor/binary_sensor platforms - require full HA entity framework
     "custom_components/zigsight/sensor/__init__.py",
     "custom_components/zigsight/sensor/sensor.py",

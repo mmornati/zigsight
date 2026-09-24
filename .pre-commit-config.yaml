@@ -15,6 +15,7 @@ repos:
     rev: v4.5.0
     hooks:
       - id: check-yaml
+        exclude: ^test_config/
       - id: check-json
       - id: check-toml
       - id: check-added-large-files
@@ -28,3 +29,4 @@ repos:
     hooks:
       - id: yamllint
         args: [-d, relaxed]
+        exclude: ^test_config/

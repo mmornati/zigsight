@@ -391,14 +391,14 @@ async def _scan_your_router(self) -> list[dict[str, Any]]:
     async with aiohttp.ClientSession() as session:
         # Authenticate
         auth_data = await self._authenticate_your_router(session)
-        
+
         # Query scan endpoint
         async with session.get(
             f"http://{self.host}/api/wifi/scan",
             headers={"Authorization": f"Bearer {auth_data['token']}"}
         ) as response:
             data = await response.json()
-        
+
         # Parse response into standard format
         return [
             {
@@ -423,7 +423,7 @@ See `tests/test_wifi_scanner.py` for comprehensive test coverage:
 async def test_your_scanner() -> None:
     scanner = YourScanner(config)
     result = await scanner.scan()
-    
+
     assert isinstance(result, list)
     for ap in result:
         assert "channel" in ap
@@ -440,11 +440,11 @@ The channel recommender in `recommender.py` uses frequency overlap analysis to s
    - Compute frequency distance between channels
    - Apply overlap percentage based on bandwidth (Wi-Fi ~22 MHz, Zigbee ~2 MHz)
    - Factor in signal strength (RSSI)
-   
+
 2. **Score Each Zigbee Channel** (11, 15, 20, 25):
    - Sum overlap factors from all Wi-Fi APs
    - Lower score = less interference
-   
+
 3. **Select Best Channel**:
    - Choose channel with lowest score
    - Generate human-readable explanation
@@ -690,6 +690,261 @@ User-facing documentation is in `docs/automations.md`, which covers:
 - How to create automations from blueprints
 - Configuration reference for each blueprint
 - Customization examples
+
+## Documentation Site
+
+ZigSight documentation is built using [MkDocs](https://www.mkdocs.org/) and automatically deployed to GitHub Pages.
+
+### Viewing the Documentation
+
+The documentation site is available at: **https://mmornati.github.io/zigsight/**
+
+### Building Documentation Locally
+
+To preview documentation changes locally:
+
+```bash
+# Install documentation dependencies
+pip install -r requirements-docs.txt
+
+# Start the development server
+mkdocs serve
+
+# Or build the static site
+mkdocs build
+```
+
+The development server runs at `http://127.0.0.1:8000/` with live reload.
+
+### Documentation Structure
+
+Documentation files are in the `docs/` directory:
+
+```
+docs/
+├── index.md                    # Homepage
+├── getting_started.md          # Installation guide
+├── analytics.md                # Analytics engine documentation
+├── wifi_recommendation.md      # Wi-Fi channel recommendation guide
+├── ui.md                       # Network topology card documentation
+├── automations.md              # Automation blueprints guide
+├── faq.md                      # Frequently asked questions
+├── DEVELOPER_README.md         # This file
+└── integrations/
+    ├── zigbee2mqtt.md          # Zigbee2MQTT integration guide
+    ├── zha.md                  # ZHA integration guide
+    └── deconz.md               # deCONZ integration guide
+```
+
+### Adding or Editing Pages
+
+1. Create or edit markdown files in the `docs/` directory
+2. Update `mkdocs.yml` navigation if adding new pages
+3. Test locally with `mkdocs serve`
+4. Submit a pull request
+
+### Deployment Workflow
+
+Documentation is automatically deployed via the `.github/workflows/deploy-docs.yaml` workflow:
+
+- **Trigger**: Push to `main` branch that modifies `docs/**`, `mkdocs.yml`, or `requirements-docs.txt`
+- **Build**: MkDocs builds the static site with `mkdocs build --strict`
+- **Deploy**: The `peaceiris/actions-gh-pages` action publishes to the `gh-pages` branch
+- **Hosting**: GitHub Pages serves the site from the `gh-pages` branch
+
+The workflow can also be triggered manually via `workflow_dispatch`.
+
+### MkDocs Configuration
+
+The documentation configuration is in `mkdocs.yml`:
+
+- **Theme**: ReadTheDocs theme
+- **Plugins**: Search
+- **Extensions**: Tables, fenced code blocks, admonitions, table of contents
+
+### Documentation Requirements
+
+Documentation dependencies are in `requirements-docs.txt`:
+
+- `mkdocs>=1.5.0`
+
+## ZHA Integration Support
+
+ZigSight supports collecting device diagnostics from the Zigbee Home Automation (ZHA) integration alongside Zigbee2MQTT.
+
+### Architecture
+
+The ZHA collector (`zha_collector.py`) implements a polling-based approach to gather device metrics:
+
+```
+┌─────────────┐
+│ Coordinator │
+└──────┬──────┘
+       │
+       ├─────────────┐
+       │             │
+       v             v
+┌──────────┐   ┌─────────────┐
+│   MQTT   │   │ ZHA         │
+│ Collector│   │ Collector   │
+└──────────┘   └─────────────┘
+       │             │
+       v             v
+┌──────────────────────┐
+│  Device Metrics      │
+│  (Normalized Format) │
+└──────────────────────┘
+```
+
+### ZHA Collector Implementation
+
+The `ZHACollector` class provides:
+
+#### Key Methods
+
+**`is_available() -> bool`**
+
+Checks if ZHA integration is loaded by testing `"zha" in hass.data`.
+
+**`collect_devices() -> dict[str, dict[str, Any]]`**
+
+Collects all ZHA devices and their metrics:
+1. Access `hass.data["zha"]["gateway"]`
+2. Iterate through `gateway.devices`
+3. For each device, collect metrics from:
+   - Device attributes (`lqi`, `rssi`, `last_seen`)
+   - Diagnostic entities (`sensor.<device>_rssi`, etc.)
+4. Normalize metrics to coordinator format
+
+**`_collect_device_metrics(zha_device) -> dict[str, Any]`**
+
+Extracts metrics from ZHA device attributes:
+- `lqi` → `link_quality`
+- `rssi` → `rssi`
+- `last_seen` → ISO 8601 timestamp
+
+**`_collect_entity_metrics(ieee: str) -> dict[str, Any]`**
+
+Reads diagnostic entities from device/entity registries:
+1. Find device by IEEE address in device registry
+2. Get entities for device from entity registry
+3. Read entity states for RSSI, LQI, battery
+
+### Metric Normalization
+
+ZHA metrics are normalized to match Zigbee2MQTT format for consistency:
+
+| ZHA Source | Normalized Name | Type |
+|------------|-----------------|------|
+| `zha_device.lqi` | `link_quality` | int (0-255) |
+| `zha_device.rssi` | `rssi` | int (dBm) |
+| `zha_device.last_seen` | `last_seen` | ISO 8601 string |
+| `sensor.<device>_battery` | `battery` | float (%) |
+
+### Coordinator Integration
+
+The coordinator integrates ZHA collection through:
+
+**Configuration**
+```python
+coordinator = ZigSightCoordinator(
+    hass,
+    enable_zha=True,  # Enable ZHA collection
+    ...
+)
+```
+
+**Update Cycle**
+```python
+async def _async_update_data(self) -> dict[str, Any]:
+    # Collect ZHA devices if enabled
+    if self._enable_zha and self._zha_collector:
+        await self._collect_zha_devices()
+    # ... continue with MQTT and analytics
+```
+
+**Device Processing**
+```python
+def _process_zha_device_update(self, device_id: str, device_data: dict):
+    # Process ZHA device similar to MQTT devices
+    # - Track reconnections
+    # - Store metrics
+    # - Update history
+    # - Fire events
+```
+
+### ZHA API Usage
+
+ZigSight uses the following Home Assistant APIs for ZHA:
+
+**Stable APIs (Public)**
+- `device_registry.async_get(hass)` - Get device registry
+- `entity_registry.async_get(hass)` - Get entity registry
+- `device_registry.async_get_device(identifiers)` - Find device by ID
+- `entity_registry.async_entries_for_device(device_id)` - Get device entities
+- `hass.states.get(entity_id)` - Read entity state
+
+**Internal APIs (May Change)**
+- `hass.data["zha"]` - Access ZHA integration data
+- `hass.data["zha"]["gateway"]` - Access ZHA gateway
+- `gateway.devices` - Iterate ZHA devices
+- `zha_device.lqi`, `zha_device.rssi` - Device attributes
+
+### Handling ZHA Changes
+
+If ZHA internals change in future Home Assistant versions:
+
+1. **Check ZHA integration release notes** for API changes
+2. **Update `ZHACollector` methods** to match new APIs
+3. **Add version checks** if supporting multiple HA versions:
+   ```python
+   from homeassistant.const import __version__
+   if __version__ >= "2025.1.0":
+       # New API
+   else:
+       # Legacy API
+   ```
+4. **Update tests** to cover new behavior
+5. **Document changes** in `docs/integrations/zha.md`
+
+### Testing ZHA Collector
+
+Tests use mocks to simulate ZHA integration:
+
+```python
+# Mock ZHA gateway
+mock_gateway = MagicMock()
+mock_gateway.devices = {ieee: mock_device}
+mock_hass.data["zha"] = {"gateway": mock_gateway}
+
+# Mock device attributes
+mock_device.lqi = 200
+mock_device.rssi = -50
+mock_device.last_seen = datetime.now()
+
+# Test collection
+collector = ZHACollector(mock_hass)
+devices = await collector.collect_devices()
+```
+
+See `tests/test_zha_collector.py` for comprehensive test coverage.
+
+### Performance Considerations
+
+- **Polling interval**: ZHA collection runs on coordinator update cycle (60s default)
+- **Device count**: Tested with up to 50 devices; larger networks may need tuning
+- **Registry access**: Device/entity registry lookups are cached by Home Assistant
+- **Entity state reads**: Minimal overhead, reads from state machine
+
+### Future Enhancements
+
+Potential improvements for ZHA support:
+
+- **Network topology**: Extract parent-child relationships from ZHA
+- **Route table**: Access ZHA routing information
+- **Device statistics**: Collect packet loss, retry counts
+- **Event-based updates**: Subscribe to ZHA device events instead of polling
+- **Deeper integration**: Use ZHA's internal state tracking
 
 ## Contributing
 

@@ -34,29 +34,8 @@ jobs:
           ignore: brands
           category: integration
 
-  style:
-    name: Check Code Style
-    runs-on: "ubuntu-latest"
-    steps:
-      - name: Checkout
-        uses: "actions/checkout@v5"
-
-      - name: Setup Python
-        uses: "actions/setup-python@v6"
-        with:
-          python-version: "3.13"
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements-dev.txt
-
-      - name: Check formatting with Ruff
-        run: ruff format --check .
-
   lint:
-    name: Lint (Ruff + Mypy)
+    name: Lint and Format Check
     runs-on: "ubuntu-latest"
     steps:
       - name: Checkout
@@ -73,15 +52,16 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements-dev.txt
 
-      - name: Run lint checks
-        run: make lint
+      - name: Check formatting and lint
+        run: make check-format
 
   test:
     name: Tests with Coverage
     runs-on: "ubuntu-latest"
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        # Home Assistant >= 2025.10 (the integration minimum) requires Python 3.13
+        python-version: ["3.13"]
     steps:
       - name: Checkout
         uses: "actions/checkout@v5"
@@ -95,7 +75,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest pytest-asyncio pytest-cov pytest-timeout homeassistant
+          python3 -m pip install pytest pytest-asyncio pytest-cov pytest-timeout "homeassistant>=2025.10.0"
 
       - name: Run tests with coverage
         run: |
@@ -103,9 +83,9 @@ jobs:
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
-        if: matrix.python-version == '3.11'
+        if: matrix.python-version == '3.13'
         with:
-          file: ./coverage.xml
+          files: ./coverage.xml
           fail_ci_if_error: false
 
   security:

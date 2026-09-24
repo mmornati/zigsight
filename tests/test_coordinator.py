@@ -568,7 +568,7 @@ async def test_coordinator_get_battery_trend_with_data(mock_hass: MagicMock) -> 
 
     trend = coordinator.get_device_battery_trend("test_device")
     # The method should return a value (either a float or None) without crashing
-    assert isinstance(trend, (float, type(None)))
+    assert trend is None or isinstance(trend, float)
 
 
 @pytest.mark.asyncio

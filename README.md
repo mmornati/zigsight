@@ -5,6 +5,7 @@ Home Assistant diagnostics and optimization toolkit for Zigbee networks — sign
 ## Features
 
 - **Multi-Platform Support**: Works with Zigbee2MQTT, ZHA, and deCONZ
+- **Frontend Panel**: Comprehensive web interface accessible from Home Assistant sidebar
 - **Network Visualization**: Interactive topology maps showing device relationships
 - **Health Monitoring**: Battery drain detection and device health scoring
 - **Channel Recommendations**: Wi-Fi interference analysis for optimal Zigbee channel selection
@@ -28,6 +29,6 @@ Apache License 2.0
 
 ## Links
 
-- [Documentation](https://github.com/mmornati/zigsight/tree/main/docs)
+- [Documentation](https://mmornati.github.io/zigsight/)
 - [Issue Tracker](https://github.com/mmornati/zigsight/issues)
 - [Changelog](CHANGELOG.md) (coming soon)

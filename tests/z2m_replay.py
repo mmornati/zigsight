@@ -178,6 +178,8 @@ _REDACTED_KEY_NAMES = frozenset(
         "ext_pan_id",
         "extended_pan_id",
         "pan_id",
+        "user",
+        "username",
     }
 )
 REDACTED_PLACEHOLDER = "***REDACTED***"
@@ -387,7 +389,9 @@ def iter_capture_messages(
         yield Z2MMessage(
             topic=topic,
             payload=redact_bridge_payload(relative_topic, payload),
-            retain=infer_retain(topic) if retain is None else retain,
+            # A retained update that arrives live during the capture is
+            # recorded with retain=0 by mosquitto_sub, so also infer it.
+            retain=bool(retain) or infer_retain(topic),
         )
 
 

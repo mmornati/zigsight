@@ -235,9 +235,7 @@ def test_redact_bridge_payload_strips_known_secret_keys_anywhere_nested() -> Non
     assert redacted["config"]["mqtt"]["password"] == REDACTED_PLACEHOLDER
     assert redacted["nested"]["deeper"]["auth_token"] == REDACTED_PLACEHOLDER
     assert redacted["nested"]["deeper"]["install_code"] == REDACTED_PLACEHOLDER
-    # "user" is not a secret key name any more (only real secrets are
-    # redacted, not every MQTT-related field).
-    assert redacted["config"]["mqtt"]["user"] == "addons"
+    assert redacted["config"]["mqtt"]["user"] == REDACTED_PLACEHOLDER
     assert redacted["version"] == "2.1.3"
 
 
@@ -383,3 +381,26 @@ def test_capture_messages_rewrites_base_topic(tmp_path: Path) -> None:
     messages = capture_messages(capture, base_topic="z2m-test")
 
     assert [m.topic for m in messages] == ["z2m-test/Kitchen", "z2m-test/bridge/state"]
+
+
+def test_capture_messages_json_live_retained_update_is_inferred(
+    tmp_path: Path,
+) -> None:
+    # mosquitto_sub reports retain=0 for a retained topic updated live during
+    # the capture; it must still be replayed as retained.
+    capture = tmp_path / "capture.jsonl"
+    capture.write_text(
+        json.dumps(
+            {
+                "topic": "zigbee2mqtt/bridge/state",
+                "payload": '{"state": "online"}',
+                "retain": 0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    messages = capture_messages(capture)
+
+    assert [m.retain for m in messages] == [True]

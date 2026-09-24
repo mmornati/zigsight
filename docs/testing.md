@@ -206,7 +206,7 @@ While loading a capture, `tests/z2m_replay.py`:
 
 - redacts, recursively and by key name (case-insensitive), `network_key`,
   `password`, `auth_token`, `install_code`, `ext_pan_id`,
-  `extended_pan_id` and `pan_id` in **every** `bridge/*` JSON payload;
+  `extended_pan_id`, `pan_id`, `user` and `username` in **every** `bridge/*` JSON payload;
 - drops `bridge/request/*` and every `bridge/response/*` except
   `bridge/response/networkmap`, and all `/set` and `/get` command topics.
 

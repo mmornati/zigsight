@@ -171,6 +171,37 @@ async def complete_onboarding(
     return token
 
 
+_MISSING = object()
+
+
+def _default_for_field(field: dict[str, Any], overrides: dict[str, Any]) -> Any:
+    """Best-effort value for one data_schema field, recursing into sections.
+
+    Newer Home Assistant releases group optional fields (e.g. MQTT's
+    "other_settings") into a nested "expandable" section. Home Assistant's
+    schema-to-JSON serialization doesn't always attach a top-level
+    "default" to the section itself even though every field inside it is
+    optional, so it must be synthesized recursively instead of just being
+    skipped (which previously produced "required key not provided").
+    """
+    name = field.get("name")
+    if name in overrides:
+        return overrides[name]
+    if "default" in field:
+        return field["default"]
+    if field.get("type") == "expandable":
+        nested: dict[str, Any] = {}
+        for sub_field in field.get("schema", []):
+            sub_name = sub_field.get("name")
+            if sub_name is None:
+                continue
+            value = _default_for_field(sub_field, overrides)
+            if value is not _MISSING:
+                nested[sub_name] = value
+        return nested
+    return _MISSING
+
+
 async def run_config_flow(
     session: aiohttp.ClientSession,
     base_url: str,
@@ -210,10 +241,9 @@ async def run_config_flow(
             name = field.get("name")
             if name is None:
                 continue
-            if name in overrides:
-                data[name] = overrides[name]
-            elif "default" in field:
-                data[name] = field["default"]
+            value = _default_for_field(field, overrides)
+            if value is not _MISSING:
+                data[name] = value
         _log(f"{handler}: submitting step {step_id!r} with {sorted(data)}")
 
         async with session.post(

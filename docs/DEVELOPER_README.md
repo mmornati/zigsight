@@ -288,10 +288,14 @@ To capture new fixtures from a production broker without touching it
 (read-only subscription):
 
 ```bash
-mosquitto_sub -h <broker> -u <user> -P <password> -v -t 'zigbee2mqtt/#'
+mosquitto_sub -h <broker> -u <user> -P <password> -F '%j' -t 'zigbee2mqtt/#' -C 2000 > captures/capture.jsonl
 ```
 
-Anonymise names/IEEE addresses before committing them.
+JSON lines (`-F '%j'`) keep friendly names containing spaces intact and
+carry the retain flag. The raw file contains secrets (network key, ...):
+it is git-ignored under `captures/`, see [Testing](testing.md) before using
+it. Anonymise names/IEEE addresses and review the diff before turning
+anything into a committed fixture.
 
 ## Wi-Fi Scanner Adapters
 

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (Home Assistant version compatibility)
+- Unloading a ZigSight config entry no longer fails with `KeyError:
+  'zigsight'` ("Error unloading entry", entry left in `FAILED_UNLOAD`) when
+  nothing had stored ZigSight data in `hass.data` for it.
+- ZHA device discovery only walks the devices of the loaded ZHA config
+  entries instead of the whole device registry, so it no longer touches
+  `DeviceRegistry.devices` at all (whose mapping use Home Assistant 2026.9
+  deprecated).
+- A debug message is logged when a device is registered without its via
+  device because the via device (ZigSight's bridge device) is not registered.
+
+### CI / development
+- The unit tests, the 85% coverage gate and mypy now run on both the
+  minimum supported Home Assistant (2025.10.4, Python 3.13 --
+  `requirements-test-min.txt`) and the latest release (2026.9.3, Python
+  3.14 -- `requirements-test-latest.txt`), so version-dependent code such as
+  `device_registry_compat.py` is tested on both of its code paths.
+  `requirements-dev.txt` now targets the latest release (Python 3.14) plus
+  the new `requirements-lint.txt`; `make setup-min` / `make test-min` run the
+  minimum-version leg locally (see CONTRIBUTING.md).
+- Fixed the 15 teardown errors ("Lingering timer ... MQTT
+  `_async_start_misc_periodic`") the test suite had on Home Assistant 2026.x:
+  the mocked paho MQTT client now closes its socket on `disconnect()` like
+  the real one, so Home Assistant's MQTT client cancels its timer.
+
 ### Security / Fixed (API hardening and cleanups)
 - GET data endpoints (`devices`, `analytics/overview`, `analytics/trends`,
   `analytics/export`, `channel-recommendation`, `recommendation-history`)

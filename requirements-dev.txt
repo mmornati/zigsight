@@ -1,18 +1,9 @@
-# Testing
-# pytest-homeassistant-custom-component pulls in a matching `homeassistant`
-# core release as a transitive dependency, so we no longer pin `homeassistant`
-# separately here (avoids version drift between the two).
-pytest-homeassistant-custom-component==0.13.316
-pytest>=9.0.0
-pytest-asyncio>=1.3.0
-pytest-cov>=7.0.0
-pytest-timeout>=2.4.0
-
-# Linting and Formatting
-ruff==0.16.8
-mypy==2.3.1
-bandit==1.7.6
-pre-commit>=3.0.0
-
-# Type stubs
-types-python-dateutil
+# Local development environment: unit tests against the LATEST Home Assistant
+# release plus the lint / type-check tools. Requires Python 3.14.
+#
+# To test against the minimum supported Home Assistant release instead
+# (Python 3.13), install requirements-test-min.txt + requirements-lint.txt in
+# a separate virtualenv -- see CONTRIBUTING.md ("Testing against the minimum
+# and latest Home Assistant").
+-r requirements-test-latest.txt
+-r requirements-lint.txt

@@ -25,9 +25,10 @@ cd zigsight
 ### 2. Set Up Development Environment
 
 ```bash
-# Create virtual environment
-python3.13 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Create virtual environment (Python 3.14: requirements-dev.txt tests
+# against the latest Home Assistant release, which requires it)
+python3.14 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements-dev.txt
@@ -137,15 +138,61 @@ your own production broker to build new fixtures.
   and `MockConfigEntry` for anything that exercises `async_setup_entry`, the
   config/options flow, or platform setup - reserve `MagicMock` hass objects
   for tests of pure logic (analytics, recommender, etc.)
-- Note: `requirements-dev.txt` pins `pytest-homeassistant-custom-component`,
-  which pulls in a specific `homeassistant` core release (currently
-  `2026.2.3`) as a transitive dependency. That's newer than ZigSight's
-  documented minimum supported Home Assistant version (`2025.10.0` in
-  `manifest.json`/`hacs.json`) - the pin tracks a recent release that still
-  resolves cleanly on Python 3.13 so CI stays close to what HACS users
-  actually run, not the oldest supported version. If you need to validate
-  against the minimum supported version specifically, install
-  `homeassistant==2025.10.0` separately in a scratch environment.
+
+### Testing against the minimum and latest Home Assistant
+
+ZigSight supports Home Assistant **2025.10.0 and later** (`hacs.json`), and
+some code paths differ between versions (e.g.
+`custom_components/zigsight/device_registry_compat.py` uses the device
+registry APIs added in 2026.8 when available). CI therefore runs the unit
+tests, the 85% coverage gate and mypy on both ends of the range:
+
+| CI leg   | Requirements file              | Home Assistant | Python |
+|----------|--------------------------------|----------------|--------|
+| `min`    | `requirements-test-min.txt`    | 2025.10.4      | 3.13   |
+| `latest` | `requirements-test-latest.txt` | 2026.9.3       | 3.14   |
+
+Each file pins one `pytest-homeassistant-custom-component` release, which
+pulls in the matching `homeassistant` core and pytest plugin versions.
+`requirements-dev.txt` (your default `.venv`) is the `latest` leg plus the
+lint tools from `requirements-lint.txt`.
+
+To also run the `min` leg locally, use a second virtualenv:
+
+```bash
+make setup-min   # creates .venv-min (python3.13) with the 2025.10 release
+make test-min    # mypy + unit tests with the coverage gate in .venv-min
+```
+
+or by hand:
+
+```bash
+python3.13 -m venv .venv-min
+.venv-min/bin/pip install -r requirements-test-min.txt -r requirements-lint.txt
+.venv-min/bin/mypy custom_components/zigsight/
+.venv-min/bin/pytest tests/ --cov=custom_components/zigsight --cov-fail-under=85
+```
+
+A test that only makes sense on one side of a Home Assistant change must be
+skipped conditionally rather than deleted, e.g.:
+
+```python
+from homeassistant.const import __version__ as HA_VERSION
+from awesomeversion import AwesomeVersion
+
+@pytest.mark.skipif(
+    AwesomeVersion(HA_VERSION) < AwesomeVersion("2026.8.0"),
+    reason="per config entry devices were added in Home Assistant 2026.8",
+)
+```
+
+(prefer feature detection, like `device_registry_compat.PER_ENTRY_DEVICES`,
+when the difference is an API).
+
+When a new Home Assistant release is out, bump
+`pytest-homeassistant-custom-component` in `requirements-test-latest.txt` (and
+in the `dev` extra of `pyproject.toml`); when the minimum supported version is
+raised, update `requirements-test-min.txt` together with `hacs.json`.
 
 ### Running Tests
 

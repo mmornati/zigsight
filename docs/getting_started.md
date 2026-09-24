@@ -66,51 +66,16 @@ ZigSight includes a comprehensive frontend panel accessible from the Home Assist
 - **Analytics Dashboard**: Network health overview and insights
 - **Channel Recommendation**: Wi-Fi interference analysis and channel recommendations
 
-### Quick Setup
+### Setup
 
-**Important**: In Home Assistant 2025+, panels must be registered manually. Follow these steps:
+Nothing to do: once the ZigSight integration is set up, a **ZigSight** entry
+appears in the sidebar (for administrators). The panel is served by the
+integration itself from `/zigsight_static/` and works without internet access.
 
-1. **Copy the panel file** to your `www` directory:
-
-   **For HACS installations:**
-   ```bash
-   mkdir -p config/www/community/zigsight
-   cp config/custom_components/zigsight/www/zigsight-panel.js config/www/community/zigsight/
-   ```
-
-   **For manual installations:**
-   ```bash
-   mkdir -p config/www/zigsight
-   cp custom_components/zigsight/www/zigsight-panel.js config/www/zigsight/
-   ```
-
-2. **Add the panel configuration** to your `configuration.yaml`:
-
-   **For HACS installations:**
-   ```yaml
-   panel_custom:
-     - name: zigsight
-       sidebar_title: ZigSight
-       sidebar_icon: mdi:zigbee
-       url_path: zigsight
-       module_url: /local/community/zigsight/zigsight-panel.js
-       require_admin: false
-   ```
-
-   **For manual installations:**
-   ```yaml
-   panel_custom:
-     - name: zigsight
-       sidebar_title: ZigSight
-       sidebar_icon: mdi:zigbee
-       url_path: zigsight
-       module_url: /local/zigsight/zigsight-panel.js
-       require_admin: false
-   ```
-
-3. **Restart Home Assistant**. The panel will appear in the sidebar.
-
-**Note**: HACS doesn't automatically serve files from `custom_components/zigsight/www/`. You must copy the panel file to the `www` directory manually.
+If you configured the panel manually with an older ZigSight version, remove
+the `panel_custom:` entry with `url_path: zigsight` from `configuration.yaml`
+(and the copied `zigsight-panel.js` in your `www` folder) and restart Home
+Assistant; ZigSight logs a warning while that entry is still present.
 
 For complete setup instructions and troubleshooting, see [Frontend Panel Documentation](frontend_panel.md).
 

@@ -88,6 +88,24 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: false
 
+  frontend:
+    name: Frontend Checks
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Checkout
+        uses: "actions/checkout@v5"
+
+      - name: Setup Node.js
+        uses: "actions/setup-node@v5"
+        with:
+          node-version: "22"
+
+      - name: Check JavaScript syntax
+        run: make check-js
+
+      - name: Run JavaScript unit tests
+        run: make test-js
+
   security:
     name: Security Scan
     runs-on: "ubuntu-latest"

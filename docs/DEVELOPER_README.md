@@ -483,94 +483,69 @@ Returns dict with `recommended_channel`, `scores`, and `explanation`.
 
 ## Frontend Development
 
-ZigSight includes a custom Lovelace card for network topology visualization.
+The frontend lives in `custom_components/zigsight/www/` and is served by the
+integration at `/zigsight_static/` (registered once in `async_setup`, see
+`__init__.py`). The sidebar panel is registered with
+`panel_custom.async_register_panel` (admin only) and removed when the last
+config entry is unloaded.
 
-### Card Location
-
-The topology card is located at:
 ```
-custom_components/zigsight/www/topology-card.js
-```
-
-### No Build Process Required
-
-The topology card is written in vanilla JavaScript and requires no build process. It can be directly loaded by Home Assistant as a Lovelace resource.
-
-### Card Registration
-
-The card is automatically registered when loaded. Users need to:
-
-1. Copy the card to their `www/` directory:
-   ```bash
-   mkdir -p config/www/community/zigsight
-   cp custom_components/zigsight/www/topology-card.js config/www/community/zigsight/
-   ```
-
-2. Register as a Lovelace resource in `configuration.yaml`:
-   ```yaml
-   lovelace:
-     mode: yaml
-     resources:
-       - url: /local/community/zigsight/topology-card.js
-         type: module
-   ```
-
-   Or via UI: Settings → Dashboards → Resources → Add Resource
-
-### Card Usage
-
-Add to any dashboard:
-```yaml
-type: custom:zigsight-topology-card
-title: Zigbee Network Topology
+www/
+├── zigsight-panel.js           # sidebar panel (<zigsight-panel>)
+├── topology-card.js            # Lovelace card: device grid
+├── topology-visualization.js   # Lovelace card: interactive graph
+├── lib/
+│   ├── topology-graph.js       # <zigsight-topology-graph> SVG graph (pan/zoom/select)
+│   ├── layout.js               # radial tree + force directed layouts (pure)
+│   ├── format.js               # formatting helpers (pure)
+│   └── wifi.js                 # Wi-Fi scan data validation (pure)
+└── vendor/
+    ├── lit-core.min.js         # Lit 3.3.3 (see vendor/README.md)
+    └── LICENSE-lit
 ```
 
-### Card Development
+Rules:
 
-To modify the card:
+- **No build step, no CDN.** Files are plain ES modules importing each other
+  with relative URLs; third party code is vendored in `www/vendor/` with its
+  license and provenance.
+- **No HTML strings.** Device names and other API data are user controlled:
+  render them with Lit templates (which escape text), never with
+  `innerHTML`. `tests/test_frontend_assets.py` fails on HTML string sinks and
+  remote imports.
+- **Plain elements.** Only `ha-icon`, `ha-card` and `ha-menu-button` are used
+  from the Home Assistant frontend (they degrade gracefully); buttons, inputs
+  and alerts are plain elements styled with Home Assistant CSS variables.
+- `hass.callApi(method, path)` takes a path *without* the `/api/` prefix,
+  e.g. `hass.callApi("GET", "zigsight/topology")`.
 
-1. Edit `custom_components/zigsight/www/topology-card.js`
-2. Copy updated file to Home Assistant's `www/` directory
-3. Clear browser cache or use incognito mode
-4. Refresh the dashboard
+Checks:
 
-### Card Features
+```bash
+# Syntax of every module
+for f in custom_components/zigsight/www/*.js custom_components/zigsight/www/lib/*.js; do
+  node --check --input-type=module < "$f"; done
+# Unit tests of the pure helpers (layouts, validation, formatting)
+node --test "tests/js/*.test.mjs"
+# Python side: API, panel registration, static guards
+pytest tests/test_frontend.py tests/test_frontend_assets.py tests/test_topology.py
+```
 
-- **Network Statistics**: Shows device counts by type
-- **Device Cards**: Interactive cards for each device with metrics
-- **Color Coding**: Visual indicators for device type and health
-- **Device Details**: Click any device to see detailed information
-- **Link Quality**: Color-coded signal strength indicators
-- **Warnings**: Highlights devices with connectivity or battery issues
+To try a change, reload the browser tab with the cache disabled (the static
+path is served without long cache headers; the panel module URL carries the
+integration version as a cache buster).
 
-### API Endpoint
+### REST API used by the frontend
 
-The card fetches data from `/api/zigsight/topology` which returns:
-- Node list with device information
-- Edge list with parent-child relationships
-- Network statistics
-
-See `docs/ui.md` for complete API documentation.
-
-### Testing Frontend Changes
-
-Since there's no build process, testing is straightforward:
-
-1. Copy the updated card to Home Assistant
-2. Reload the dashboard
-3. Check browser console for errors
-4. Test all interactive features
-
-### Future Enhancements
-
-Potential improvements for the topology card:
-
-- Interactive graph visualization (D3.js, vis-network)
-- Device filtering and search
-- Automatic refresh intervals
-- Export topology as image
-- Historical topology comparison
-- Custom color schemes
+| Method | Path | Access | Purpose |
+|--------|------|--------|---------|
+| GET | `/api/zigsight/devices` | user | device records |
+| GET | `/api/zigsight/topology` | user | nodes (IEEE ids), edges (network map or inferred), network map status, network info |
+| POST | `/api/zigsight/topology/networkmap` | admin | ask Zigbee2MQTT for a raw network map (202) |
+| GET | `/api/zigsight/channel-recommendation` | user | current Zigbee channel + last recommendation |
+| POST | `/api/zigsight/channel-recommendation` | admin | compute a recommendation from Wi-Fi scan data |
+| GET | `/api/zigsight/recommendation-history` | user | last 10 recommendations |
+| GET | `/api/zigsight/analytics/*` | user | overview, trends, export |
 
 ## Automation Blueprints
 

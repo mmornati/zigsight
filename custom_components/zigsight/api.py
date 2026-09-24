@@ -5,18 +5,72 @@ from __future__ import annotations
 import csv
 import io
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Any
 
+import voluptuous as vol
 from aiohttp import web
-from homeassistant.components.http import HomeAssistantView
+from homeassistant.components.http import HomeAssistantView, require_admin
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
+from voluptuous.humanize import humanize_error
 
 from .const import DOMAIN
 from .coordinator import ZigSightCoordinator
+from .recommender import recommend_zigbee_channel
 from .topology import build_topology
+from .wifi_scanner import create_scanner
 
 _LOGGER = logging.getLogger(__name__)
+
+DATA_API_VIEWS_REGISTERED = f"{DOMAIN}_api_views_registered"
+RECOMMENDATION_HISTORY_MAX = 10
+
+WIFI_ACCESS_POINT_SCHEMA = vol.Schema(
+    {
+        vol.Required("channel"): vol.All(vol.Coerce(int), vol.Range(min=1, max=14)),
+        vol.Required("rssi"): vol.All(vol.Coerce(float), vol.Range(min=-120, max=0)),
+        vol.Optional("ssid"): vol.Any(None, vol.All(str, vol.Length(max=64))),
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+WIFI_SCAN_DATA_SCHEMA = vol.All(
+    vol.Any(
+        [WIFI_ACCESS_POINT_SCHEMA],
+        vol.All(
+            {vol.Required("access_points"): [WIFI_ACCESS_POINT_SCHEMA]},
+            lambda value: value["access_points"],
+        ),
+    ),
+    vol.Length(max=500),
+)
+CHANNEL_RECOMMENDATION_SCHEMA = vol.Schema(
+    {
+        vol.Optional("mode", default="manual"): vol.In(["manual", "host_scan"]),
+        vol.Optional("wifi_scan_data"): WIFI_SCAN_DATA_SCHEMA,
+    }
+)
+
+
+def get_coordinator(hass: HomeAssistant) -> ZigSightCoordinator | None:
+    """Return the (single) loaded ZigSight coordinator, if any."""
+    for value in hass.data.get(DOMAIN, {}).values():
+        if isinstance(value, ZigSightCoordinator):
+            return value
+    return None
+
+
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def _current_channel(coordinator: ZigSightCoordinator | None) -> int | None:
+    if coordinator is None:
+        return None
+    network_info = coordinator.get_network_info() or {}
+    channel = network_info.get("channel")
+    return channel if isinstance(channel, int) else None
 
 
 class ZigSightTopologyView(HomeAssistantView):
@@ -33,36 +87,32 @@ class ZigSightTopologyView(HomeAssistantView):
     async def get(self, request: web.Request) -> web.Response:
         """Handle GET request for topology data."""
         try:
-            # Get coordinator from hass data
-            # There might be multiple coordinators if multiple config entries
-            coordinators = []
-            for coordinator in self.hass.data.get(DOMAIN, {}).values():
-                if isinstance(coordinator, ZigSightCoordinator):
-                    coordinators.append(coordinator)
-
-            if not coordinators:
+            coordinator = get_coordinator(self.hass)
+            if coordinator is None:
                 return self.json(
                     {"error": "No ZigSight coordinator found"},
                     status_code=404,
                 )
 
-            # Use the first coordinator
-            coordinator = coordinators[0]
-
-            # Build topology from coordinator devices
-            devices = coordinator.get_all_devices()
             topology = build_topology(
-                devices,
-                links=coordinator.get_network_links() or None,
+                coordinator.get_all_devices(),
+                links=coordinator.get_network_links(),
                 coordinator_id=coordinator.coordinator_ieee,
+                map_nodes=coordinator.get_network_nodes(),
             )
-
+            topology["network_map"] = {
+                "supported": coordinator.network_map_supported,
+                "updated": _iso(coordinator.network_map_updated),
+                "requested": _iso(coordinator.network_map_requested),
+                "pending": coordinator.network_map_pending,
+            }
+            topology["network"] = coordinator.get_network_info()
             return self.json(topology)
 
         except Exception as err:
             _LOGGER.error("Error generating topology: %s", err, exc_info=True)
             return self.json(
-                {"error": f"Failed to generate topology: {err}"},
+                {"error": "Failed to generate topology"},
                 status_code=500,
             )
 
@@ -81,20 +131,12 @@ class ZigSightDevicesView(HomeAssistantView):
     async def get(self, request: web.Request) -> web.Response:
         """Handle GET request for devices data."""
         try:
-            # Get coordinator from hass data
-            coordinators = []
-            for coordinator in self.hass.data.get(DOMAIN, {}).values():
-                if isinstance(coordinator, ZigSightCoordinator):
-                    coordinators.append(coordinator)
-
-            if not coordinators:
+            coordinator = get_coordinator(self.hass)
+            if coordinator is None:
                 return self.json(
                     {"error": "No ZigSight coordinator found"},
                     status_code=404,
                 )
-
-            # Use the first coordinator
-            coordinator = coordinators[0]
 
             # Get all devices
             devices = coordinator.get_all_devices()
@@ -112,7 +154,7 @@ class ZigSightDevicesView(HomeAssistantView):
         except Exception as err:
             _LOGGER.error("Error fetching devices: %s", err, exc_info=True)
             return self.json(
-                {"error": f"Failed to fetch devices: {err}"},
+                {"error": "Failed to fetch devices"},
                 status_code=500,
             )
 
@@ -131,20 +173,12 @@ class ZigSightAnalyticsOverviewView(HomeAssistantView):
     async def get(self, request: web.Request) -> web.Response:
         """Handle GET request for analytics overview data."""
         try:
-            # Get coordinator from hass data
-            coordinators = []
-            for coordinator in self.hass.data.get(DOMAIN, {}).values():
-                if isinstance(coordinator, ZigSightCoordinator):
-                    coordinators.append(coordinator)
-
-            if not coordinators:
+            coordinator = get_coordinator(self.hass)
+            if coordinator is None:
                 return self.json(
                     {"error": "No ZigSight coordinator found"},
                     status_code=404,
                 )
-
-            # Use the first coordinator
-            coordinator = coordinators[0]
 
             # Collect overview data
             devices = coordinator.get_all_devices()
@@ -233,7 +267,7 @@ class ZigSightAnalyticsOverviewView(HomeAssistantView):
         except Exception as err:
             _LOGGER.error("Error generating analytics overview: %s", err, exc_info=True)
             return self.json(
-                {"error": f"Failed to generate analytics overview: {err}"},
+                {"error": "Failed to generate analytics overview"},
                 status_code=500,
             )
 
@@ -263,20 +297,12 @@ class ZigSightAnalyticsTrendsView(HomeAssistantView):
             except (ValueError, TypeError):
                 hours = 24
 
-            # Get coordinator from hass data
-            coordinators = []
-            for coordinator in self.hass.data.get(DOMAIN, {}).values():
-                if isinstance(coordinator, ZigSightCoordinator):
-                    coordinators.append(coordinator)
-
-            if not coordinators:
+            coordinator = get_coordinator(self.hass)
+            if coordinator is None:
                 return self.json(
                     {"error": "No ZigSight coordinator found"},
                     status_code=404,
                 )
-
-            # Use the first coordinator
-            coordinator = coordinators[0]
 
             if device_id:
                 # Get trends for specific device
@@ -361,7 +387,7 @@ class ZigSightAnalyticsTrendsView(HomeAssistantView):
         except Exception as err:
             _LOGGER.error("Error generating analytics trends: %s", err, exc_info=True)
             return self.json(
-                {"error": f"Failed to generate analytics trends: {err}"},
+                {"error": "Failed to generate analytics trends"},
                 status_code=500,
             )
 
@@ -385,20 +411,12 @@ class ZigSightAnalyticsExportView(HomeAssistantView):
             devices_param = request.query.get("devices", "")
             device_ids = devices_param.split(",") if devices_param else None
 
-            # Get coordinator from hass data
-            coordinators = []
-            for coordinator in self.hass.data.get(DOMAIN, {}).values():
-                if isinstance(coordinator, ZigSightCoordinator):
-                    coordinators.append(coordinator)
-
-            if not coordinators:
+            coordinator = get_coordinator(self.hass)
+            if coordinator is None:
                 return self.json(
                     {"error": "No ZigSight coordinator found"},
                     status_code=404,
                 )
-
-            # Use the first coordinator
-            coordinator = coordinators[0]
 
             # Get devices
             devices = coordinator.get_all_devices()
@@ -456,9 +474,65 @@ class ZigSightAnalyticsExportView(HomeAssistantView):
         except Exception as err:
             _LOGGER.error("Error exporting analytics: %s", err, exc_info=True)
             return self.json(
-                {"error": f"Failed to export analytics: {err}"},
+                {"error": "Failed to export analytics"},
                 status_code=500,
             )
+
+
+class ZigSightNetworkMapRequestView(HomeAssistantView):
+    """Ask Zigbee2MQTT for a fresh raw network map (admin only)."""
+
+    url = "/api/zigsight/topology/networkmap"
+    name = "api:zigsight:topology:networkmap"
+    requires_auth = True
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the network map request view."""
+        self.hass = hass
+
+    @require_admin
+    async def post(self, request: web.Request) -> web.Response:
+        """Publish a raw network map request.
+
+        The scan runs asynchronously in Zigbee2MQTT (it can take a minute or
+        more on large networks and generates Zigbee traffic); the result is
+        served by the topology endpoint once it arrives.
+        """
+        coordinator = get_coordinator(self.hass)
+        if coordinator is None:
+            return self.json(
+                {"error": "No ZigSight coordinator found"}, status_code=404
+            )
+        if not coordinator.network_map_supported:
+            return self.json(
+                {"error": "Network maps are only available with Zigbee2MQTT"},
+                status_code=400,
+            )
+        if coordinator.network_map_pending:
+            # A scan is already running: don't load the mesh again.
+            return self.json(
+                {
+                    "requested": True,
+                    "pending": True,
+                    "requested_at": _iso(coordinator.network_map_requested),
+                },
+                status_code=202,
+            )
+        try:
+            await coordinator.async_request_network_map()
+        except HomeAssistantError as err:
+            _LOGGER.error("Could not request a network map: %s", err)
+            return self.json(
+                {"error": "Failed to request a network map"}, status_code=500
+            )
+        return self.json(
+            {
+                "requested": True,
+                "pending": False,
+                "requested_at": _iso(coordinator.network_map_requested),
+            },
+            status_code=202,
+        )
 
 
 class ZigSightChannelRecommendationView(HomeAssistantView):
@@ -473,122 +547,99 @@ class ZigSightChannelRecommendationView(HomeAssistantView):
         self.hass = hass
 
     async def get(self, request: web.Request) -> web.Response:
-        """Handle GET request for channel recommendation data."""
-        try:
-            from .const import DOMAIN
-
-            # Get the last recommendation from service call
-            last_recommendation = self.hass.data.get(DOMAIN, {}).get(
-                "last_recommendation"
-            )
-
-            if not last_recommendation:
-                # No recommendation available, return empty state
-                return self.json(
-                    {
-                        "has_recommendation": False,
-                        "message": "No channel recommendation available. Please run the 'zigsight.recommend_channel' service first.",
-                    }
-                )
-
-            # Add current Zigbee channel from coordinator if available
-            current_channel = None
-            for coordinator_data in self.hass.data.get(DOMAIN, {}).values():
-                if hasattr(coordinator_data, "get_network_info"):
-                    network_info = coordinator_data.get_network_info()
-                    if network_info:
-                        current_channel = network_info.get("channel")
-                        break
-
-            response_data = {
-                "has_recommendation": True,
-                "recommended_channel": last_recommendation.get("recommended_channel"),
-                "current_channel": current_channel,
-                "scores": last_recommendation.get("scores", {}),
-                "explanation": last_recommendation.get("explanation", ""),
-                "timestamp": dt_util.utcnow().isoformat(),
-            }
-
-            return self.json(response_data)
-
-        except Exception as err:
-            _LOGGER.error(
-                "Error getting channel recommendation: %s", err, exc_info=True
-            )
-            return self.json(
-                {"error": f"Failed to get channel recommendation: {err}"},
-                status_code=500,
-            )
-
-    async def post(self, request: web.Request) -> web.Response:
-        """Handle POST request to trigger channel recommendation."""
-        try:
-            from .recommender import recommend_zigbee_channel
-            from .wifi_scanner import create_scanner
-
-            data = await request.json()
-            mode = data.get("mode", "manual")
-            wifi_scan_data = data.get("wifi_scan_data")
-
-            # Create appropriate scanner
-            scanner = create_scanner(
-                mode=mode,
-                scan_data=wifi_scan_data,
-            )
-
-            # Perform scan
-            wifi_aps = await scanner.scan()
-
-            # Get recommendation
-            result = recommend_zigbee_channel(wifi_aps)
-
-            _LOGGER.info(
-                "Zigbee channel recommendation: Channel %s (score: %.1f)",
-                result["recommended_channel"],
-                result["scores"][result["recommended_channel"]],
-            )
-
-            # Store result in hass.data
-            from .const import DOMAIN
-
-            self.hass.data.setdefault(DOMAIN, {})
-            self.hass.data[DOMAIN]["last_recommendation"] = result
-
-            # Also store in history
-            history_key = "recommendation_history"
-            if history_key not in self.hass.data[DOMAIN]:
-                self.hass.data[DOMAIN][history_key] = []
-
-            history_entry = {
-                **result,
-                "timestamp": dt_util.utcnow().isoformat(),
-                "wifi_aps_count": len(wifi_aps),
-            }
-            self.hass.data[DOMAIN][history_key].append(history_entry)
-
-            # Keep only last 10 recommendations in history
-            self.hass.data[DOMAIN][history_key] = self.hass.data[DOMAIN][history_key][
-                -10:
-            ]
-
-            # Return recommendation
-            return self.json(
+        """Return the current Zigbee channel and the last recommendation."""
+        coordinator = get_coordinator(self.hass)
+        response: dict[str, Any] = {
+            "current_channel": _current_channel(coordinator),
+            "network": coordinator.get_network_info() if coordinator else None,
+        }
+        last_recommendation = self.hass.data.get(DOMAIN, {}).get("last_recommendation")
+        if not last_recommendation:
+            response.update(
                 {
-                    "has_recommendation": True,
-                    "recommended_channel": result["recommended_channel"],
-                    "scores": result["scores"],
-                    "explanation": result["explanation"],
-                    "wifi_aps": wifi_aps,
-                    "timestamp": history_entry["timestamp"],
+                    "has_recommendation": False,
+                    "message": (
+                        "No channel recommendation available yet. Enter Wi-Fi "
+                        "scan data in the ZigSight panel or call the "
+                        "'zigsight.recommend_channel' service."
+                    ),
                 }
             )
+            return self.json(response)
 
-        except Exception as err:
-            _LOGGER.error("Error during channel recommendation: %s", err, exc_info=True)
+        response.update(
+            {
+                "has_recommendation": True,
+                "recommended_channel": last_recommendation.get("recommended_channel"),
+                "scores": last_recommendation.get("scores", {}),
+                "explanation": last_recommendation.get("explanation", ""),
+                "timestamp": last_recommendation.get("timestamp"),
+            }
+        )
+        return self.json(response)
+
+    @require_admin
+    async def post(self, request: web.Request) -> web.Response:
+        """Compute a channel recommendation from Wi-Fi scan data (admin only).
+
+        ``host_scan`` runs a Wi-Fi scan on the Home Assistant host, hence the
+        admin requirement.
+        """
+        try:
+            body = await request.json()
+        except ValueError:
+            return self.json({"error": "Invalid JSON body"}, status_code=400)
+        try:
+            data = CHANNEL_RECOMMENDATION_SCHEMA(body)
+        except vol.Invalid as err:
             return self.json(
-                {"error": f"Failed to generate channel recommendation: {err}"},
+                {"error": f"Invalid request: {humanize_error(body, err)}"},
+                status_code=400,
+            )
+        mode = data["mode"]
+        wifi_scan_data = data.get("wifi_scan_data")
+        if mode == "manual" and not wifi_scan_data:
+            return self.json(
+                {"error": "wifi_scan_data is required in manual mode"},
+                status_code=400,
+            )
+
+        try:
+            scanner = create_scanner(mode=mode, scan_data=wifi_scan_data)
+            wifi_aps = await scanner.scan()
+            result = recommend_zigbee_channel(wifi_aps)
+        except Exception:
+            _LOGGER.exception("Error during channel recommendation")
+            return self.json(
+                {"error": "Failed to generate channel recommendation"},
                 status_code=500,
             )
+
+        timestamp = dt_util.utcnow().isoformat()
+        _LOGGER.info(
+            "Zigbee channel recommendation: channel %s (score: %.1f)",
+            result["recommended_channel"],
+            result["scores"][result["recommended_channel"]],
+        )
+        domain_data = self.hass.data.setdefault(DOMAIN, {})
+        domain_data["last_recommendation"] = {**result, "timestamp": timestamp}
+        history = domain_data.setdefault("recommendation_history", [])
+        history.append(
+            {**result, "timestamp": timestamp, "wifi_aps_count": len(wifi_aps)}
+        )
+        del history[:-RECOMMENDATION_HISTORY_MAX]
+
+        return self.json(
+            {
+                "has_recommendation": True,
+                "recommended_channel": result["recommended_channel"],
+                "current_channel": _current_channel(get_coordinator(self.hass)),
+                "scores": result["scores"],
+                "explanation": result["explanation"],
+                "wifi_aps": wifi_aps,
+                "timestamp": timestamp,
+            }
+        )
 
 
 class ZigSightRecommendationHistoryView(HomeAssistantView):
@@ -604,45 +655,28 @@ class ZigSightRecommendationHistoryView(HomeAssistantView):
 
     async def get(self, request: web.Request) -> web.Response:
         """Handle GET request for recommendation history."""
-        try:
-            from .const import DOMAIN
-
-            history = self.hass.data.get(DOMAIN, {}).get("recommendation_history", [])
-
-            return self.json(
-                {
-                    "history": history,
-                    "count": len(history),
-                }
-            )
-
-        except Exception as err:
-            _LOGGER.error(
-                "Error getting recommendation history: %s", err, exc_info=True
-            )
-            return self.json(
-                {"error": f"Failed to get recommendation history: {err}"},
-                status_code=500,
-            )
+        history = self.hass.data.get(DOMAIN, {}).get("recommendation_history", [])
+        return self.json({"history": history, "count": len(history)})
 
 
 def setup_api_views(hass: HomeAssistant) -> None:
-    """Set up API views for ZigSight."""
-    _LOGGER.info("Setting up ZigSight API views")
+    """Register the ZigSight API views (once per Home Assistant run).
 
-    # Register topology view
-    hass.http.register_view(ZigSightTopologyView(hass))
-
-    # Register devices view
-    hass.http.register_view(ZigSightDevicesView(hass))
-
-    # Register analytics views
-    hass.http.register_view(ZigSightAnalyticsOverviewView(hass))
-    hass.http.register_view(ZigSightAnalyticsTrendsView(hass))
-    hass.http.register_view(ZigSightAnalyticsExportView(hass))
-
-    # Register channel recommendation views
-    hass.http.register_view(ZigSightChannelRecommendationView(hass))
-    hass.http.register_view(ZigSightRecommendationHistoryView(hass))
-
-    _LOGGER.info("ZigSight API views registered")
+    aiohttp routes can't be removed, so reloading the config entry must not
+    register them again; the views look the coordinator up on every request.
+    """
+    if hass.data.get(DATA_API_VIEWS_REGISTERED):
+        return
+    hass.data[DATA_API_VIEWS_REGISTERED] = True
+    for view in (
+        ZigSightTopologyView,
+        ZigSightNetworkMapRequestView,
+        ZigSightDevicesView,
+        ZigSightAnalyticsOverviewView,
+        ZigSightAnalyticsTrendsView,
+        ZigSightAnalyticsExportView,
+        ZigSightChannelRecommendationView,
+        ZigSightRecommendationHistoryView,
+    ):
+        hass.http.register_view(view(hass))
+    _LOGGER.debug("ZigSight API views registered")

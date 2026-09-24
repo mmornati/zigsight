@@ -21,7 +21,7 @@ See the [Developer README](docs/DEVELOPER_README.md) for information on contribu
 
 ## Status
 
-⚠️ **Active development, not yet production-ready** - ZigSight installs and its config/options flows work end-to-end, but several core features documented above (Zigbee2MQTT entity creation, ZHA diagnostics, topology/channel data in the frontend panel) are still being stabilized. See the [changelog](CHANGELOG.md) and open pull requests for current status before relying on it for monitoring.
+⚠️ **Active development, not yet production-ready** - ZigSight installs and its config/options flows work end-to-end, but several core features documented above (Zigbee2MQTT entity creation, ZHA diagnostics, frontend panel) are still being stabilized. See the [changelog](CHANGELOG.md) and open pull requests for current status before relying on it for monitoring.
 
 ## License
 

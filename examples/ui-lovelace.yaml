@@ -1,13 +1,26 @@
 # Example Lovelace Dashboard Configuration for ZigSight
-# 
-# This file demonstrates how to use the ZigSight Network Topology card
-# in your Home Assistant Lovelace dashboards.
 #
-# To use this example:
-# 1. Copy the topology card to your www directory (see docs/ui.md)
-# 2. Register the card as a Lovelace resource
-# 3. Add the card configuration to your dashboard
+# The card files are served by the ZigSight integration itself; nothing to
+# copy into www/. To use this example:
+# 1. Add the dashboard resources (Settings -> Dashboards -> Resources, type
+#    "JavaScript module"), or for YAML dashboards:
+#
+#      lovelace:
+#        mode: yaml
+#        resources:
+#          - url: /zigsight_static/topology-card.js
+#            type: module
+#          - url: /zigsight_static/topology-visualization.js
+#            type: module
+#
+# 2. Add the card configuration below to your dashboard (see docs/ui.md)
 
-# Basic topology card
+# Device grid by type with link quality, battery and health
 - type: custom:zigsight-topology-card
   title: Zigbee Network Topology
+
+# Interactive network graph (same view as the ZigSight panel's Topology tab)
+- type: custom:zigsight-topology-visualization
+  title: Network Topology
+  layout: radial
+  height: 500

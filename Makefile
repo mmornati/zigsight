@@ -1,6 +1,6 @@
 # Makefile for ZigSight integration
 
-.PHONY: help install test lint format clean build docs setup-dev security package zip test-integration start stop restart logs status
+.PHONY: help install test lint format clean build docs setup-dev security package zip test-integration start stop restart logs status check-js test-js
 
 # Virtual environment detection and binary paths
 VENV := .venv
@@ -29,6 +29,8 @@ help:
 	@echo "  test           - Run unit tests with coverage"
 	@echo "  test-unit      - Run unit tests only"
 	@echo "  test-quick     - Run tests quickly (no coverage)"
+	@echo "  check-js       - Syntax check of the frontend JavaScript modules"
+	@echo "  test-js        - Run the frontend JavaScript unit tests (Node.js)"
 	@echo "  test-coverage  - Run tests with HTML coverage report"
 	@echo "  test-integration - Start integration testing environment"
 	@echo ""
@@ -91,6 +93,17 @@ test-quick:
 # Test with coverage report
 test-coverage:
 	$(PYTEST) tests/ --cov=custom_components/zigsight --cov-report=html --cov-report=term
+
+# Frontend: syntax check of every ES module (vendored files included)
+check-js:
+	@for f in custom_components/zigsight/www/*.js custom_components/zigsight/www/lib/*.js custom_components/zigsight/www/vendor/*.js; do \
+		node --check --input-type=module < "$$f" || { echo "Syntax error in $$f"; exit 1; }; \
+	done
+	@echo "JavaScript syntax OK"
+
+# Frontend: unit tests of the pure JS helpers (Node.js >= 22)
+test-js:
+	node --test "tests/js/*.test.mjs"
 
 # Run linting
 lint:

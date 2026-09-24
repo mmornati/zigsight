@@ -1,494 +1,163 @@
 /**
- * ZigSight Network Topology Card
- * 
- * A custom Lovelace card for visualizing Zigbee network topology
- * with link quality color-coding and interactive device details.
+ * ZigSight network topology card (Lovelace): device grid by type with link
+ * quality, battery and health, plus a details popup.
+ *
+ *   type: custom:zigsight-topology-card
+ *   title: Zigbee Network Topology   # optional
+ *
+ * Resource URL: /zigsight_static/topology-card.js (JavaScript module).
+ * All device data is rendered with Lit templates (escaped text).
  */
 
-class ZigSightTopologyCard extends HTMLElement {
+import { LitElement, css, html, nothing } from "./vendor/lit-core.min.js";
+import {
+  apiErrorMessage,
+  formatDate,
+  formatNumber,
+  hasIssues,
+  healthStatus,
+  lqiColor,
+  typeColor,
+  typeLabel,
+} from "./lib/format.js";
+
+const REFRESH_INTERVAL_MS = 60000;
+
+class ZigSightTopologyCard extends LitElement {
+  static properties = {
+    hass: { attribute: false },
+    _config: { state: true },
+    _topology: { state: true },
+    _error: { state: true },
+    _selected: { state: true },
+  };
+
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' });
     this._config = {};
     this._topology = null;
-    this._hass = null;
+    this._error = null;
+    this._selected = null;
+    this._loadedOnce = false;
   }
 
   setConfig(config) {
-    if (!config) {
-      throw new Error('Invalid configuration');
-    }
+    if (!config) throw new Error("Invalid configuration");
     this._config = config;
-    this.render();
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    this.loadTopology();
+  connectedCallback() {
+    super.connectedCallback();
+    this._timer = setInterval(() => this._load(), REFRESH_INTERVAL_MS);
   }
 
-  async loadTopology() {
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    clearInterval(this._timer);
+  }
+
+  updated(changed) {
+    if (changed.has("hass") && this.hass && !this._loadedOnce) {
+      this._loadedOnce = true;
+      this._load();
+    }
+  }
+
+  async _load() {
+    if (!this.hass) return;
     try {
-      const response = await this._hass.callApi('GET', '/api/zigsight/topology');
-      this._topology = response;
-      this.render();
+      this._topology = await this.hass.callApi("GET", "zigsight/topology");
+      this._error = null;
     } catch (error) {
-      console.error('Failed to load topology:', error);
-      this.renderError('Failed to load network topology. Please check that ZigSight is configured correctly.');
+      this._error = apiErrorMessage(error);
     }
   }
 
   render() {
-    if (!this._topology) {
-      this.renderLoading();
-      return;
-    }
-
-    const title = this._config.title || 'Zigbee Network Topology';
-    
-    this.shadowRoot.innerHTML = `
-      <style>
-        .card {
-          padding: 16px;
-          background: var(--ha-card-background, var(--card-background-color, white));
-          border-radius: var(--ha-card-border-radius, 4px);
-          box-shadow: var(--ha-card-box-shadow, 0 2px 2px 0 rgba(0,0,0,0.14));
-        }
-        
-        .card-header {
-          font-size: 24px;
-          font-weight: 400;
-          padding-bottom: 16px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        
-        .stats {
-          display: flex;
-          gap: 16px;
-          margin-bottom: 16px;
-          flex-wrap: wrap;
-        }
-        
-        .stat {
-          background: var(--primary-background-color);
-          padding: 8px 12px;
-          border-radius: 8px;
-          font-size: 14px;
-        }
-        
-        .stat-label {
-          color: var(--secondary-text-color);
-          font-size: 12px;
-        }
-        
-        .stat-value {
-          font-size: 18px;
-          font-weight: 500;
-          color: var(--primary-text-color);
-        }
-        
-        .topology-container {
-          position: relative;
-          min-height: 400px;
-          border: 1px solid var(--divider-color);
-          border-radius: 8px;
-          overflow: hidden;
-        }
-        
-        .device-list {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-          gap: 12px;
-          margin-top: 16px;
-        }
-        
-        .device-card {
-          background: var(--primary-background-color);
-          padding: 12px;
-          border-radius: 8px;
-          border-left: 4px solid var(--divider-color);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        
-        .device-card:hover {
-          background: var(--secondary-background-color);
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .device-card.coordinator {
-          border-left-color: #2196F3;
-        }
-        
-        .device-card.router {
-          border-left-color: #4CAF50;
-        }
-        
-        .device-card.end_device {
-          border-left-color: #FF9800;
-        }
-        
-        .device-card.warning {
-          border-left-color: #f44336;
-        }
-        
-        .device-name {
-          font-weight: 500;
-          margin-bottom: 4px;
-          font-size: 14px;
-        }
-        
-        .device-type {
-          font-size: 12px;
-          color: var(--secondary-text-color);
-          text-transform: capitalize;
-          margin-bottom: 8px;
-        }
-        
-        .device-metrics {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          font-size: 12px;
-        }
-        
-        .metric {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-        
-        .metric-icon {
-          width: 16px;
-          height: 16px;
-        }
-        
-        .link-quality-excellent { color: #4CAF50; }
-        .link-quality-good { color: #8BC34A; }
-        .link-quality-fair { color: #FF9800; }
-        .link-quality-poor { color: #f44336; }
-        
-        .legend {
-          display: flex;
-          gap: 16px;
-          margin-top: 16px;
-          padding: 12px;
-          background: var(--primary-background-color);
-          border-radius: 8px;
-          font-size: 12px;
-          flex-wrap: wrap;
-        }
-        
-        .legend-item {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        
-        .legend-color {
-          width: 20px;
-          height: 3px;
-          border-radius: 2px;
-        }
-        
-        .refresh-button {
-          background: var(--primary-color);
-          color: white;
-          border: none;
-          padding: 6px 12px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-        }
-        
-        .refresh-button:hover {
-          opacity: 0.9;
-        }
-        
-        .loading {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: 200px;
-          color: var(--secondary-text-color);
-        }
-        
-        .error {
-          color: var(--error-color);
-          padding: 16px;
-          text-align: center;
-        }
-      </style>
-      
+    const topology = this._topology;
+    return html`
       <ha-card>
-        <div class="card">
-          <div class="card-header">
-            <span>${title}</span>
-            <button class="refresh-button" @click="${() => this.loadTopology()}">
-              Refresh
-            </button>
-          </div>
-          
-          <div class="stats">
-            <div class="stat">
-              <div class="stat-label">Total Devices</div>
-              <div class="stat-value">${this._topology.device_count}</div>
-            </div>
-            <div class="stat">
-              <div class="stat-label">Coordinator</div>
-              <div class="stat-value">${this._topology.coordinator_count}</div>
-            </div>
-            <div class="stat">
-              <div class="stat-label">Routers</div>
-              <div class="stat-value">${this._topology.router_count}</div>
-            </div>
-            <div class="stat">
-              <div class="stat-label">End Devices</div>
-              <div class="stat-value">${this._topology.end_device_count}</div>
-            </div>
-          </div>
-          
-          <div class="device-list">
-            ${this.renderDeviceCards()}
-          </div>
-          
-          <div class="legend">
-            <div class="legend-item">
-              <div class="legend-color" style="background: #2196F3;"></div>
-              <span>Coordinator</span>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color" style="background: #4CAF50;"></div>
-              <span>Router</span>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color" style="background: #FF9800;"></div>
-              <span>End Device</span>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color" style="background: #f44336;"></div>
-              <span>Warning</span>
-            </div>
-          </div>
+        <div class="header">
+          <span class="title">${this._config.title || "Zigbee Network Topology"}</span>
+          <button @click=${() => this._load()}>Refresh</button>
         </div>
+        ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
+        ${!topology && !this._error ? html`<div class="loading">Loading topology…</div>` : nothing}
+        ${topology
+          ? html`
+              <div class="stats">
+                ${this._stat("Devices", topology.device_count)}
+                ${this._stat("Coordinator", topology.coordinator_count)}
+                ${this._stat("Routers", topology.router_count)}
+                ${this._stat("End devices", topology.end_device_count)}
+              </div>
+              <div class="grid">
+                ${(topology.nodes || []).map((node) => this._renderNode(node))}
+              </div>
+            `
+          : nothing}
+        ${this._selected ? this._renderDialog(this._selected) : nothing}
       </ha-card>
     `;
-    
-    // Add event listeners to device cards
-    this.shadowRoot.querySelectorAll('.device-card').forEach(card => {
-      card.addEventListener('click', (e) => {
-        const deviceId = e.currentTarget.dataset.deviceId;
-        this.showDeviceDialog(deviceId);
-      });
-    });
-    
-    // Add refresh button listener
-    const refreshBtn = this.shadowRoot.querySelector('.refresh-button');
-    if (refreshBtn) {
-      refreshBtn.addEventListener('click', () => this.loadTopology());
-    }
   }
 
-  renderDeviceCards() {
-    if (!this._topology || !this._topology.nodes) {
-      return '';
-    }
-    
-    return this._topology.nodes.map(device => {
-      const hasWarning = device.analytics?.connectivity_warning || device.analytics?.battery_drain_warning;
-      const warningClass = hasWarning ? 'warning' : '';
-      const linkQualityClass = this.getLinkQualityClass(device.link_quality);
-      
-      return `
-        <div class="device-card ${device.type} ${warningClass}" data-device-id="${device.id}">
-          <div class="device-name">${device.label}</div>
-          <div class="device-type">${device.type.replace('_', ' ')}</div>
-          <div class="device-metrics">
-            ${device.link_quality !== null ? `
-              <div class="metric">
-                <span class="${linkQualityClass}">●</span>
-                <span>LQI: ${device.link_quality}</span>
-              </div>
-            ` : ''}
-            ${device.battery !== null ? `
-              <div class="metric">
-                <span>🔋</span>
-                <span>${device.battery}%</span>
-              </div>
-            ` : ''}
-            ${device.health_score !== null ? `
-              <div class="metric">
-                <span>❤️</span>
-                <span>${Math.round(device.health_score)}</span>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-      `;
-    }).join('');
+  _stat(label, value) {
+    return html`<div class="stat">
+      <div class="stat-label">${label}</div>
+      <div class="stat-value">${value ?? 0}</div>
+    </div>`;
   }
 
-  getLinkQualityClass(lqi) {
-    if (lqi === null) return '';
-    if (lqi >= 200) return 'link-quality-excellent';
-    if (lqi >= 150) return 'link-quality-good';
-    if (lqi >= 100) return 'link-quality-fair';
-    return 'link-quality-poor';
-  }
-
-  showDeviceDialog(deviceId) {
-    const device = this._topology.nodes.find(n => n.id === deviceId);
-    if (!device) return;
-    
-    // Create a more-info dialog
-    const event = new Event('hass-more-info', {
-      bubbles: true,
-      composed: true,
-    });
-    event.detail = {
-      entityId: `sensor.zigsight_${deviceId}_health_score`.toLowerCase().replace(/[^a-z0-9_]/g, '_'),
-    };
-    
-    // Show custom dialog with device details
-    this.showCustomDialog(device);
-  }
-
-  showCustomDialog(device) {
-    const dialog = document.createElement('div');
-    dialog.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: var(--card-background-color);
-      padding: 24px;
-      border-radius: 8px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-      z-index: 9999;
-      max-width: 400px;
-      width: 90%;
-    `;
-    
-    dialog.innerHTML = `
-      <style>
-        .dialog-header {
-          font-size: 20px;
-          font-weight: 500;
-          margin-bottom: 16px;
-        }
-        .dialog-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 8px 0;
-          border-bottom: 1px solid var(--divider-color);
-        }
-        .dialog-label {
-          color: var(--secondary-text-color);
-        }
-        .dialog-close {
-          background: var(--primary-color);
-          color: white;
-          border: none;
-          padding: 8px 16px;
-          border-radius: 4px;
-          cursor: pointer;
-          margin-top: 16px;
-          width: 100%;
-        }
-      </style>
-      <div class="dialog-header">${device.label}</div>
-      <div class="dialog-row">
-        <span class="dialog-label">Type</span>
-        <span>${device.type.replace('_', ' ')}</span>
+  _renderNode(node) {
+    const issue = hasIssues(node);
+    return html`<button
+      class="device"
+      style="border-left-color:${issue ? "var(--error-color, #db4437)" : typeColor(node.type)}"
+      @click=${() => (this._selected = node)}
+    >
+      <div class="name">${node.label}</div>
+      <div class="type">${typeLabel(node.type)}</div>
+      <div class="metrics">
+        ${typeof node.link_quality === "number"
+          ? html`<span><span style="color:${lqiColor(node.link_quality)}">●</span> LQI
+                ${node.link_quality}</span
+              >`
+          : nothing}
+        ${typeof node.battery === "number" ? html`<span>Battery ${node.battery}%</span>` : nothing}
+        ${typeof node.health_score === "number"
+          ? html`<span>Health ${Math.round(node.health_score)}</span>`
+          : nothing}
       </div>
-      ${device.link_quality !== null ? `
-        <div class="dialog-row">
-          <span class="dialog-label">Link Quality</span>
-          <span>${device.link_quality}</span>
-        </div>
-      ` : ''}
-      ${device.battery !== null ? `
-        <div class="dialog-row">
-          <span class="dialog-label">Battery</span>
-          <span>${device.battery}%</span>
-        </div>
-      ` : ''}
-      ${device.health_score !== null ? `
-        <div class="dialog-row">
-          <span class="dialog-label">Health Score</span>
-          <span>${Math.round(device.health_score)}</span>
-        </div>
-      ` : ''}
-      ${device.analytics?.reconnect_rate != null ? `
-        <div class="dialog-row">
-          <span class="dialog-label">Reconnect Rate</span>
-          <span>${device.analytics.reconnect_rate.toFixed(2)}/hr</span>
-        </div>
-      ` : ''}
-      ${device.last_seen ? `
-        <div class="dialog-row">
-          <span class="dialog-label">Last Seen</span>
-          <span>${new Date(device.last_seen).toLocaleString()}</span>
-        </div>
-      ` : ''}
-      <button class="dialog-close">Close</button>
-    `;
-    
-    // Add overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-      z-index: 9998;
-    `;
-    
-    document.body.appendChild(overlay);
-    document.body.appendChild(dialog);
-    
-    const closeDialog = () => {
-      document.body.removeChild(dialog);
-      document.body.removeChild(overlay);
-    };
-    
-    dialog.querySelector('.dialog-close').addEventListener('click', closeDialog);
-    overlay.addEventListener('click', closeDialog);
+    </button>`;
   }
 
-  renderLoading() {
-    this.shadowRoot.innerHTML = `
-      <style>
-        .loading {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: 200px;
-          color: var(--secondary-text-color);
-        }
-      </style>
-      <ha-card>
-        <div class="loading">Loading topology...</div>
-      </ha-card>
-    `;
-  }
-
-  renderError(message) {
-    this.shadowRoot.innerHTML = `
-      <style>
-        .error {
-          color: var(--error-color);
-          padding: 16px;
-          text-align: center;
-        }
-      </style>
-      <ha-card>
-        <div class="error">${message}</div>
-      </ha-card>
+  _renderDialog(node) {
+    const analytics = node.analytics || {};
+    return html`
+      <div class="overlay" @click=${() => (this._selected = null)}></div>
+      <div class="dialog" role="dialog" aria-modal="true" aria-label=${node.label}>
+        <div class="dialog-title">${node.label}</div>
+        <div class="row"><span>Type</span><span>${typeLabel(node.type)}</span></div>
+        <div class="row"><span>IEEE</span><span>${node.id}</span></div>
+        ${node.model
+          ? html`<div class="row"><span>Model</span><span>${node.model}</span></div>`
+          : nothing}
+        <div class="row"><span>Link quality</span><span>${formatNumber(node.link_quality)}</span></div>
+        ${typeof node.battery === "number"
+          ? html`<div class="row"><span>Battery</span><span>${node.battery}%</span></div>`
+          : nothing}
+        <div class="row">
+          <span>Health</span
+          ><span>${formatNumber(node.health_score)} (${healthStatus(node.health_score)})</span>
+        </div>
+        ${typeof analytics.reconnect_rate === "number"
+          ? html`<div class="row">
+              <span>Reconnect rate</span><span>${analytics.reconnect_rate.toFixed(2)} /h</span>
+            </div>`
+          : nothing}
+        <div class="row"><span>Last seen</span><span>${formatDate(node.last_seen)}</span></div>
+        <button class="close" @click=${() => (this._selected = null)}>Close</button>
+      </div>
     `;
   }
 
@@ -497,25 +166,145 @@ class ZigSightTopologyCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return {
-      title: 'Zigbee Network Topology',
-    };
+    return { title: "Zigbee Network Topology" };
   }
+
+  static styles = css`
+    :host {
+      display: block;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+    }
+    .title {
+      font-size: 20px;
+    }
+    button {
+      font: inherit;
+      cursor: pointer;
+    }
+    .header button,
+    .close {
+      padding: 4px 12px;
+      border: none;
+      border-radius: 6px;
+      background: var(--primary-color, #03a9f4);
+      color: var(--text-primary-color, #fff);
+    }
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 0 16px 12px;
+    }
+    .stat {
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: var(--secondary-background-color, #f5f5f5);
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--secondary-text-color, #555);
+    }
+    .stat-value {
+      font-size: 18px;
+      font-weight: 500;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+      padding: 0 16px 16px;
+    }
+    .device {
+      padding: 10px;
+      border: none;
+      border-left: 4px solid;
+      border-radius: 8px;
+      background: var(--secondary-background-color, #f5f5f5);
+      color: var(--primary-text-color, #212121);
+      text-align: left;
+    }
+    .name {
+      font-weight: 500;
+      overflow-wrap: anywhere;
+    }
+    .type {
+      font-size: 12px;
+      color: var(--secondary-text-color, #555);
+      margin-bottom: 4px;
+    }
+    .metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 10;
+    }
+    .dialog {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(400px, 90vw);
+      padding: 20px;
+      border-radius: 12px;
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color, #212121);
+      z-index: 11;
+      box-sizing: border-box;
+    }
+    .dialog-title {
+      font-size: 18px;
+      font-weight: 500;
+      margin-bottom: 12px;
+      overflow-wrap: anywhere;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--divider-color, #e0e0e0);
+    }
+    .row span:first-child {
+      color: var(--secondary-text-color, #555);
+    }
+    .row span:last-child {
+      overflow-wrap: anywhere;
+      text-align: right;
+    }
+    .close {
+      width: 100%;
+      margin-top: 16px;
+      padding: 8px;
+    }
+    .loading,
+    .error {
+      padding: 16px;
+      text-align: center;
+    }
+    .error {
+      color: var(--error-color, #db4437);
+    }
+  `;
 }
 
-customElements.define('zigsight-topology-card', ZigSightTopologyCard);
-
-// Register the card with Home Assistant
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'zigsight-topology-card',
-  name: 'ZigSight Network Topology',
-  description: 'Visualize your Zigbee network topology with device details and link quality',
-  preview: true,
-});
-
-console.info(
-  '%c ZigSight Topology Card %c v1.0.0 ',
-  'background-color: #2196F3; color: #fff; font-weight: bold;',
-  'background-color: #333; color: #fff; font-weight: bold;'
-);
+if (!customElements.get("zigsight-topology-card")) {
+  customElements.define("zigsight-topology-card", ZigSightTopologyCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: "zigsight-topology-card",
+    name: "ZigSight Network Topology",
+    description: "Zigbee devices by type with link quality, battery and health",
+    preview: true,
+  });
+}

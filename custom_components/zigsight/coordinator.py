@@ -61,6 +61,7 @@ from .const import (
     HISTORY_MIN_INTERVAL,
     HISTORY_MIN_INTERVAL_ON_BATTERY_CHANGE,
     ISSUE_ZHA_DIAGNOSTICS_DISABLED,
+    NETWORK_MAP_REQUEST_TIMEOUT,
     RECONNECT_EVENTS_MAX,
     SIGNAL_DEVICE_REMOVED,
     SIGNAL_DEVICE_UPDATE,
@@ -176,6 +177,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._network_links: list[NetworkLink] = []
         self._network_nodes: list[dict[str, Any]] = []
         self.network_map_updated: datetime | None = None
+        self.network_map_requested: datetime | None = None
 
         self._unsub_mqtt: list[Callable[[], None]] = []
         self._unsub_keepalive: Callable[[], None] | None = None
@@ -594,6 +596,28 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._maybe_fire_event(ieee, received_at, force=True)
         async_dispatcher_send(self.hass, self.device_signal(ieee))
 
+    @property
+    def network_map_supported(self) -> bool:
+        """Return True if a raw network map can be requested (Zigbee2MQTT)."""
+        return not self._enable_zha
+
+    @property
+    def network_map_pending(self) -> bool:
+        """Return True while a network map request awaits its response.
+
+        A request older than NETWORK_MAP_REQUEST_TIMEOUT is considered lost
+        (Zigbee2MQTT restarted, request failed without a response, ...).
+        """
+        requested = self.network_map_requested
+        if requested is None:
+            return False
+        if (
+            self.network_map_updated is not None
+            and self.network_map_updated >= requested
+        ):
+            return False
+        return dt_util.utcnow() - requested < NETWORK_MAP_REQUEST_TIMEOUT
+
     async def async_request_network_map(self, routes: bool = False) -> bool:
         """Ask Zigbee2MQTT for a raw network map.
 
@@ -601,8 +625,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         and is stored by _handle_networkmap. Not requested periodically: a
         network scan generates a lot of Zigbee traffic.
         """
-        if self._enable_zha:
+        if not self.network_map_supported:
             return False
+        self.network_map_requested = dt_util.utcnow()
         await mqtt.async_publish(
             self.hass,
             f"{self._mqtt_prefix}/bridge/request/networkmap",

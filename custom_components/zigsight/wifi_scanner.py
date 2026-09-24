@@ -13,6 +13,24 @@ _LOGGER = logging.getLogger(__name__)
 RSSI_BASE_DBM = -100  # Base dBm value for percentage conversion
 
 
+async def _communicate_with_timeout(
+    proc: asyncio.subprocess.Process, timeout: float
+) -> bytes | None:
+    """Wait for a subprocess to finish, killing it if it times out.
+
+    ``asyncio.wait_for`` cancelling ``proc.communicate()`` does not stop the
+    child process itself, which would otherwise keep running (and holding
+    its pipes open) in the background. Returns stdout, or None on timeout.
+    """
+    try:
+        stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
+        return None
+    return stdout
+
+
 class WiFiScanner(ABC):
     """Base class for Wi-Fi scanner adapters."""
 
@@ -163,9 +181,8 @@ class HostScanner(WiFiScanner):
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-
-            if proc.returncode != 0:
+            stdout = await _communicate_with_timeout(proc, timeout=30)
+            if stdout is None or proc.returncode != 0:
                 return []
 
             # Parse iwlist output
@@ -251,9 +268,8 @@ class HostScanner(WiFiScanner):
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-
-            if proc.returncode != 0:
+            stdout = await _communicate_with_timeout(proc, timeout=30)
+            if stdout is None or proc.returncode != 0:
                 return []
 
             # Parse nmcli output
@@ -263,10 +279,10 @@ class HostScanner(WiFiScanner):
             return []
 
     def _parse_nmcli_output(self, output: str) -> list[dict[str, Any]]:
-        """Parse nmcli output.
+        """Parse nmcli -t (terse) output.
 
         Args:
-            output: Raw nmcli output (tab-separated)
+            output: Raw nmcli terse output, ':' separated
 
         Returns:
             List of parsed access points
@@ -274,7 +290,7 @@ class HostScanner(WiFiScanner):
         aps = []
 
         for line in output.splitlines():
-            parts = line.split(":")
+            parts = _split_nmcli_terse_line(line)
             if len(parts) >= 3:
                 ssid = parts[0].strip()
                 try:
@@ -292,6 +308,33 @@ class HostScanner(WiFiScanner):
                     continue
 
         return aps
+
+
+def _split_nmcli_terse_line(line: str) -> list[str]:
+    """Split a line of ``nmcli -t`` terse output on unescaped ':'.
+
+    nmcli escapes literal ':' and '\\' inside field values with a leading
+    backslash (e.g. an SSID containing ':' is emitted as ``foo\\:bar``); a
+    plain ``line.split(":")`` would wrongly cut such SSIDs into extra
+    fields. This walks the line respecting those escapes and unescapes each
+    field.
+    """
+    fields: list[str] = []
+    current: list[str] = []
+    escaped = False
+    for char in line:
+        if escaped:
+            current.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == ":":
+            fields.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    fields.append("".join(current))
+    return fields
 
 
 def create_scanner(

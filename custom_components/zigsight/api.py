@@ -26,6 +26,13 @@ _LOGGER = logging.getLogger(__name__)
 
 DATA_API_VIEWS_REGISTERED = f"{DOMAIN}_api_views_registered"
 RECOMMENDATION_HISTORY_MAX = 10
+VALID_TREND_METRICS = {"health_score", "battery", "link_quality", "reconnect_rate"}
+VALID_EXPORT_FORMATS = {"json", "csv"}
+# CSV formula-injection: a leading one of these characters is interpreted by
+# spreadsheet applications (Excel, LibreOffice, Google Sheets) as the start
+# of a formula. Prefixing with a single quote defuses it while keeping the
+# value readable.
+CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 WIFI_ACCESS_POINT_SCHEMA = vol.Schema(
     {
@@ -65,6 +72,18 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
+def _csv_safe(value: Any) -> Any:
+    """Escape a value that could be interpreted as a CSV formula.
+
+    Prefixes a leading ``=``, ``+``, ``-``, ``@``, tab or carriage return
+    with a single quote, matching OWASP's CSV injection guidance. Non-string
+    values are returned unchanged.
+    """
+    if isinstance(value, str) and value.startswith(CSV_FORMULA_PREFIXES):
+        return f"'{value}"
+    return value
+
+
 def _current_channel(coordinator: ZigSightCoordinator | None) -> int | None:
     if coordinator is None:
         return None
@@ -84,8 +103,13 @@ class ZigSightTopologyView(HomeAssistantView):
         """Initialize the topology view."""
         self.hass = hass
 
+    @require_admin
     async def get(self, request: web.Request) -> web.Response:
-        """Handle GET request for topology data."""
+        """Handle GET request for topology data (admin only).
+
+        The ZigSight panel is admin-only, so its data endpoints are too, for
+        consistency and to avoid exposing network topology to non-admins.
+        """
         try:
             coordinator = get_coordinator(self.hass)
             if coordinator is None:
@@ -128,8 +152,9 @@ class ZigSightDevicesView(HomeAssistantView):
         """Initialize the devices view."""
         self.hass = hass
 
+    @require_admin
     async def get(self, request: web.Request) -> web.Response:
-        """Handle GET request for devices data."""
+        """Handle GET request for devices data (admin only)."""
         try:
             coordinator = get_coordinator(self.hass)
             if coordinator is None:
@@ -170,8 +195,9 @@ class ZigSightAnalyticsOverviewView(HomeAssistantView):
         """Initialize the analytics overview view."""
         self.hass = hass
 
+    @require_admin
     async def get(self, request: web.Request) -> web.Response:
-        """Handle GET request for analytics overview data."""
+        """Handle GET request for analytics overview data (admin only)."""
         try:
             coordinator = get_coordinator(self.hass)
             if coordinator is None:
@@ -283,19 +309,36 @@ class ZigSightAnalyticsTrendsView(HomeAssistantView):
         """Initialize the analytics trends view."""
         self.hass = hass
 
+    @require_admin
     async def get(self, request: web.Request) -> web.Response:
-        """Handle GET request for analytics trends data."""
+        """Handle GET request for analytics trends data (admin only)."""
         try:
             # Get query parameters
             device_id = request.query.get("device_id")
             metric = request.query.get("metric", "health_score")
+            hours_param = request.query.get("hours", "24")
             try:
-                hours = int(request.query.get("hours", "24"))
-                # Validate hours is within reasonable bounds
-                if hours < 1 or hours > 720:  # Max 30 days
-                    hours = 24
+                hours = int(hours_param)
             except (ValueError, TypeError):
-                hours = 24
+                return self.json(
+                    {"error": f"Invalid 'hours' parameter: {hours_param!r}"},
+                    status_code=400,
+                )
+            if hours < 1 or hours > 720:  # Max 30 days
+                return self.json(
+                    {"error": "'hours' must be between 1 and 720"},
+                    status_code=400,
+                )
+            if metric not in VALID_TREND_METRICS:
+                return self.json(
+                    {
+                        "error": (
+                            f"Invalid 'metric' parameter: {metric!r}. Must be "
+                            f"one of {sorted(VALID_TREND_METRICS)}"
+                        )
+                    },
+                    status_code=400,
+                )
 
             coordinator = get_coordinator(self.hass)
             if coordinator is None:
@@ -403,13 +446,33 @@ class ZigSightAnalyticsExportView(HomeAssistantView):
         """Initialize the analytics export view."""
         self.hass = hass
 
+    @require_admin
     async def get(self, request: web.Request) -> web.Response:
-        """Handle GET request for analytics export."""
+        """Handle GET request for analytics export (admin only)."""
         try:
             # Get query parameters
-            export_format = request.query.get("format", "json")
+            export_format = request.query.get("format", "json").lower()
+            if export_format not in VALID_EXPORT_FORMATS:
+                return self.json(
+                    {
+                        "error": (
+                            f"Invalid 'format' parameter: {export_format!r}. "
+                            f"Must be one of {sorted(VALID_EXPORT_FORMATS)}"
+                        )
+                    },
+                    status_code=400,
+                )
             devices_param = request.query.get("devices", "")
-            device_ids = devices_param.split(",") if devices_param else None
+            device_ids = (
+                [d.strip() for d in devices_param.split(",") if d.strip()]
+                if devices_param
+                else None
+            )
+            if device_ids is not None and not device_ids:
+                return self.json(
+                    {"error": "'devices' parameter did not contain any device id"},
+                    status_code=400,
+                )
 
             coordinator = get_coordinator(self.hass)
             if coordinator is None:
@@ -452,12 +515,19 @@ class ZigSightAnalyticsExportView(HomeAssistantView):
                 )
 
             if export_format == "csv":
-                # Convert to CSV
+                # Convert to CSV, escaping values that would otherwise be
+                # interpreted as spreadsheet formulas when the file is
+                # opened in Excel/LibreOffice/Google Sheets (CSV formula
+                # injection).
                 output = io.StringIO()
                 if export_data:
+                    escaped_rows = [
+                        {key: _csv_safe(value) for key, value in row.items()}
+                        for row in export_data
+                    ]
                     writer = csv.DictWriter(output, fieldnames=export_data[0].keys())
                     writer.writeheader()
-                    writer.writerows(export_data)
+                    writer.writerows(escaped_rows)
 
                 csv_data = output.getvalue()
                 return web.Response(
@@ -546,8 +616,14 @@ class ZigSightChannelRecommendationView(HomeAssistantView):
         """Initialize the channel recommendation view."""
         self.hass = hass
 
+    @require_admin
     async def get(self, request: web.Request) -> web.Response:
-        """Return the current Zigbee channel and the last recommendation."""
+        """Return the current Zigbee channel and the last recommendation.
+
+        Admin only, for consistency with the rest of the (admin-only) panel
+        data; the POST below is admin-only regardless since ``host_scan``
+        mode runs subprocesses on the Home Assistant host.
+        """
         coordinator = get_coordinator(self.hass)
         response: dict[str, Any] = {
             "current_channel": _current_channel(coordinator),
@@ -653,8 +729,9 @@ class ZigSightRecommendationHistoryView(HomeAssistantView):
         """Initialize the recommendation history view."""
         self.hass = hass
 
+    @require_admin
     async def get(self, request: web.Request) -> web.Response:
-        """Handle GET request for recommendation history."""
+        """Handle GET request for recommendation history (admin only)."""
         history = self.hass.data.get(DOMAIN, {}).get("recommendation_history", [])
         return self.json({"history": history, "count": len(history)})
 

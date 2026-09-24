@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security / Fixed (API hardening and cleanups)
+- All GET data endpoints (`devices`, `topology`, `analytics/overview`,
+  `analytics/trends`, `analytics/export`, `channel-recommendation`,
+  `recommendation-history`) now require an admin user, matching the
+  admin-only panel that is their only intended caller (previously any
+  authenticated, non-admin user could read them). **This is a breaking
+  change if you scripted against these endpoints with a non-admin token.**
+- `analytics/export` CSV: cell values starting with `=`, `+`, `-`, `@`, a
+  tab or a carriage return are now prefixed with `'` to prevent CSV formula
+  injection when the file is opened in a spreadsheet application.
+- `analytics/trends` and `analytics/export` now validate the `hours`,
+  `metric`, `format` and `devices` query parameters and return a clear 400
+  instead of silently substituting a default (`hours`) or exporting nothing
+  (`devices`).
+- `zigsight.recommend_channel` service: now admin-only (`host_scan` mode
+  runs `iwlist`/`nmcli` subprocesses on the Home Assistant host), supports
+  `SupportsResponse` (returns the recommendation instead of only logging
+  it), validates `mode` against the two actually supported values
+  (`manual`, `host_scan` -- `router_api` was a non-functional placeholder)
+  and reuses the API's Wi-Fi scan data schema. `services.yaml` no longer
+  declares an unused `input_select` entity target.
+- `wifi_scanner`: a Wi-Fi scan subprocess (`iwlist`/`nmcli`) that times out
+  is now killed instead of left running in the background; `nmcli -t`
+  output is parsed with an escape-aware splitter so an SSID containing a
+  (nmcli-escaped) `:` no longer gets cut into the wrong fields.
+- `tests/bandit.yaml` no longer skips B601 (`paramiko_calls`, unrelated to
+  this integration -- the comment describing it as a subprocess/shell skip
+  was misleading); removed the duplicate, stale `[bandit]` section in
+  `setup.cfg` in favour of `tests/bandit.yaml` (the one `make security`
+  actually uses).
+- `.github/workflows/docs-preview.yaml`: was permanently disabled
+  (`if: false`) behind an outdated "documentation not yet available"
+  comment even though `docs/` and `mkdocs.yml` exist; it now runs
+  `mkdocs build --strict` on PRs touching the docs and uploads the built
+  site as a downloadable preview artifact.
+- Removed `setup.cfg`; `pyproject.toml` already carries the same package
+  metadata and is the file the dev tooling (ruff/mypy/pytest) reads.
+
 ### Fixed (Zigbee2MQTT)
 - Devices and entities are now actually created with Zigbee2MQTT: devices come
   from the retained `<base_topic>/bridge/devices` list and entities are added

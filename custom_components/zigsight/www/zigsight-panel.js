@@ -89,6 +89,7 @@ class ZigSightPanel extends LitElement {
     this._wifiErrors = [];
     this._recommending = false;
     this._loaded = false;
+    this._mapPollToken = 0;
   }
 
   connectedCallback() {
@@ -104,6 +105,10 @@ class ZigSightPanel extends LitElement {
     this._disconnected = true;
     clearTimeout(this._mapPollTimer);
     this._mapPollTimer = null;
+    // Invalidate any in-flight poll loop so that, if the panel is
+    // reconnected before its next tick, it can't keep running alongside a
+    // freshly started one (both would then race to update _topology).
+    this._mapPollToken = (this._mapPollToken || 0) + 1;
   }
 
   updated(changed) {
@@ -594,16 +599,26 @@ class ZigSightPanel extends LitElement {
     this._startMapPolling(before);
   }
 
-  /** Poll the topology until a network map newer than `before` arrives. */
+  /**
+   * Poll the topology until a network map newer than `before` arrives.
+   *
+   * Each run gets its own token: if the panel is disconnected and
+   * reconnected (or a new scan is requested) while this loop is in flight,
+   * `_mapPollToken` moves on and this loop stops at its next check instead
+   * of continuing to run alongside a newer one.
+   */
   _startMapPolling(before) {
     clearTimeout(this._mapPollTimer);
     const started = Date.now();
+    const token = (this._mapPollToken = (this._mapPollToken || 0) + 1);
+    const stale = () => this._disconnected || this._mapPollToken !== token;
     const poll = async () => {
-      if (this._disconnected) return;
+      if (stale()) return;
       try {
         const topology = await this._api("GET", "zigsight/topology");
-        // The panel may have been closed while the request was in flight.
-        if (this._disconnected) return;
+        // The panel may have been closed/reconnected while the request was
+        // in flight.
+        if (stale()) return;
         this._topology = topology;
         const map = topology.network_map || {};
         const updated = map.updated || null;
@@ -617,9 +632,10 @@ class ZigSightPanel extends LitElement {
           return;
         }
       } catch (error) {
-        if (this._disconnected) return;
+        if (stale()) return;
         // Keep polling; a single failed request is not fatal.
       }
+      if (stale()) return;
       if (Date.now() - started > NETWORK_MAP_TIMEOUT_MS) {
         this._mapPollTimer = null;
         this._mapStatus =

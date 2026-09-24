@@ -11,13 +11,16 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
+from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
+    MockUser,
     async_fire_mqtt_message,
 )
 
@@ -200,3 +203,72 @@ async def test_services_unregistered_after_last_entry_unload(
 
     assert not hass.services.has_service(DOMAIN, "recommend_channel")
     assert not hass.services.has_service(DOMAIN, "enable_zha_diagnostic_entities")
+
+
+@pytest.mark.asyncio
+async def test_recommend_channel_service_returns_response(
+    hass: HomeAssistant,
+) -> None:
+    """The service validates its schema and returns the recommendation."""
+    add_mock_zha_config_entry(hass)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZHA}
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.services.async_call(
+        DOMAIN,
+        "recommend_channel",
+        {
+            "mode": "manual",
+            "wifi_scan_data": [
+                {"channel": 1, "rssi": -40, "ssid": "home"},
+                {"channel": 6, "rssi": -45},
+            ],
+        },
+        blocking=True,
+        return_response=True,
+    )
+
+    assert result["recommended_channel"] in (11, 15, 20, 25)
+    assert set(result["scores"]) == {11, 15, 20, 25}
+    assert result["wifi_aps_count"] == 2
+    assert result["explanation"]
+    assert (
+        hass.data[DOMAIN]["last_recommendation"]["recommended_channel"]
+        == (result["recommended_channel"])
+    )
+
+    # Schema rejects unsupported modes (e.g. the non-functional router_api).
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN,
+            "recommend_channel",
+            {"mode": "router_api"},
+            blocking=True,
+        )
+
+
+@pytest.mark.asyncio
+async def test_recommend_channel_service_requires_admin(
+    hass: HomeAssistant, hass_read_only_user: MockUser
+) -> None:
+    """host_scan runs subprocesses on the host, so the service is admin-only."""
+    add_mock_zha_config_entry(hass)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZHA}
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            DOMAIN,
+            "recommend_channel",
+            {"mode": "manual", "wifi_scan_data": []},
+            blocking=True,
+            context=Context(user_id=hass_read_only_user.id),
+        )

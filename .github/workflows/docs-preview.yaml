@@ -1,27 +1,26 @@
-# Disabled: Documentation not yet available
-# This workflow will be enabled when documentation is added to the project
-
 name: Documentation Preview
 
 "on":
-  workflow_dispatch:
-    # Disabled until documentation exists
-    # pull_request:
-    #   types: [opened, synchronize, reopened, ready_for_review]
-    #   paths:
-    #     - 'docs/**'
-    #     - 'mkdocs.yml'
-    #     - 'docs/requirements.txt'
-    #     - '.github/workflows/docs-preview.yaml'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - ".github/workflows/docs-preview.yaml"
 
 permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: docs-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   build-docs-preview:
     name: Build Documentation Preview
-    if: false  # Disabled until documentation exists
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR
@@ -29,5 +28,47 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Note
-        run: echo "Documentation preview disabled - documentation not yet available"
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install MkDocs dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements-docs.txt
+
+      - name: Build documentation
+        run: mkdocs build --strict --site-dir site-preview
+
+      - name: Upload documentation preview artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: zigsight-docs-preview
+          path: ./site-preview
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Find existing comment
+        id: find_comment
+        uses: peter-evans/find-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-includes: "Documentation Preview Artifact"
+
+      - name: Add or update PR comment
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ steps.find_comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          body: |
+            ## 📚 Documentation Preview Artifact
+
+            `mkdocs build --strict` succeeded for this PR. Download the built
+            site from the workflow run below and open `index.html` locally to
+            preview it (this repository does not host per-PR doc previews).
+
+            - Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - Artifact: `zigsight-docs-preview`

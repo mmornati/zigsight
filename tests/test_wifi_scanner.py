@@ -11,6 +11,7 @@ from custom_components.zigsight.wifi_scanner import (
     HostScanner,
     ManualScanner,
     RouterAPIScanner,
+    _split_nmcli_terse_line,
     create_scanner,
 )
 
@@ -320,6 +321,111 @@ AnotherNetwork:11:35"""
             result = await scanner._scan_with_iwlist()
 
         assert result == []
+
+    @pytest.mark.asyncio
+    async def test_scan_with_iwlist_kills_process_on_timeout(self) -> None:
+        """A timed-out iwlist process is killed, not left running."""
+        scanner = HostScanner()
+
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.kill = MagicMock()
+
+        async def mock_wait():
+            return None
+
+        mock_proc.wait = mock_wait
+
+        async def mock_communicate():
+            await asyncio.sleep(10)
+            return (b"", b"")  # pragma: no cover - never reached
+
+        mock_proc.communicate = mock_communicate
+
+        with (
+            patch("asyncio.create_subprocess_exec", return_value=mock_proc),
+            patch("asyncio.wait_for", side_effect=TimeoutError),
+        ):
+            result = await scanner._scan_with_iwlist()
+
+        assert result == []
+        mock_proc.kill.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_scan_with_nmcli_kills_process_on_timeout(self) -> None:
+        """A timed-out nmcli process is killed, not left running."""
+        scanner = HostScanner()
+
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.kill = MagicMock()
+
+        async def mock_wait():
+            return None
+
+        mock_proc.wait = mock_wait
+
+        async def mock_communicate():
+            await asyncio.sleep(10)
+            return (b"", b"")  # pragma: no cover - never reached
+
+        mock_proc.communicate = mock_communicate
+
+        with (
+            patch("asyncio.create_subprocess_exec", return_value=mock_proc),
+            patch("asyncio.wait_for", side_effect=TimeoutError),
+        ):
+            result = await scanner._scan_with_nmcli()
+
+        assert result == []
+        mock_proc.kill.assert_called_once()
+
+    def test_parse_nmcli_output_escaped_colon_in_ssid(self) -> None:
+        """nmcli escapes ':' in SSIDs as '\\:'; splitting on ':' would break."""
+        scanner = HostScanner()
+        # SSID "Office: 5G" is emitted by `nmcli -t` as "Office\: 5G".
+        output = "Office\\: 5G:6:50"
+
+        result = scanner._parse_nmcli_output(output)
+
+        assert len(result) == 1
+        assert result[0]["ssid"] == "Office: 5G"
+        assert result[0]["channel"] == 6
+
+    def test_parse_nmcli_output_escaped_backslash(self) -> None:
+        """A literal backslash in a value is escaped as '\\\\' by nmcli."""
+        scanner = HostScanner()
+        output = "back\\\\slash:11:35"
+
+        result = scanner._parse_nmcli_output(output)
+
+        assert len(result) == 1
+        assert result[0]["ssid"] == "back\\slash"
+
+
+@pytest.mark.unit
+class TestSplitNmcliTerseLine:
+    """Tests for the escape-aware nmcli terse output splitter."""
+
+    def test_plain_fields(self) -> None:
+        assert _split_nmcli_terse_line("MyNetwork:6:50") == ["MyNetwork", "6", "50"]
+
+    def test_escaped_colon_in_field(self) -> None:
+        assert _split_nmcli_terse_line("Office\\: 5G:6:50") == [
+            "Office: 5G",
+            "6",
+            "50",
+        ]
+
+    def test_escaped_backslash(self) -> None:
+        assert _split_nmcli_terse_line("back\\\\slash:1:10") == [
+            "back\\slash",
+            "1",
+            "10",
+        ]
+
+    def test_empty_line(self) -> None:
+        assert _split_nmcli_terse_line("") == [""]
 
 
 @pytest.mark.unit

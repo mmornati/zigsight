@@ -18,15 +18,17 @@ from homeassistant.core import (
     SupportsResponse,
     callback,
 )
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceEntry
+from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
+from homeassistant.util import dt as dt_util
 from homeassistant.util.json import JsonValueType
 
-from .api import setup_api_views
+from .api import WIFI_SCAN_DATA_SCHEMA, setup_api_views
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
     CONF_ENABLE_ZHA,
@@ -274,52 +276,63 @@ async def _async_setup_recommend_channel_service(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, "recommend_channel"):
         return
 
-    async def async_recommend_channel(call: ServiceCall) -> None:
-        """Handle recommend_channel service call."""
+    async def async_recommend_channel(call: ServiceCall) -> ServiceResponse:
+        """Handle the recommend_channel service call and return the result."""
         mode = call.data.get("mode", "manual")
         wifi_scan_data = call.data.get("wifi_scan_data")
 
         try:
-            # Create appropriate scanner
-            scanner = create_scanner(
-                mode=mode,
-                scan_data=wifi_scan_data,
-            )
-
-            # Perform scan
+            scanner = create_scanner(mode=mode, scan_data=wifi_scan_data)
             wifi_aps = await scanner.scan()
-
-            # Get recommendation
             result = recommend_zigbee_channel(wifi_aps)
+        except Exception:
+            # Logged with a traceback for troubleshooting; the exception is
+            # re-raised so the caller (and the UI) sees the service failed,
+            # but the raised message itself stays generic.
+            _LOGGER.exception("Error during channel recommendation")
+            raise HomeAssistantError(
+                "Failed to generate a channel recommendation"
+            ) from None
 
-            _LOGGER.info(
-                "Zigbee channel recommendation: Channel %s (score: %.1f)",
-                result["recommended_channel"],
-                result["scores"][result["recommended_channel"]],
-            )
-            _LOGGER.info("Recommendation: %s", result["explanation"])
+        _LOGGER.info(
+            "Zigbee channel recommendation: Channel %s (score: %.1f)",
+            result["recommended_channel"],
+            result["scores"][result["recommended_channel"]],
+        )
+        _LOGGER.info("Recommendation: %s", result["explanation"])
 
-            # Store result in hass.data for retrieval
-            hass.data.setdefault(DOMAIN, {})
-            hass.data[DOMAIN]["last_recommendation"] = result
+        timestamp = dt_util.utcnow().isoformat()
+        domain_data = hass.data.setdefault(DOMAIN, {})
+        domain_data["last_recommendation"] = {**result, "timestamp": timestamp}
 
-        except Exception as e:
-            _LOGGER.error("Error during channel recommendation: %s", e)
-            raise
+        return cast(
+            ServiceResponse,
+            {
+                "recommended_channel": result["recommended_channel"],
+                "scores": result["scores"],
+                "explanation": result["explanation"],
+                "wifi_aps_count": len(wifi_aps),
+                "timestamp": timestamp,
+            },
+        )
 
-    # Service schema
+    # "host_scan" mode runs iwlist/nmcli subprocesses on the Home Assistant
+    # host, so the whole service is admin-only (Home Assistant has no way to
+    # gate a single service field behind admin instead of the whole call).
     recommend_channel_schema = vol.Schema(
         {
-            vol.Optional("mode", default="manual"): cv.string,
-            vol.Optional("wifi_scan_data"): vol.Any(dict, list),
+            vol.Optional("mode", default="manual"): vol.In(["manual", "host_scan"]),
+            vol.Optional("wifi_scan_data"): WIFI_SCAN_DATA_SCHEMA,
         }
     )
 
-    hass.services.async_register(
+    async_register_admin_service(
+        hass,
         DOMAIN,
         "recommend_channel",
         async_recommend_channel,
         schema=recommend_channel_schema,
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
 

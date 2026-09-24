@@ -1,7 +1,6 @@
 # Bandit configuration for ZigSight
 skips:
   - B101  # assert_used in tests
-  - B601  # shell_injection_subprocess
 
 exclude_dirs:
   - tests

@@ -7,6 +7,7 @@ the registry is a mock.
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -90,8 +91,19 @@ def test_via_device_info_per_entry() -> None:
         "via_device_id": "bridge"
     }
 
+
+@pytest.mark.usefixtures("per_entry")
+def test_via_device_info_per_entry_unknown_via_device(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unknown via device is left out, and logged at debug level."""
+    caplog.set_level(logging.DEBUG, logger=compat.__name__)
+    dev_reg = MagicMock()
     dev_reg.async_get_device_by_identifier.return_value = None
     assert compat.via_device_info(dev_reg, ENTRY_ID, IDENTIFIER) == {}
+    assert [(r.levelno, r.args) for r in caplog.records] == [
+        (logging.DEBUG, (IDENTIFIER, ENTRY_ID))
+    ]
 
 
 @pytest.mark.usefixtures("legacy")
@@ -100,22 +112,3 @@ def test_via_device_info_legacy() -> None:
     assert compat.via_device_info(MagicMock(), ENTRY_ID, IDENTIFIER) == {
         "via_device": IDENTIFIER
     }
-
-
-def test_all_devices_from_mapping_and_collection() -> None:
-    """Both the old mapping and the new collection registry views work."""
-    first, second = SimpleNamespace(id="a"), SimpleNamespace(id="b")
-    mapping_view = MagicMock(devices={"a": first, "b": second})
-    assert compat.async_all_devices(mapping_view) == [first, second]
-
-    class _CollectionView:
-        """Mimics Home Assistant 2026.9: iterable, mapping use is deprecated."""
-
-        def __iter__(self):  # type: ignore[no-untyped-def]
-            return iter([first, second])
-
-        def values(self) -> None:
-            raise AssertionError("deprecated mapping use")
-
-    collection_view = MagicMock(devices=_CollectionView())
-    assert compat.async_all_devices(collection_view) == [first, second]

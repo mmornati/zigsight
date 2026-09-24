@@ -9,7 +9,9 @@ old APIs as deprecated (removal in 2027.8 / 2027.9):
 * ``DeviceRegistry.async_get_device``
 * ``via_device`` in device info / ``async_get_or_create``
 * ``async_update_device(remove_config_entry_id=...)``
-* using ``DeviceRegistry.devices`` as a mapping (``.values()``, ``[id]``)
+* using ``DeviceRegistry.devices`` as a mapping (``.values()``, ``[id]``) --
+  ZigSight doesn't iterate the whole registry, it only reads the devices of
+  a config entry (``dr.async_entries_for_config_entry``)
 
 ZigSight supports Home Assistant 2025.10 and later, so these helpers use the
 new APIs when available and fall back to the previous ones otherwise.
@@ -17,10 +19,12 @@ new APIs when available and fall back to the previous ones otherwise.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+import logging
 from typing import Any
 
 from homeassistant.helpers import device_registry as dr
+
+_LOGGER = logging.getLogger(__name__)
 
 # Home Assistant >= 2026.8: per config entry devices and the new lookup APIs.
 PER_ENTRY_DEVICES: bool = hasattr(dr.DeviceRegistry, "async_get_device_by_identifier")
@@ -66,18 +70,11 @@ def via_device_info(
     if not PER_ENTRY_DEVICES:
         return {"via_device": identifier}
     if (via := async_get_entry_device(dev_reg, config_entry_id, identifier)) is None:
+        _LOGGER.debug(
+            "Via device %s of config entry %s is not registered (yet); "
+            "the device is registered without a via device",
+            identifier,
+            config_entry_id,
+        )
         return {}
     return {"via_device_id": via.id}
-
-
-def async_all_devices(dev_reg: dr.DeviceRegistry) -> Iterable[dr.DeviceEntry]:
-    """Return all main device entries of the registry.
-
-    ``DeviceRegistry.devices`` is a device id -> entry mapping before Home
-    Assistant 2026.9; since then it is a collection of entries, and using it
-    as a mapping is deprecated.
-    """
-    devices: Any = dev_reg.devices
-    if isinstance(devices, Mapping):
-        return list(devices.values())
-    return list(devices)

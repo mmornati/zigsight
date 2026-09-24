@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -21,10 +22,11 @@ from custom_components.zigsight.const import (
 )
 from custom_components.zigsight.zha_collector import ZHA_DOMAIN, async_discover_devices
 
-from .registry_helpers import get_device
+from .registry_helpers import deprecation_reports, get_device
 from .zha_test_helpers import add_mock_zha_config_entry, add_mock_zha_device
 
 IEEE = "00:11:22:33:44:55:66:77"
+COORDINATOR_IEEE = "00:11:22:33:44:55:66:00"
 
 
 async def _setup_zigsight_zha_entry(hass: HomeAssistant) -> MockConfigEntry:
@@ -270,8 +272,14 @@ async def test_zha_unloading_marks_devices_unknown_not_offline(
     assert coordinator.get_device(IEEE)["reconnect_count"] == 0
 
 
-async def test_zha_device_removed_from_registry_is_dropped(hass: HomeAssistant) -> None:
+async def test_zha_device_removed_from_registry_is_dropped(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
     """A device unpaired from ZHA is dropped from ZigSight and deletable.
+
+    Discovery, device creation and removal also must not use deprecated Home
+    Assistant APIs (e.g. ``DeviceRegistry.devices`` as a mapping, deprecated
+    in 2026.9) -- see ``registry_helpers.deprecation_reports``.
 
     Before the fix, a ZHA device no longer in the collector's snapshot
     stayed in ``coordinator._devices`` forever: ``get_device`` kept
@@ -304,3 +312,22 @@ async def test_zha_device_removed_from_registry_is_dropped(hass: HomeAssistant) 
     # device (it had no other config entries), so there is nothing left
     # for the user to manually delete.
     assert get_device(hass, (DOMAIN, IEEE)) is None
+
+    assert not deprecation_reports(caplog)
+
+
+async def test_zha_via_device_resolved_to_ieee(hass: HomeAssistant) -> None:
+    """A ZHA device's via device (coordinator/router) is reported by IEEE."""
+    zha_entry = add_mock_zha_config_entry(hass)
+    coordinator_device = add_mock_zha_device(
+        hass, zha_entry, COORDINATOR_IEEE, name="Coordinator", create_battery=False
+    )
+    device = add_mock_zha_device(hass, zha_entry, IEEE)
+    dr.async_get(hass).async_update_device(
+        device.id, via_device_id=coordinator_device.id
+    )
+
+    devices = async_discover_devices(hass)
+
+    assert devices[IEEE].via_device_ieee == COORDINATOR_IEEE
+    assert devices[COORDINATOR_IEEE].via_device_ieee is None

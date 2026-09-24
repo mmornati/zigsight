@@ -1,6 +1,6 @@
 # Makefile for ZigSight integration
 
-.PHONY: help install test lint format clean build docs setup-dev security package zip test-integration start stop restart logs status check-js test-js e2e-up e2e-bootstrap e2e-check-logs e2e-down e2e
+.PHONY: help install test test-min setup-min lint format clean build docs setup-dev security package zip test-integration start stop restart logs status check-js test-js e2e-up e2e-bootstrap e2e-check-logs e2e-down e2e
 
 # Virtual environment detection and binary paths
 VENV := .venv
@@ -11,6 +11,14 @@ VENV_RUFF := $(VENV)/bin/ruff
 VENV_MYPY := $(VENV)/bin/mypy
 VENV_BANDIT := $(VENV)/bin/bandit
 VENV_PRE_COMMIT := $(VENV)/bin/pre-commit
+
+# Interpreters used to create the virtualenvs: Home Assistant >= 2026.3
+# (requirements-dev.txt -> latest release) needs Python 3.14; the minimum
+# supported release (2025.10, requirements-test-min.txt) runs on Python 3.13.
+PYTHON_LATEST ?= python3.14
+PYTHON_MIN ?= python3.13
+# Separate virtualenv for the minimum supported Home Assistant release
+VENV_MIN := .venv-min
 
 # Use venv binaries if venv exists, otherwise fall back to system binaries
 PYTHON := $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
@@ -26,7 +34,8 @@ help:
 	@echo "Available targets:"
 	@echo ""
 	@echo "Testing:"
-	@echo "  test           - Run unit tests with coverage"
+	@echo "  test           - Run unit tests with coverage (latest Home Assistant, .venv)"
+	@echo "  test-min       - Run unit tests + mypy on the minimum supported Home Assistant (.venv-min)"
 	@echo "  test-unit      - Run unit tests only"
 	@echo "  test-quick     - Run tests quickly (no coverage)"
 	@echo "  check-js       - Syntax check of the frontend JavaScript modules"
@@ -58,6 +67,7 @@ help:
 	@echo "  install        - Install dependencies"
 	@echo "  install-dev    - Install development dependencies"
 	@echo "  setup-dev      - Create venv, install dev tools, and install pre-commit hooks"
+	@echo "  setup-min      - Create .venv-min with the minimum supported Home Assistant"
 	@echo "  clean          - Clean build artifacts and test data"
 	@echo ""
 	@echo "Packaging:"
@@ -81,10 +91,31 @@ install-dev:
 # Bootstrap local development environment
 setup-dev:
 	@echo "Creating virtual environment and installing development tools..."
-	@test -d $(VENV) || $(PYTHON) -m venv $(VENV)
+	@test -d $(VENV) || $(PYTHON_LATEST) -m venv $(VENV)
+	@$(VENV_PYTHON) -c 'import sys; sys.exit(sys.version_info[:2] != (3, 14))' || { \
+		echo "Error: $(VENV) uses $$($(VENV_PYTHON) --version), but requirements-dev.txt (latest Home Assistant) needs Python 3.14."; \
+		echo "Remove it ('rm -rf $(VENV)') and run 'make setup-dev' again (override the interpreter with PYTHON_LATEST=...)."; \
+		exit 1; }
 	$(VENV_PIP) install --upgrade pip
 	$(VENV_PIP) install -r requirements-dev.txt
 	$(VENV_PRE_COMMIT) install
+
+# Virtualenv with the minimum supported Home Assistant release (Python 3.13)
+setup-min:
+	@test -d $(VENV_MIN) || $(PYTHON_MIN) -m venv $(VENV_MIN)
+	@$(VENV_MIN)/bin/python -c 'import sys; sys.exit(sys.version_info[:2] != (3, 13))' || { \
+		echo "Error: $(VENV_MIN) uses $$($(VENV_MIN)/bin/python --version), but requirements-test-min.txt (Home Assistant 2025.10) needs Python 3.13."; \
+		echo "Remove it ('rm -rf $(VENV_MIN)') and run 'make setup-min' again (override the interpreter with PYTHON_MIN=...)."; \
+		exit 1; }
+	$(VENV_MIN)/bin/pip install --upgrade pip
+	$(VENV_MIN)/bin/pip install -r requirements-test-min.txt -r requirements-lint.txt
+
+# Unit tests (with the CI coverage gate) and mypy against the minimum
+# supported Home Assistant release, like the "min" leg of the CI matrix.
+test-min:
+	@test -d $(VENV_MIN) || { echo "Error: $(VENV_MIN) not found. Run 'make setup-min' first."; exit 1; }
+	$(VENV_MIN)/bin/mypy custom_components/zigsight/
+	$(VENV_MIN)/bin/pytest tests/ --cov=custom_components/zigsight --cov-report=term --cov-fail-under=85
 
 # Run unit tests
 test:

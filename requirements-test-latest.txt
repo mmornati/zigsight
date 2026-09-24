@@ -1,0 +1,11 @@
+# Unit-test dependencies for the LATEST Home Assistant release.
+#
+# Pins the newest pytest-homeassistant-custom-component release, which ships
+# Home Assistant 2026.9.3. The plugin pins a matching `homeassistant` core and
+# its own pytest / pytest-asyncio / pytest-cov / pytest-timeout versions, so
+# nothing else is pinned here. Bump it when a new Home Assistant release is
+# out (and keep requirements-test-min.txt at the oldest supported release).
+#
+# Requires Python 3.14 (Home Assistant >= 2026.3 requires Python >= 3.14).
+# Used by the "latest" leg of the CI test matrix and by requirements-dev.txt.
+pytest-homeassistant-custom-component==0.13.366

@@ -44,24 +44,38 @@ jobs:
       - name: Setup Python
         uses: "actions/setup-python@v6"
         with:
-          python-version: "3.13"
+          python-version: "3.14"
           cache: 'pip'
+          cache-dependency-path: requirements-lint.txt
 
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements-dev.txt
+          python3 -m pip install -r requirements-lint.txt
 
       - name: Check formatting and lint
         run: make check-format
 
   test:
-    name: Tests with Coverage
+    # Unit tests (and mypy) against both ends of the supported Home Assistant
+    # range: device_registry_compat.py (and any future version-dependent
+    # code) takes a different code path on each.
+    name: Tests with Coverage (HA ${{ matrix.ha }})
     runs-on: "ubuntu-latest"
     strategy:
+      fail-fast: false
       matrix:
-        # Home Assistant >= 2025.10 (the integration minimum) requires Python 3.13
-        python-version: ["3.13"]
+        include:
+          # Minimum supported release (hacs.json: 2025.10.0) -> HA 2025.10.4;
+          # Home Assistant 2025.10 runs on Python 3.13.
+          - ha: min
+            python-version: "3.13"
+            requirements: requirements-test-min.txt
+          # Latest release -> HA 2026.9.3; Home Assistant >= 2026.3 needs
+          # Python 3.14.
+          - ha: latest
+            python-version: "3.14"
+            requirements: requirements-test-latest.txt
     steps:
       - name: Checkout
         uses: "actions/checkout@v5"
@@ -71,11 +85,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
+          cache-dependency-path: |
+            ${{ matrix.requirements }}
+            requirements-lint.txt
 
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements-dev.txt
+          python3 -m pip install -r "${{ matrix.requirements }}" -r requirements-lint.txt
+          python3 -c "from homeassistant.const import __version__; print('Home Assistant', __version__)"
+
+      - name: Type check (mypy)
+        run: mypy custom_components/zigsight/
 
       - name: Run tests with coverage
         run: |
@@ -83,9 +104,9 @@ jobs:
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
-        if: matrix.python-version == '3.13'
         with:
           files: ./coverage.xml
+          flags: ha-${{ matrix.ha }}
           fail_ci_if_error: false
 
   frontend:
@@ -116,13 +137,14 @@ jobs:
       - name: Setup Python
         uses: "actions/setup-python@v6"
         with:
-          python-version: "3.13"
+          python-version: "3.14"
           cache: 'pip'
+          cache-dependency-path: requirements-lint.txt
 
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements-dev.txt
+          python3 -m pip install -r requirements-lint.txt
           python3 -m pip install safety
 
       - name: Run Bandit security scan

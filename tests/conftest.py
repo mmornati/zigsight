@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
+from pytest_homeassistant_custom_component.typing import MqttMockPahoClient
 
 from custom_components.zigsight.coordinator import ZigSightCoordinator
 
@@ -23,6 +24,38 @@ def auto_enable_custom_integrations(enable_custom_integrations: Any) -> None:
     ``enable_custom_integrations`` fixture so every test gets it for free.
     """
     return
+
+
+@pytest.fixture
+def mqtt_client_mock(mqtt_client_mock: MqttMockPahoClient) -> MqttMockPahoClient:
+    """Close the mocked paho client's socket when it is disconnected.
+
+    Overrides the plugin's ``mqtt_client_mock`` (used by ``mqtt_mock``). Its
+    ``connect`` fires ``on_socket_open``, which makes Home Assistant's MQTT
+    client start its 1 s "misc" timer; that timer is only cancelled in
+    ``on_socket_close``, which the real paho client calls once the socket is
+    closed after ``disconnect()`` -- but the plugin's mock never does. When
+    the ``hass`` fixture unloads the MQTT config entry at teardown
+    (``async_disconnect(disconnect_paho_client=True)``), the timer was thus
+    left scheduled and ``verify_cleanup`` failed the test with "Lingering
+    timer after test <... MQTT._async_start_misc_periodic ...>" (reported
+    by the plugin releases shipping Home Assistant 2026.x; the 2025.10 one
+    did not report it).
+
+    This deliberately mirrors only paho's socket-close step
+    (``on_socket_close``), which is what cancels the timer; it doesn't fire
+    ``on_disconnect``, so Home Assistant's disconnect / reconnect handling
+    isn't triggered by the teardown.
+    """
+
+    def _disconnect(*args: Any, **kwargs: Any) -> int:
+        mqtt_client_mock.on_socket_close(
+            mqtt_client_mock, None, Mock(fileno=Mock(return_value=-1))
+        )
+        return 0
+
+    mqtt_client_mock.disconnect.side_effect = _disconnect
+    return mqtt_client_mock
 
 
 @pytest.fixture

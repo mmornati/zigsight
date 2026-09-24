@@ -75,3 +75,5 @@ e2e-logs/
 !custom_components/zigsight/www/
 
 *.zip
+# Extra virtualenvs, e.g. .venv-min for the minimum supported Home Assistant
+.venv-*/

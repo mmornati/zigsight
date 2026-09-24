@@ -1,0 +1,16 @@
+# Unit-test dependencies for the MINIMUM supported Home Assistant release.
+#
+# ZigSight supports Home Assistant >= 2025.10 (see hacs.json). This pins the
+# pytest-homeassistant-custom-component release that ships Home Assistant
+# 2025.10.4, the last 2025.10.x patch release. The plugin pins a matching
+# `homeassistant` core and its own pytest / pytest-asyncio / pytest-cov /
+# pytest-timeout versions.
+#
+# Uses Python 3.13, the Python release Home Assistant 2025.10 was built for.
+# Used by the "min" leg of the CI test matrix (.github/workflows/validate.yaml).
+pytest-homeassistant-custom-component==0.13.289
+
+# Transitive dependencies Home Assistant 2025.10 left unpinned whose newer
+# releases are incompatible with the versions it does pin:
+# aiodns==3.5.0 (pinned by HA) breaks with pycares >= 5 at import time.
+pycares<5

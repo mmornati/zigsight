@@ -227,7 +227,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
+        # Don't assume hass.data[DOMAIN] exists: nothing else creates it when
+        # the entry was loaded without our async_setup_entry storing a
+        # coordinator (e.g. setup patched out, as the config-flow tests do).
+        hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
         # hass.data[DOMAIN] is not a reliable "any entry left?" signal: the
         # recommend_channel service stashes a "last_recommendation" key
         # there that outlives every config entry, so the dict is never

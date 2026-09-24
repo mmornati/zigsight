@@ -95,8 +95,6 @@ from homeassistant.helpers.event import (
     async_track_state_change_event,
 )
 
-from .device_registry_compat import async_all_devices
-
 _LOGGER = logging.getLogger(__name__)
 
 ZHA_DOMAIN = "zha"
@@ -174,19 +172,22 @@ def async_discover_devices(hass: HomeAssistant) -> dict[str, ZHADeviceInfo]:
     dev_reg = dr.async_get(hass)
     ent_reg = er.async_get(hass)
 
+    zha_devices = [
+        device
+        for entry_id in zha_entry_ids
+        for device in dr.async_entries_for_config_entry(dev_reg, entry_id)
+    ]
+    # Only the ZHA devices themselves are needed: a ZHA device's via device
+    # (the coordinator, or a router) is a device of the same ZHA entry, so
+    # there's no need to walk the whole device registry.
     ieee_by_device_id: dict[str, str] = {}
-    for device in async_all_devices(dev_reg):
+    for device in zha_devices:
         for domain, identifier in device.identifiers:
             if domain == ZHA_DOMAIN:
                 ieee_by_device_id[device.id] = identifier
                 break
 
     devices: dict[str, ZHADeviceInfo] = {}
-    zha_devices = [
-        device
-        for entry_id in zha_entry_ids
-        for device in dr.async_entries_for_config_entry(dev_reg, entry_id)
-    ]
     for device in zha_devices:
         ieee = ieee_by_device_id.get(device.id)
         if ieee is None:

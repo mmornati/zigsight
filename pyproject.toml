@@ -20,6 +20,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Home Automation",
 ]
 
@@ -30,15 +31,15 @@ Issues = "https://github.com/mmornati/zigsight/issues"
 Documentation = "https://github.com/mmornati/zigsight"
 
 [project.optional-dependencies]
+# Lint / type-check tools only (same as requirements-lint.txt). The test
+# dependencies depend on the Home Assistant release (and Python version) under
+# test, so they live in requirements-test-min.txt (HA 2025.10, Python 3.13)
+# and requirements-test-latest.txt (latest HA, Python 3.14) instead;
+# requirements-dev.txt combines the latter with the lint tools.
 dev = [
-    "pytest-homeassistant-custom-component==0.13.316",
-    "pytest>=9.0.0",
-    "pytest-asyncio>=1.3.0",
-    "pytest-cov>=7.0.0",
-    "pytest-timeout>=2.4.0",
     "ruff==0.16.8",
     "mypy==2.3.1",
-    "bandit>=1.7.0",
+    "bandit==1.9.4",
     "pre-commit>=3.0.0",
     "types-python-dateutil",
 ]
@@ -72,7 +73,9 @@ ignore = [
 "tests/**" = ["S101"]     # use of assert
 
 [tool.mypy]
-python_version = "3.13"
+# No python_version: mypy checks against the running interpreter, which is
+# Python 3.13 with the minimum supported Home Assistant and Python 3.14 with
+# the latest one (whose sources use 3.14-only syntax). CI type-checks both.
 warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false

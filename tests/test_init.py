@@ -170,6 +170,30 @@ async def test_remove_device_without_coordinator(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
+async def test_unload_entry_without_coordinator(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unloading works when setup never stored a coordinator in hass.data.
+
+    With ``async_setup_entry`` patched out (as the config-flow tests do)
+    ``hass.data[DOMAIN]`` never exists; unloading used to raise ``KeyError``
+    (logged as "Error unloading entry", the entry ending in FAILED_UNLOAD).
+    """
+    entry = MockConfigEntry(domain=DOMAIN, version=1, minor_version=2, data=Z2M_DATA)
+    entry.add_to_hass(hass)
+    with patch("custom_components.zigsight.async_setup_entry", return_value=True):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert DOMAIN not in hass.data
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.NOT_LOADED
+    assert "Error unloading entry" not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_services_unregistered_after_last_entry_unload(
     hass: HomeAssistant,
 ) -> None:

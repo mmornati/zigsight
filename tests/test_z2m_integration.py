@@ -35,7 +35,7 @@ from custom_components.zigsight.const import (
 )
 from custom_components.zigsight.coordinator import ZigSightCoordinator
 
-from .registry_helpers import get_device
+from .registry_helpers import deprecation_reports, get_device
 from .z2m_replay import (
     async_fire,
     async_fire_messages,
@@ -967,11 +967,8 @@ async def test_no_deprecated_home_assistant_api_usage(
 ) -> None:
     """Setup, rename and removal don't use deprecated Home Assistant APIs.
 
-    Home Assistant reports deprecated API usage by a custom integration with
-    a "Detected that custom integration 'zigsight' ..." warning (e.g. the
-    device registry APIs deprecated in 2026.9). This only bites on Home
-    Assistant versions deprecating an API we still use, as the e2e HA log
-    gate does against the latest Home Assistant release.
+    See ``registry_helpers.deprecation_reports``; the ZHA counterpart is
+    ``test_zha_device_removed_from_registry_is_dropped``.
     """
     devices = load_fixture("bridge_devices.json")
     for device in devices:
@@ -988,12 +985,4 @@ async def test_no_deprecated_home_assistant_api_usage(
     await hass.async_block_till_done()
     assert get_device(hass, (DOMAIN, PLUG)) is None
 
-    reports = [
-        record.getMessage()
-        for record in (*caplog.get_records("setup"), *caplog.records)
-        if f"custom integration '{DOMAIN}'" in record.getMessage()
-        and (
-            "deprecated" in record.getMessage() or "stop working" in record.getMessage()
-        )
-    ]
-    assert not reports
+    assert not deprecation_reports(caplog)

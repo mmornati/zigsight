@@ -46,14 +46,20 @@ This document provides information for developers contributing to the ZigSight p
 │   ├── test_coordinator.py     # Coordinator unit tests
 │   └── test_sensor.py          # Entity builder tests
 ├── pyproject.toml              # Project configuration
-├── requirements-dev.txt        # Development dependencies
+├── requirements-dev.txt        # Development dependencies (latest HA + lint tools)
+├── requirements-test-min.txt   # Unit tests on the minimum supported HA (2025.10)
+├── requirements-test-latest.txt # Unit tests on the latest HA release
+├── requirements-lint.txt       # ruff, mypy, bandit, pre-commit
 └── README.md                   # Project README
 ```
 
 ## Development Environment
 
-- **Python**: 3.13 only (matches Home Assistant's own minimum runtime)
-- **Home Assistant compatibility**: `>=2025.10.0`
+- **Python**: 3.14 for the default dev environment (latest Home Assistant);
+  3.13 for the minimum supported Home Assistant (`make setup-min`)
+- **Home Assistant compatibility**: `>=2025.10.0` -- CI runs the unit tests
+  on both 2025.10 and the latest release (see CONTRIBUTING.md, "Testing
+  against the minimum and latest Home Assistant")
 
 ### Quick Start
 
@@ -74,6 +80,8 @@ source .venv/bin/activate
 | `make security`    | Runs Bandit with the project configuration                                   |
 | `make test`        | Unit tests with coverage HTML + terminal summary                            |
 | `make test-quick`  | Unit tests without coverage                                                  |
+| `make setup-min`   | Create `.venv-min` with the minimum supported Home Assistant (Python 3.13)   |
+| `make test-min`    | mypy + unit tests (coverage gate) on the minimum supported Home Assistant    |
 | `make format`      | `ruff format .` plus `ruff check --fix .`                                    |
 | `make check-format`| Verify formatting (`ruff format --check .`, `ruff check .`)                  |
 | `make clean`       | Remove cached artifacts (`.mypy_cache`, `.ruff_cache`, `.pytest_cache`, …)   |
@@ -85,7 +93,7 @@ All commands assume the virtualenv created by `make setup-dev` is active.
 If you prefer not to use the Makefile helpers:
 
 ```bash
-python3 -m venv .venv
+python3.14 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements-dev.txt

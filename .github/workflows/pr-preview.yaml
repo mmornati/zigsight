@@ -56,6 +56,10 @@ jobs:
           retention-days: 30
 
       - name: Find existing comment
+        # A fork PR's GITHUB_TOKEN is read-only, so commenting would just
+        # fail; the zip build above (and its artifact) still ran and is the
+        # part that matters for a fork contributor.
+        if: github.event.pull_request.head.repo.full_name == github.repository
         id: find_comment
         uses: peter-evans/find-comment@v4
         with:
@@ -63,6 +67,7 @@ jobs:
           body-includes: 'PR Preview Artifact'
 
       - name: Add or Update PR comment
+        if: github.event.pull_request.head.repo.full_name == github.repository
         uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.find_comment.outputs.comment-id }}

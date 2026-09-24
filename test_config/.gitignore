@@ -9,6 +9,8 @@ deps/
 tts/
 *.uuid
 *.conf
+# Mosquitto's own e2e config IS checked in (see docker-compose.yml / docs/testing.md).
+!mosquitto/mosquitto.conf
 home-assistant.log*
 home-assistant_v2.db*
 OZW_Log.txt

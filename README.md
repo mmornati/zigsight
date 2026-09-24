@@ -19,6 +19,13 @@ See the [Getting Started Guide](docs/getting_started.md) for installation instru
 
 See the [Developer README](docs/DEVELOPER_README.md) for information on contributing.
 
+## Testing
+
+Unit/integration tests run against recorded Zigbee2MQTT fixtures, and a full
+local end-to-end environment (`make e2e`) spins up Home Assistant +
+Mosquitto + a Zigbee2MQTT replay tool so you can test without touching your
+production Home Assistant. See [docs/testing.md](docs/testing.md).
+
 ## Status
 
 ⚠️ **Active development, not yet production-ready** - ZigSight installs and its config/options flows work end-to-end, but several core features documented above (Zigbee2MQTT entity creation, ZHA diagnostics, frontend panel) are still being stabilized. See the [changelog](CHANGELOG.md) and open pull requests for current status before relying on it for monitoring.

@@ -83,10 +83,7 @@ from .z2m import (
     parse_last_seen,
     parse_networkmap_response,
 )
-from .zha_collector import (
-    ZHACollector,
-    async_count_disabled_diagnostic_entities,
-)
+from .zha_collector import ZHACollector
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -912,12 +909,22 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Collect devices from ZHA (registry discovery + entity states).
 
         Called at start-up and by the periodic refresh: re-discovering
-        devices/entities from the registries is cheap and is how ZigSight
-        notices ZHA devices added after start-up. Values in between are
-        pushed live by the collector's state-change tracking (see
-        ``_handle_zha_push_update``), not polled here.
+        devices/entities from the registries is cheap (the collector only
+        resubscribes if the tracked entity set actually changed) and is a
+        safety net for ZHA devices added/removed between registry update
+        events. Values in between are pushed live by the collector's
+        state-change tracking (see ``_handle_zha_push_update``), not polled
+        here -- in particular, ``last_seen`` is only ever advanced from a
+        push update (see ``_process_zha_device_update``).
+
+        While no ZHA config entry is loaded (e.g. it hasn't started yet, or
+        was removed), ZHA devices' availability is marked unknown instead
+        of being polled -- see ``_mark_zha_devices_unknown``.
         """
-        if not self._zha_collector or not self._zha_collector.is_available():
+        if not self._zha_collector:
+            return
+        if not self._zha_collector.is_available():
+            self._mark_zha_devices_unknown()
             return
 
         try:
@@ -936,15 +943,50 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
             for ieee in new:
                 async_dispatcher_send(self.hass, self.signal_new_device, ieee)
+
+        # A ZHA device no longer in the snapshot was removed/unpaired: drop
+        # it (and let it be deleted from the UI -- see
+        # async_remove_config_entry_device in __init__.py).
+        removed = [
+            ieee
+            for ieee, record in self._devices.items()
+            if record["source"] == DEVICE_SOURCE_ZHA and ieee not in zha_devices
+        ]
+        for ieee in removed:
+            self._remove_device(ieee)
+
         self.logger.debug("Collected %d ZHA devices", len(zha_devices))
         self._update_zha_diagnostics_issue()
 
     @callback
+    def _mark_zha_devices_unknown(self) -> None:
+        """Mark ZHA devices' availability unknown while ZHA isn't loaded.
+
+        Mirrors ``_handle_bridge_state`` for Zigbee2MQTT going offline:
+        while no ZHA config entry is loaded nobody is tracking device
+        availability, so a later "available" reading (once ZHA reloads)
+        must not look like a reconnect.
+        """
+        now = dt_util.utcnow()
+        for ieee, record in self._devices.items():
+            if record["source"] != DEVICE_SOURCE_ZHA or record.get("available") is None:
+                continue
+            record["available"] = None
+            self._maybe_update_analytics(ieee, now, force=True)
+            async_dispatcher_send(self.hass, self.device_signal(ieee))
+        if self.config_entry is not None:
+            # Nothing can be said about disabled diagnostics without a
+            # loaded ZHA entry to inspect; don't leave a stale issue.
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ZHA_DIAGNOSTICS_DISABLED)
+
+    @callback
     def _update_zha_diagnostics_issue(self) -> None:
         """Create/clear the repair issue for disabled ZHA LQI/RSSI sensors."""
-        if self.config_entry is None:
+        if self.config_entry is None or self._zha_collector is None:
             return
-        disabled_count = async_count_disabled_diagnostic_entities(self.hass)
+        # Reuses the device map the collector just (re-)discovered instead
+        # of walking the entity registry again.
+        disabled_count = self._zha_collector.count_disabled_diagnostics()
         if disabled_count:
             ir.async_create_issue(
                 self.hass,
@@ -962,7 +1004,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @callback
     def _handle_zha_push_update(self, ieee: str, device_data: dict[str, Any]) -> None:
         """Handle a live state-change pushed by the ZHA collector."""
-        is_new = self._process_zha_device_update(ieee, device_data)
+        is_new = self._process_zha_device_update(ieee, device_data, is_push=True)
         if is_new:
             self._migrate_legacy_registry_entries(
                 [ieee] if ieee not in self._migrated else []
@@ -970,9 +1012,20 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             async_dispatcher_send(self.hass, self.signal_new_device, ieee)
 
     def _process_zha_device_update(
-        self, device_id: str, device_data: dict[str, Any]
+        self, device_id: str, device_data: dict[str, Any], *, is_push: bool = False
     ) -> bool:
-        """Store one ZHA device update (push or poll); return True if new."""
+        """Store one ZHA device update; return True if the device is new.
+
+        ``is_push`` distinguishes a live state-change push from a periodic
+        registry re-discovery snapshot: only a push may advance
+        ``last_seen`` (to the entity's own ``last_reported``/
+        ``last_updated``). A snapshot must never bump it to "now" -- doing
+        so previously masked devices going silent (analytics falls back to
+        ``last_seen`` for the connectivity warning whenever ``available``
+        is unknown, which it is for any device whose LQI/RSSI/battery
+        entities are all still disabled) and would defeat the purpose of
+        that warning entirely.
+        """
         now = dt_util.utcnow()
         record = self._devices.get(device_id)
         is_new = record is None
@@ -995,17 +1048,24 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         record["model"] = device_data.get("model") or record.get("model")
 
-        metrics = dict(device_data.get("metrics") or {})
-        # ZHA doesn't expose a "last seen" entity/attribute (see
-        # zha_collector docstring); approximate it with the time this
-        # update (push or poll) was observed.
-        metrics["last_seen"] = now.isoformat()
+        device_metrics = device_data.get("metrics") or {}
+        record["metrics"].update(device_metrics)
+        # Only link_quality/battery/voltage are "tracked" for history and
+        # the zigsight_device_update event; rssi is kept in the record
+        # (API/diagnostics) but isn't one of them.
         metrics_update = {
-            key: metrics[key]
-            for key in _TRACKED_METRICS
-            if isinstance(metrics.get(key), int | float)
+            key: value
+            for key, value in device_metrics.items()
+            if key in _TRACKED_METRICS and isinstance(value, int | float)
         }
-        record["metrics"].update(metrics)
+
+        if is_push:
+            pushed_last_seen = device_data.get("last_seen")
+            if isinstance(pushed_last_seen, datetime):
+                previous_last_seen = as_datetime(record["metrics"].get("last_seen"))
+                if previous_last_seen is None or pushed_last_seen >= previous_last_seen:
+                    record["metrics"]["last_seen"] = pushed_last_seen.isoformat()
+
         record["last_update"] = now.isoformat()
 
         # Availability transitions drive reconnect counting, exactly like

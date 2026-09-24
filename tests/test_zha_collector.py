@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
@@ -176,3 +178,64 @@ async def test_enable_diagnostic_entities_no_devices(hass: HomeAssistant) -> Non
     """No ZHA devices -> nothing to enable."""
     assert async_enable_diagnostic_entities(hass) == []
     assert async_count_disabled_diagnostic_entities(hass) == 0
+
+
+async def test_collect_device_ignores_restored_unavailable_state(
+    hass: HomeAssistant,
+) -> None:
+    """A 'restored' unavailable stub (entity briefly unloaded) is ignored.
+
+    Home Assistant writes this stub state (``unavailable`` with attribute
+    ``restored: True``) when an entity is removed while HA keeps running --
+    e.g. while ZHA reloads its config entry after
+    ``zigsight.enable_zha_diagnostic_entities`` runs. It must not look like
+    the underlying Zigbee device actually went offline.
+    """
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(
+        hass,
+        zha_entry,
+        IEEE,
+        lqi_disabled_by=None,
+        lqi_state="100",
+        rssi_disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+        create_battery=False,
+    )
+    info = async_discover_devices(hass)[IEEE]
+    collector = ZHACollector(hass)
+
+    # Sanity check: a real unavailable state (no restored attribute) does
+    # mark the device unavailable.
+    hass.states.async_set(info.entities.lqi, "unavailable")
+    data = collector._collect_device(info)
+    assert data["available"] is False
+
+    # The "restored" stub is different: neither available nor unavailable.
+    hass.states.async_set(info.entities.lqi, "unavailable", {"restored": True})
+    data = collector._collect_device(info)
+    assert data["available"] is None
+    assert data["metrics"] == {}
+
+
+async def test_collect_device_last_seen_from_entity_state(hass: HomeAssistant) -> None:
+    """last_seen is derived from a tracked entity's own timestamp."""
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(
+        hass,
+        zha_entry,
+        IEEE,
+        lqi_disabled_by=None,
+        lqi_state="100",
+        create_battery=False,
+    )
+    info = async_discover_devices(hass)[IEEE]
+    collector = ZHACollector(hass)
+
+    data = collector._collect_device(info)
+    assert isinstance(data["last_seen"], datetime)
+
+    # No non-restored, non-unavailable tracked entity -> no last_seen.
+    for entity_id in info.entities.as_tuple():
+        hass.states.async_set(entity_id, "unavailable", {"restored": True})
+    data = collector._collect_device(info)
+    assert data["last_seen"] is None

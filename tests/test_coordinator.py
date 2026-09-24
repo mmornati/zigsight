@@ -231,6 +231,40 @@ def test_zha_device_update_counts_reconnect_on_transition_only(
     assert record["available"] is True
 
 
+def test_zha_last_seen_only_advances_on_push(mock_hass: MagicMock) -> None:
+    """last_seen only moves on a live push, never on a poll snapshot.
+
+    Otherwise a device whose tracked entities went silent would look
+    "freshly seen" on every periodic refresh, and never trigger the
+    connectivity warning (see analytics.check_connectivity_warning, which
+    falls back to last_seen whenever availability is unknown).
+    """
+    coordinator = ZigSightCoordinator(mock_hass, enable_zha=True)
+    seen_at = NOW
+    coordinator._process_zha_device_update(
+        "00:11",
+        {"friendly_name": "Plug", "last_seen": seen_at, "metrics": {}},
+        is_push=True,
+    )
+    record = coordinator.get_device("00:11")
+    assert record is not None
+    assert record["metrics"]["last_seen"] == seen_at.isoformat()
+
+    # A poll/snapshot re-discovery must not advance it, even if it carries
+    # a (later) last_seen value.
+    later = seen_at + timedelta(hours=2)
+    coordinator._process_zha_device_update(
+        "00:11", {"last_seen": later, "metrics": {}}, is_push=False
+    )
+    assert record["metrics"]["last_seen"] == seen_at.isoformat()
+
+    # A push does advance it.
+    coordinator._process_zha_device_update(
+        "00:11", {"last_seen": later, "metrics": {}}, is_push=True
+    )
+    assert record["metrics"]["last_seen"] == later.isoformat()
+
+
 async def test_zha_collector_errors_are_contained(mock_hass: MagicMock) -> None:
     """A failing ZHA collector doesn't fail the refresh."""
     coordinator = ZigSightCoordinator(mock_hass, enable_zha=True)

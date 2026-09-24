@@ -68,25 +68,37 @@ For each device, ZigSight collects:
   *all* of them report Home Assistant's `unavailable` state (which is what
   happens when the underlying Zigbee device drops off the network).
   Reconnects are only counted on the unavailable -> available transition,
-  never once per update.
+  never once per update. A state marked `restored` (the stub Home
+  Assistant writes for an entity that is briefly unloaded, e.g. while ZHA
+  reloads) is ignored entirely -- it never counts as unavailable, so a ZHA
+  reload never looks like a device dropping offline and reconnecting.
 
 **Not currently collected**: ZHA does not expose a "last seen" sensor
 entity, and neither the device registry nor its entities expose the Zigbee
 power source / device type (router vs. end device) -- those only exist on
 ZHA's private runtime objects, which ZigSight does not read. `last_seen` is
-therefore approximated by the time ZigSight last observed a state change on
-one of the device's tracked entities, and device type is reported as
-`unknown` for ZHA devices. This may be revisited in a future release if a
-registry-exposed source for that information becomes available.
+therefore approximated from a tracked entity's own `last_reported` /
+`last_updated` timestamp, and only ever advances from a live state-change
+push -- never from the periodic registry re-discovery -- so a device that
+truly stops reporting still goes stale and can trigger the connectivity
+warning. Device type is reported as `unknown` for ZHA devices. Both may be
+revisited in a future release if a registry-exposed source for that
+information becomes available.
 
 ### Live updates
 
 Home Assistant reload (start-up) and the coordinator's periodic refresh
-re-discover devices and entities from the registries, so newly joined ZHA
-devices are picked up automatically. In between, state changes of the
+re-discover devices and entities from the registries as a safety net (only
+resubscribing if the tracked entity set actually changed, so this doesn't
+churn on every refresh); device/entity registry update events (debounced)
+trigger the same re-discovery immediately, so newly joined/removed ZHA
+devices and newly enabled diagnostic entities are picked up without
+waiting for the next periodic refresh. In between, state changes of the
 tracked LQI/RSSI/battery entities are delivered live (event driven, via
 `async_track_state_change_event`) instead of being polled on a fixed
-interval.
+interval. A ZHA device no longer present in a refresh (unpaired/removed
+from ZHA) is dropped from ZigSight too, and can then be deleted from the
+Home Assistant UI.
 
 ### LQI/RSSI sensors are disabled by default
 
@@ -101,8 +113,9 @@ device's link quality/RSSI once they are enabled. Two ways to enable them:
    still disabled by its default across all ZHA devices in one call. It
    never re-enables an entity a user explicitly disabled themselves, and
    returns the number and ids of the entities it enabled. Home Assistant
-   reloads the ZHA config entry afterwards to create the newly enabled
-   entities, which can take a few seconds.
+   reloads the ZHA config entry ~30 seconds afterwards
+   (`homeassistant.config_entries.RELOAD_AFTER_UPDATE_DELAY`) to create the
+   newly enabled entities.
 
 While any LQI/RSSI sensor is still disabled by default, ZigSight raises a
 repair issue ("ZHA LQI/RSSI sensors are disabled", **Settings > System >

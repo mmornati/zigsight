@@ -168,3 +168,35 @@ async def test_remove_device_without_coordinator(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert await async_remove_config_entry_device(hass, entry, device)
+
+
+@pytest.mark.asyncio
+async def test_services_unregistered_after_last_entry_unload(
+    hass: HomeAssistant,
+) -> None:
+    """Services are dropped once the last entry unloads.
+
+    ``recommend_channel`` stashes a ``last_recommendation`` key straight in
+    ``hass.data[DOMAIN]`` (not scoped to any entry_id), so that dict is
+    never actually empty once the service has run -- it must not be used
+    to decide whether any entry is still loaded.
+    """
+    add_mock_zha_config_entry(hass)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZHA}
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert hass.services.has_service(DOMAIN, "recommend_channel")
+    assert hass.services.has_service(DOMAIN, "enable_zha_diagnostic_entities")
+
+    # Simulate recommend_channel having already stored its last result.
+    hass.data[DOMAIN]["last_recommendation"] = {"recommended_channel": 15}
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert not hass.services.has_service(DOMAIN, "recommend_channel")
+    assert not hass.services.has_service(DOMAIN, "enable_zha_diagnostic_entities")

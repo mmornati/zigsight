@@ -29,5 +29,5 @@ enable_zha_diagnostic_entities:
     Enables the LQI and RSSI diagnostic sensors of ZHA devices that are
     still disabled by their default (never re-enables an entity a user
     disabled themselves). Home Assistant reloads the ZHA config entry
-    afterwards to create the newly enabled entities, which can take a few
-    seconds. Returns the number and ids of the entities enabled.
+    ~30 seconds afterwards to create the newly enabled entities. Returns
+    the number and ids of the entities enabled.

@@ -7,7 +7,7 @@ from typing import cast
 
 import voluptuous as vol
 from homeassistant.components import mqtt
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import RELOAD_AFTER_UPDATE_DELAY, ConfigEntry
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
@@ -191,12 +191,25 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
-        if not hass.data[DOMAIN]:
+        # hass.data[DOMAIN] is not a reliable "any entry left?" signal: the
+        # recommend_channel service stashes a "last_recommendation" key
+        # there that outlives every config entry, so the dict is never
+        # actually empty. single_config_entry means at most one entry can
+        # be loaded anyway; async_loaded_entries reflects that (excluding
+        # this entry, whose own state hasn't flipped to NOT_LOADED yet at
+        # this point in config_entries.async_unload).
+        other_loaded_entries = [
+            other
+            for other in hass.config_entries.async_loaded_entries(DOMAIN)
+            if other.entry_id != entry.entry_id
+        ]
+        if not other_loaded_entries:
             # Last entry gone: drop the services (PR series follow-up may
             # generalise this cleanup; kept minimal/self-contained here).
             for service in ("recommend_channel", "enable_zha_diagnostic_entities"):
                 if hass.services.has_service(DOMAIN, service):
                     hass.services.async_remove(DOMAIN, service)
+            ir.async_delete_issue(hass, DOMAIN, ISSUE_ZHA_DIAGNOSTICS_DISABLED)
 
     return unload_ok
 
@@ -286,15 +299,31 @@ def _async_setup_enable_zha_diagnostics_service(hass: HomeAssistant) -> None:
 
     async def async_enable_zha_diagnostics(call: ServiceCall) -> ServiceResponse:
         """Enable ZHA LQI/RSSI sensors ZigSight/ZHA left disabled by default."""
+        zha_mode_loaded = any(
+            loaded_entry.data.get(CONF_INTEGRATION_TYPE) == INTEGRATION_TYPE_ZHA
+            for loaded_entry in hass.config_entries.async_loaded_entries(DOMAIN)
+        )
+        if not zha_mode_loaded:
+            _LOGGER.warning(
+                "zigsight.enable_zha_diagnostic_entities called without a "
+                "loaded ZHA-mode ZigSight config entry; nothing to do"
+            )
+            return {
+                "enabled_count": 0,
+                "entity_ids": cast(list[JsonValueType], []),
+                "error": "No ZHA-mode ZigSight config entry is loaded",
+            }
+
         enabled = async_enable_diagnostic_entities(hass)
         if enabled:
             ir.async_delete_issue(hass, DOMAIN, ISSUE_ZHA_DIAGNOSTICS_DISABLED)
             _LOGGER.info(
                 "Enabled %d ZHA diagnostic entities: %s; Home Assistant will "
-                "reload the ZHA config entry to create them, which can take "
-                "a few seconds",
+                "reload the ZHA config entry ~%s seconds afterwards to "
+                "create them",
                 len(enabled),
                 ", ".join(enabled),
+                RELOAD_AFTER_UPDATE_DELAY,
             )
         return {
             "enabled_count": len(enabled),

@@ -98,13 +98,13 @@
     },
     "enable_zha_diagnostic_entities": {
       "name": "Enable ZHA diagnostic entities",
-      "description": "Enables the LQI and RSSI diagnostic sensors of ZHA devices that are still disabled by their default. Never re-enables an entity a user disabled themselves. Home Assistant reloads the ZHA config entry afterwards to create the newly enabled entities, which can take a few seconds."
+      "description": "Enables the LQI and RSSI diagnostic sensors of ZHA devices that are still disabled by their default. Never re-enables an entity a user disabled themselves. Home Assistant reloads the ZHA config entry ~30 seconds afterwards to create the newly enabled entities."
     }
   },
   "issues": {
     "zha_diagnostics_disabled": {
       "title": "ZHA LQI/RSSI sensors are disabled",
-      "description": "ZigSight found {count} ZHA link quality (LQI) / RSSI diagnostic sensor(s) still disabled by default. Call the `zigsight.enable_zha_diagnostic_entities` service (Developer Tools > Actions) to enable them; Home Assistant reloads the ZHA integration afterwards to create the entities, which can take a few seconds."
+      "description": "ZigSight found {count} ZHA link quality (LQI) / RSSI diagnostic sensor(s) still disabled by default. Call the `zigsight.enable_zha_diagnostic_entities` service (Developer Tools > Actions) to enable them; Home Assistant reloads the ZHA integration ~30 seconds afterwards to create the entities."
     }
   }
 }

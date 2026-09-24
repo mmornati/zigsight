@@ -30,15 +30,24 @@ Discovery
     ``homeassistant.components.zha`` and the ``zha`` library in this
     environment: ``last_seen`` only exists as a private attribute of the
     internal ``zha.zigbee.device.Device`` object, which ZigSight does not
-    read). ZigSight instead timestamps a device as "seen" whenever any of
-    its tracked diagnostic entities changes state, which is a reasonable
-    approximation given the entities update on every ZHA poll/report.
+    read). ZigSight instead timestamps a device as "seen" from the
+    ``last_reported``/``last_updated`` of a tracked entity's state whenever
+    a live push update is processed -- see ``ZigSightCoordinator.
+    _process_zha_device_update`` for why this only happens for pushed
+    updates, never for a periodic re-discovery snapshot.
 
     Likewise, neither the device registry nor the diagnostic entities
     expose the Zigbee power source / device type (router vs. end device);
     that only lives on ZHA's private ``Device`` object. ``device_type`` is
     therefore always ``"unknown"`` for ZHA devices; this is documented in
     ``docs/integrations/zha.md``.
+
+    Discovery itself is triggered by the coordinator's periodic refresh and
+    by Home Assistant's device/entity registry update events (debounced),
+    so new/removed ZHA devices and newly enabled diagnostic entities are
+    picked up without waiting a full refresh interval; re-subscribing to
+    entity state changes only happens when the tracked entity id set
+    actually changed, not on every discovery pass.
 
 Live updates
     Once ``async_setup`` is called, state changes of the tracked entities
@@ -52,8 +61,15 @@ Live updates
 Availability / reconnects
     ZHA marks an entity's state ``unavailable`` when the underlying Zigbee
     device is not reachable. The collector reports a device as available
-    when any tracked entity has a non-unavailable state, and unavailable
-    when all of them are unavailable. The coordinator (see
+    when any tracked entity has a non-unavailable, non-"restored" state,
+    and unavailable when all of them are unavailable. A state with the
+    ``restored`` attribute set is the stub Home Assistant writes for an
+    entity that was removed while Home Assistant was running (e.g. ZHA
+    reloading, which happens automatically ~30 seconds after
+    ``zigsight.enable_zha_diagnostic_entities`` runs, or after any ZHA
+    options change) -- it is *not* a real "device went offline" signal and
+    is ignored entirely (neither available nor unavailable), so a ZHA
+    reload never looks like a spurious reconnect. The coordinator (see
     ``ZigSightCoordinator._process_zha_device_update``) only counts a
     reconnect on the ``False`` -> ``True`` transition of that flag -- never
     once per poll/event -- mirroring the availability based reconnect
@@ -63,16 +79,19 @@ Availability / reconnects
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.const import ATTR_RESTORED, STATE_UNAVAILABLE
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import (
     EventStateChangedData,
+    async_call_later,
     async_track_state_change_event,
 )
 
@@ -85,8 +104,9 @@ ZHA_DOMAIN = "zha"
 TRANSLATION_KEY_RSSI = "rssi"
 TRANSLATION_KEY_LQI = "lqi"
 
-_UNAVAILABLE = "unavailable"
-_IGNORED_STATES = (_UNAVAILABLE, "unknown", None)
+# Debounce window for device/entity registry change events (several
+# entities of the same device are typically added/removed/enabled at once).
+_REGISTRY_DEBOUNCE_SECONDS = 2.0
 
 
 @dataclass(slots=True)
@@ -120,6 +140,11 @@ class ZHADeviceInfo:
     # docstring); always "unknown" for now.
     device_type: str = "unknown"
     entities: ZHATrackedEntities = field(default_factory=ZHATrackedEntities)
+    # Whether the LQI/RSSI entities are currently disabled by their ZHA
+    # integration default (never a user's own choice); tracked here so the
+    # repair issue / enable service don't have to re-walk the registry.
+    lqi_disabled_by_integration: bool = False
+    rssi_disabled_by_integration: bool = False
 
 
 def async_get_zha_config_entries(hass: HomeAssistant) -> list[ConfigEntry]:
@@ -163,6 +188,8 @@ def async_discover_devices(hass: HomeAssistant) -> dict[str, ZHADeviceInfo]:
             continue
 
         entities = ZHATrackedEntities()
+        lqi_disabled_by_integration = False
+        rssi_disabled_by_integration = False
         for entity in er.async_entries_for_device(
             ent_reg, device.id, include_disabled_entities=True
         ):
@@ -170,10 +197,16 @@ def async_discover_devices(hass: HomeAssistant) -> dict[str, ZHADeviceInfo]:
                 continue
             if entities.lqi is None and _matches(entity, TRANSLATION_KEY_LQI, "lqi"):
                 entities.lqi = entity.entity_id
+                lqi_disabled_by_integration = (
+                    entity.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+                )
             elif entities.rssi is None and _matches(
                 entity, TRANSLATION_KEY_RSSI, "rssi"
             ):
                 entities.rssi = entity.entity_id
+                rssi_disabled_by_integration = (
+                    entity.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+                )
             elif entities.battery is None and "battery" in (
                 entity.device_class,
                 entity.original_device_class,
@@ -193,8 +226,17 @@ def async_discover_devices(hass: HomeAssistant) -> dict[str, ZHADeviceInfo]:
             manufacturer=device.manufacturer,
             via_device_ieee=via_ieee,
             entities=entities,
+            lqi_disabled_by_integration=lqi_disabled_by_integration,
+            rssi_disabled_by_integration=rssi_disabled_by_integration,
         )
     return devices
+
+
+def _count_disabled_diagnostics(devices: Iterable[ZHADeviceInfo]) -> int:
+    return sum(
+        int(info.lqi_disabled_by_integration) + int(info.rssi_disabled_by_integration)
+        for info in devices
+    )
 
 
 def async_enable_diagnostic_entities(hass: HomeAssistant) -> list[str]:
@@ -203,42 +245,26 @@ def async_enable_diagnostic_entities(hass: HomeAssistant) -> list[str]:
     Only entities with ``disabled_by == RegistryEntryDisabler.INTEGRATION``
     are touched; entities a user explicitly disabled
     (``RegistryEntryDisabler.USER``) are left alone. Home Assistant reloads
-    the owning (ZHA) config entry automatically after an entity is enabled
-    through the registry -- the entity is not created immediately, it
-    materialises a few seconds later once the reload completes.
+    the owning (ZHA) config entry automatically ~30 seconds
+    (``homeassistant.config_entries.RELOAD_AFTER_UPDATE_DELAY``) after an
+    entity is enabled through the registry -- the entity is not created
+    immediately.
     """
     ent_reg = er.async_get(hass)
     enabled: list[str] = []
     for info in async_discover_devices(hass).values():
-        for entity_id in (info.entities.lqi, info.entities.rssi):
-            if entity_id is None:
-                continue
-            entry = ent_reg.async_get(entity_id)
-            if (
-                entry is None
-                or entry.disabled_by is not er.RegistryEntryDisabler.INTEGRATION
-            ):
-                continue
-            ent_reg.async_update_entity(entity_id, disabled_by=None)
-            enabled.append(entity_id)
+        if info.lqi_disabled_by_integration and info.entities.lqi is not None:
+            ent_reg.async_update_entity(info.entities.lqi, disabled_by=None)
+            enabled.append(info.entities.lqi)
+        if info.rssi_disabled_by_integration and info.entities.rssi is not None:
+            ent_reg.async_update_entity(info.entities.rssi, disabled_by=None)
+            enabled.append(info.entities.rssi)
     return enabled
 
 
 def async_count_disabled_diagnostic_entities(hass: HomeAssistant) -> int:
     """Count LQI/RSSI entities still disabled by the ZHA integration default."""
-    ent_reg = er.async_get(hass)
-    count = 0
-    for info in async_discover_devices(hass).values():
-        for entity_id in (info.entities.lqi, info.entities.rssi):
-            if entity_id is None:
-                continue
-            entry = ent_reg.async_get(entity_id)
-            if (
-                entry is not None
-                and entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
-            ):
-                count += 1
-    return count
+    return _count_disabled_diagnostics(async_discover_devices(hass).values())
 
 
 class ZHACollector:
@@ -248,57 +274,113 @@ class ZHACollector:
         """Initialize the collector."""
         self.hass = hass
         self._devices: dict[str, ZHADeviceInfo] = {}
+        self._entity_to_ieee: dict[str, str] = {}
+        self._tracked_entity_ids: frozenset[str] = frozenset()
         self._unsub_tracking: Callable[[], None] | None = None
+        self._unsub_registry: list[Callable[[], None]] = []
+        self._unsub_debounce: Callable[[], None] | None = None
         self._on_update: Callable[[str, dict[str, Any]], None] | None = None
 
     def is_available(self) -> bool:
         """Return True if at least one ZHA config entry is loaded."""
         return bool(async_get_zha_config_entries(self.hass))
 
+    def count_disabled_diagnostics(self) -> int:
+        """Count disabled LQI/RSSI entities among the last discovered devices.
+
+        Reuses the device map from the last discovery pass instead of
+        re-walking the entity registry (the coordinator calls this right
+        after ``collect_devices``/live discovery for its repair issue).
+        """
+        return _count_disabled_diagnostics(self._devices.values())
+
     @callback
     def async_setup(self, on_update: Callable[[str, dict[str, Any]], None]) -> None:
-        """Start tracking ZHA diagnostic entities for live (push) updates."""
+        """Start tracking ZHA diagnostic entities for live (push) updates.
+
+        Also starts a debounced listener on the device/entity registries so
+        devices/entities added, removed or (re-)enabled are noticed without
+        waiting for the next periodic refresh.
+        """
         self._on_update = on_update
         self._async_refresh_tracking()
+        self._unsub_registry = [
+            self.hass.bus.async_listen(
+                "device_registry_updated", self._async_registry_changed
+            ),
+            self.hass.bus.async_listen(
+                "entity_registry_updated", self._async_registry_changed
+            ),
+        ]
 
     @callback
     def async_stop(self) -> None:
-        """Stop tracking entity state changes."""
+        """Stop tracking entity state changes and registry updates."""
         if self._unsub_tracking is not None:
             self._unsub_tracking()
             self._unsub_tracking = None
+        for unsub in self._unsub_registry:
+            unsub()
+        self._unsub_registry = []
+        if self._unsub_debounce is not None:
+            self._unsub_debounce()
+            self._unsub_debounce = None
         self._on_update = None
 
     @callback
+    def _async_registry_changed(self, event: Event[Any]) -> None:
+        """Debounce device/entity registry updates into one re-discovery."""
+        if self._unsub_debounce is not None:
+            return
+        self._unsub_debounce = async_call_later(
+            self.hass, _REGISTRY_DEBOUNCE_SECONDS, self._async_debounced_refresh
+        )
+
+    @callback
+    def _async_debounced_refresh(self, _now: datetime) -> None:
+        self._unsub_debounce = None
+        self._async_refresh_tracking()
+
+    @callback
     def _async_refresh_tracking(self) -> None:
-        """Re-discover devices/entities and (re)subscribe to their states."""
+        """Re-discover devices/entities; resubscribe only if that changed."""
         self._devices = async_discover_devices(self.hass)
+        self._entity_to_ieee = {
+            entity_id: ieee
+            for ieee, info in self._devices.items()
+            for entity_id in info.entities.as_tuple()
+        }
+        entity_ids = frozenset(self._entity_to_ieee)
+        if entity_ids == self._tracked_entity_ids and self._unsub_tracking is not None:
+            # Same set of entities to track: no need to churn the
+            # subscription (this runs on every periodic refresh).
+            return
+        self._tracked_entity_ids = entity_ids
         if self._unsub_tracking is not None:
             self._unsub_tracking()
             self._unsub_tracking = None
-        entity_ids = [
-            entity_id
-            for info in self._devices.values()
-            for entity_id in info.entities.as_tuple()
-        ]
         if entity_ids and self._on_update is not None:
             self._unsub_tracking = async_track_state_change_event(
-                self.hass, entity_ids, self._async_state_changed
+                self.hass, list(entity_ids), self._async_state_changed
             )
 
     @callback
     def _async_state_changed(self, event: Event[EventStateChangedData]) -> None:
         entity_id = event.data["entity_id"]
-        for ieee, info in self._devices.items():
-            if entity_id in info.entities.as_tuple():
-                if self._on_update is not None:
-                    self._on_update(ieee, self._collect_device(info))
-                return
+        ieee = self._entity_to_ieee.get(entity_id)
+        if ieee is None or self._on_update is None:
+            return
+        info = self._devices.get(ieee)
+        if info is None:
+            return
+        self._on_update(ieee, self._collect_device(info))
 
     def _collect_device(self, info: ZHADeviceInfo) -> dict[str, Any]:
         """Read the current values of one device's tracked entities."""
         metrics: dict[str, Any] = {}
-        available: bool | None = None
+        seen_available = False
+        seen_unavailable = False
+        last_seen: datetime | None = None
         for entity_id, metric_key in (
             (info.entities.lqi, "link_quality"),
             (info.entities.rssi, "rssi"),
@@ -309,17 +391,32 @@ class ZHACollector:
             state = self.hass.states.get(entity_id)
             if state is None:
                 continue
-            if state.state == _UNAVAILABLE:
-                if available is None:
-                    available = False
+            if state.state == STATE_UNAVAILABLE:
+                if state.attributes.get(ATTR_RESTORED):
+                    # The stub state Home Assistant writes while an entity
+                    # is unloaded (e.g. ZHA reloading after enabling
+                    # diagnostics, or any ZHA options change): not a real
+                    # "device is offline" signal, so it counts as neither
+                    # available nor unavailable.
+                    continue
+                seen_unavailable = True
                 continue
-            available = True
-            if state.state in _IGNORED_STATES:
-                continue
+            seen_available = True
+            reported = state.last_reported or state.last_updated
+            if reported is not None and (last_seen is None or reported > last_seen):
+                last_seen = reported
             try:
                 metrics[metric_key] = float(state.state)
             except (TypeError, ValueError):
                 continue
+
+        available: bool | None
+        if seen_available:
+            available = True
+        elif seen_unavailable:
+            available = False
+        else:
+            available = None
 
         return {
             "friendly_name": info.name,
@@ -328,6 +425,7 @@ class ZHACollector:
             "via_device_ieee": info.via_device_ieee,
             "device_type": info.device_type,
             "available": available,
+            "last_seen": last_seen,
             "metrics": metrics,
         }
 
@@ -335,11 +433,15 @@ class ZHACollector:
         """Return a full snapshot of every known ZHA device.
 
         Also re-discovers devices/entities from the registries, so newly
-        joined ZHA devices are picked up (the coordinator calls this
-        periodically as well as at start-up).
+        joined (or removed) ZHA devices are picked up (the coordinator
+        calls this periodically as well as at start-up). The returned
+        ``last_seen`` values are informational only: the coordinator must
+        not use them to advance a device's stored ``last_seen`` metric (see
+        module docstring) -- only live push updates do that.
         """
         if not self.is_available():
             self._devices = {}
+            self._entity_to_ieee = {}
             return {}
         self._async_refresh_tracking()
         return {

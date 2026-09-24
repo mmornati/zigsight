@@ -4,17 +4,22 @@ from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.zigsight import (
+    _async_setup_services,
+    async_remove_config_entry_device,
+)
 from custom_components.zigsight.const import (
     CONF_INTEGRATION_TYPE,
     DOMAIN,
     INTEGRATION_TYPE_ZHA,
     ISSUE_ZHA_DIAGNOSTICS_DISABLED,
 )
-from custom_components.zigsight.zha_collector import async_discover_devices
+from custom_components.zigsight.zha_collector import ZHA_DOMAIN, async_discover_devices
 
 from .zha_test_helpers import add_mock_zha_config_entry, add_mock_zha_device
 
@@ -166,3 +171,135 @@ async def test_zha_service_never_reenables_user_disabled(hass: HomeAssistant) ->
     entry = ent_reg.async_get(rssi_entity_id)
     assert entry is not None
     assert entry.disabled_by is er.RegistryEntryDisabler.USER
+
+
+async def test_service_without_loaded_zha_mode_entry_returns_error(
+    hass: HomeAssistant,
+) -> None:
+    """The service is safe to call even with no ZHA-mode entry loaded."""
+    # Register the services without ever setting up a ZigSight config
+    # entry, exactly like calling the service before any entry is loaded
+    # (or after it was removed) would.
+    await _async_setup_services(hass)
+
+    response = await hass.services.async_call(
+        DOMAIN,
+        "enable_zha_diagnostic_entities",
+        {},
+        blocking=True,
+        return_response=True,
+    )
+    assert response["enabled_count"] == 0
+    assert response["entity_ids"] == []
+    assert "error" in response
+
+
+async def test_zha_reload_does_not_count_as_reconnect(hass: HomeAssistant) -> None:
+    """A ZHA reload (entities briefly 'restored'/unavailable) isn't a reconnect.
+
+    ZHA reloads its config entry automatically ~30 seconds after
+    ``zigsight.enable_zha_diagnostic_entities`` runs (and on any options
+    change). While it does, Home Assistant writes each removed entity's
+    last state as `unavailable` with a `restored: True` attribute; that
+    must never look like the device itself going offline and back online.
+    """
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(
+        hass,
+        zha_entry,
+        IEEE,
+        lqi_disabled_by=None,
+        rssi_disabled_by=None,
+        lqi_state="100",
+        rssi_state="-60",
+        battery_state="80",
+    )
+
+    entry = await _setup_zigsight_zha_entry(hass)
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    info = async_discover_devices(hass)[IEEE]
+
+    record = coordinator.get_device(IEEE)
+    assert record is not None
+    assert record["available"] is True
+    assert record["reconnect_count"] == 0
+
+    # Simulate the reload: every tracked entity gets the "restored" stub.
+    for entity_id in info.entities.as_tuple():
+        hass.states.async_set(entity_id, "unavailable", {"restored": True})
+    await hass.async_block_till_done()
+    assert coordinator.get_device(IEEE)["available"] is True  # unchanged
+    assert coordinator.get_device(IEEE)["reconnect_count"] == 0
+
+    # The entities come back with real values once the reload completes.
+    for entity_id, value in zip(
+        info.entities.as_tuple(), ("110", "-58", "82"), strict=True
+    ):
+        hass.states.async_set(entity_id, value)
+    await hass.async_block_till_done()
+    assert coordinator.get_device(IEEE)["available"] is True
+    assert coordinator.get_device(IEEE)["reconnect_count"] == 0
+
+
+async def test_zha_unloading_marks_devices_unknown_not_offline(
+    hass: HomeAssistant,
+) -> None:
+    """While no ZHA entry is loaded, availability goes unknown, not False."""
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(hass, zha_entry, IEEE, lqi_disabled_by=None, lqi_state="100")
+
+    entry = await _setup_zigsight_zha_entry(hass)
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    assert coordinator.get_device(IEEE)["available"] is True
+
+    zha_entry.mock_state(hass, ConfigEntryState.NOT_LOADED)
+    await coordinator._collect_zha_devices()
+    await hass.async_block_till_done()
+
+    assert coordinator.get_device(IEEE)["available"] is None
+    assert coordinator.get_device(IEEE)["reconnect_count"] == 0
+
+    # ZHA comes back with the same value: not a reconnect (no False->True
+    # transition happened).
+    zha_entry.mock_state(hass, ConfigEntryState.LOADED)
+    await coordinator._collect_zha_devices()
+    await hass.async_block_till_done()
+
+    assert coordinator.get_device(IEEE)["available"] is True
+    assert coordinator.get_device(IEEE)["reconnect_count"] == 0
+
+
+async def test_zha_device_removed_from_registry_is_dropped(hass: HomeAssistant) -> None:
+    """A device unpaired from ZHA is dropped from ZigSight and deletable.
+
+    Before the fix, a ZHA device no longer in the collector's snapshot
+    stayed in ``coordinator._devices`` forever: ``get_device`` kept
+    returning it, so ``async_remove_config_entry_device`` (the "delete
+    device" button in the UI) always refused to remove it.
+    """
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(hass, zha_entry, IEEE, lqi_disabled_by=None, lqi_state="100")
+
+    entry = await _setup_zigsight_zha_entry(hass)
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    assert coordinator.get_device(IEEE) is not None
+
+    dev_reg = dr.async_get(hass)
+    zigsight_device = dev_reg.async_get_device(identifiers={(DOMAIN, IEEE)})
+    assert zigsight_device is not None
+    # Before the removal, the UI "delete device" button is refused: the
+    # coordinator still considers the device known.
+    assert not await async_remove_config_entry_device(hass, entry, zigsight_device)
+
+    zha_device = dev_reg.async_get_device(identifiers={(ZHA_DOMAIN, IEEE)})
+    assert zha_device is not None
+    dev_reg.async_remove_device(zha_device.id)
+
+    await coordinator._collect_zha_devices()
+    await hass.async_block_till_done()
+
+    assert coordinator.get_device(IEEE) is None
+    # The coordinator's own removal already unlinked/deleted the ZigSight
+    # device (it had no other config entries), so there is nothing left
+    # for the user to manually delete.
+    assert dev_reg.async_get_device(identifiers={(DOMAIN, IEEE)}) is None

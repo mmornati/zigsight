@@ -82,6 +82,7 @@ def mock_coordinator():
     coordinator.network_map_supported = True
     coordinator.network_map_updated = None
     coordinator.network_map_requested = None
+    coordinator.network_map_pending = False
     return coordinator
 
 
@@ -247,6 +248,7 @@ class TestZigSightTopologyView:
             "supported": True,
             "updated": None,
             "requested": None,
+            "pending": False,
         }
         assert {(e["from"], e["to"]) for e in body["edges"]} == {
             ("coordinator", "device1"),

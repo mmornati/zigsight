@@ -7,6 +7,7 @@ read-only users) after replaying the recorded Zigbee2MQTT session.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -17,6 +18,7 @@ from homeassistant.components.frontend import DATA_PANELS
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
@@ -30,6 +32,7 @@ from custom_components.zigsight.const import (
     CONF_MQTT_TOPIC_PREFIX,
     DOMAIN,
     INTEGRATION_TYPE_ZIGBEE2MQTT,
+    ISSUE_LEGACY_PANEL,
 )
 from custom_components.zigsight.coordinator import ZigSightCoordinator
 
@@ -179,13 +182,17 @@ async def test_static_files_served(
     assert response.status in (403, 404)
 
 
-async def test_yaml_panel_is_kept(
+def _legacy_issue(hass: HomeAssistant) -> ir.IssueEntry | None:
+    return ir.async_get(hass).async_get_issue(DOMAIN, ISSUE_LEGACY_PANEL)
+
+
+async def test_yaml_panel_is_kept_and_reported(
     hass: HomeAssistant,
     mqtt_mock: MagicMock,
     entry: MockConfigEntry,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A leftover panel_custom YAML panel doesn't break setup and is kept."""
+    """A leftover panel_custom YAML panel is kept and raises a repair issue."""
     await panel_custom.async_register_panel(
         hass,
         frontend_url_path=PANEL_URL_PATH,
@@ -195,17 +202,75 @@ async def test_yaml_panel_is_kept(
 
     with caplog.at_level(logging.WARNING):
         await _setup(hass, entry)
-    assert "remove that panel_custom entry" in caplog.text
+    assert "remove the 'panel_custom' entry" in caplog.text
     assert DATA_PANEL_REGISTERED not in hass.data
+
+    issue = _legacy_issue(hass)
+    assert issue is not None
+    assert issue.severity is ir.IssueSeverity.WARNING
+    assert issue.translation_key == ISSUE_LEGACY_PANEL
+    assert issue.translation_placeholders == {
+        "panels": "/zigsight (/local/zigsight/zigsight-panel.js)"
+    }
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
-    # Not ours: left alone
+    # Not ours: left alone; the issue goes with the integration
     panel = hass.data[DATA_PANELS][PANEL_URL_PATH]
     assert (
         panel.config["_panel_custom"]["module_url"]
         == "/local/zigsight/zigsight-panel.js"
     )
+    assert _legacy_issue(hass) is None
+
+
+async def test_duplicate_panel_element_reported(
+    hass: HomeAssistant,
+    mqtt_mock: MagicMock,
+    entry: MockConfigEntry,
+) -> None:
+    """Another panel defining <zigsight-panel> is reported, ours still registers."""
+    await panel_custom.async_register_panel(
+        hass,
+        frontend_url_path="zigbee-tools",
+        webcomponent_name="zigsight-panel",
+        js_url="/local/community/zigsight/zigsight-panel.js",
+    )
+    # Unrelated custom panels are ignored
+    await panel_custom.async_register_panel(
+        hass,
+        frontend_url_path="other",
+        webcomponent_name="other-panel",
+        module_url="/local/other.js",
+    )
+
+    await _setup(hass, entry)
+    assert hass.data[DATA_PANEL_REGISTERED] is True
+    issue = _legacy_issue(hass)
+    assert issue is not None
+    assert issue.translation_placeholders == {
+        "panels": "/zigbee-tools (/local/community/zigsight/zigsight-panel.js)"
+    }
+
+
+async def test_legacy_issue_cleared_when_fixed(
+    hass: HomeAssistant,
+    mqtt_mock: MagicMock,
+    entry: MockConfigEntry,
+) -> None:
+    """Once the old panel is gone our panel registers and the issue clears."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        ISSUE_LEGACY_PANEL,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_LEGACY_PANEL,
+        translation_placeholders={"panels": "/zigsight (old)"},
+    )
+    await _setup(hass, entry)
+    assert hass.data[DATA_PANEL_REGISTERED] is True
+    assert _legacy_issue(hass) is None
 
 
 # ---------------------------------------------------------------------------
@@ -244,6 +309,7 @@ async def test_topology_inferred_then_network_map(
         "supported": True,
         "updated": None,
         "requested": None,
+        "pending": False,
     }
     assert topology["network"]["channel"] == 15
 
@@ -285,7 +351,7 @@ async def test_request_network_map_admin(
     response = await client.post("/api/zigsight/topology/networkmap")
     assert response.status == 202
     body = await response.json()
-    assert body == {"requested": True, "requested_at": NOW}
+    assert body == {"requested": True, "pending": False, "requested_at": NOW}
 
     mqtt_mock.async_publish.assert_called_once()
     topic, payload = mqtt_mock.async_publish.call_args.args[:2]
@@ -294,6 +360,46 @@ async def test_request_network_map_admin(
 
     topology = await _get_json(client, "/api/zigsight/topology")
     assert topology["network_map"]["requested"] == NOW
+    assert topology["network_map"]["pending"] is True
+
+
+async def test_request_network_map_rate_limited(
+    hass: HomeAssistant,
+    mqtt_mock: MagicMock,
+    coordinator: ZigSightCoordinator,
+    hass_client: ClientSessionGenerator,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """A pending request isn't re-published; it expires after 2 minutes."""
+    client = await hass_client()
+    response = await client.post("/api/zigsight/topology/networkmap")
+    assert response.status == 202
+    assert mqtt_mock.async_publish.call_count == 1
+
+    freezer.tick(timedelta(seconds=90))
+    response = await client.post("/api/zigsight/topology/networkmap")
+    assert response.status == 202
+    assert await response.json() == {
+        "requested": True,
+        "pending": True,
+        "requested_at": NOW,
+    }
+    assert mqtt_mock.async_publish.call_count == 1
+
+    # The response arrives: no longer pending, a new request is published
+    _fire_network_map(hass)
+    await hass.async_block_till_done()
+    assert not coordinator.network_map_pending
+    response = await client.post("/api/zigsight/topology/networkmap")
+    assert (await response.json())["pending"] is False
+    assert mqtt_mock.async_publish.call_count == 2
+
+    # No response within 2 minutes: the request is considered lost
+    freezer.tick(timedelta(minutes=2, seconds=1))
+    assert not coordinator.network_map_pending
+    response = await client.post("/api/zigsight/topology/networkmap")
+    assert (await response.json())["pending"] is False
+    assert mqtt_mock.async_publish.call_count == 3
 
 
 async def test_request_network_map_non_admin(

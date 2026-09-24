@@ -40,8 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the frontend files are served by the integration at
   `/zigsight_static/`: no more copying `zigsight-panel.js` to `www/` or
   `panel_custom:` YAML. The panel is removed when the integration is unloaded.
-  A leftover `panel_custom` YAML entry for `/zigsight` is kept and a warning
-  asks to remove it.
+  A leftover `panel_custom` YAML entry for `/zigsight` (or any other panel
+  loading a copied `zigsight-panel` element) is kept, and a repair issue asks
+  to remove it, the copied files and old `/local/...` dashboard resources.
 - Works offline: Lit is vendored (`www/vendor/lit-core.min.js`, 3.3.3,
   BSD-3-Clause); the topology graph is drawn with a small built-in SVG
   renderer instead of vis-network loaded from unpkg.
@@ -59,7 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   real types from `bridge/devices`; links come from the Zigbee2MQTT raw
   network map (deduplicated, best LQI, parent -> child) or, without one, an
   explicitly *inferred* star to the coordinator. Admins can request a new
-  network map from the panel (`POST /api/zigsight/topology/networkmap`).
+  network map from the panel (`POST /api/zigsight/topology/networkmap`;
+  a pending request younger than 2 minutes is not re-published).
 - Removed HA frontend elements (`mwc-button`, `ha-circular-progress`) are no
   longer used.
 

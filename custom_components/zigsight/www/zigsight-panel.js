@@ -93,6 +93,7 @@ class ZigSightPanel extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this._disconnected = false;
     this._refreshTimer = setInterval(() => this._loadData(), REFRESH_INTERVAL_MS);
     if (this.hass) this._loadData();
   }
@@ -100,7 +101,9 @@ class ZigSightPanel extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     clearInterval(this._refreshTimer);
+    this._disconnected = true;
     clearTimeout(this._mapPollTimer);
+    this._mapPollTimer = null;
   }
 
   updated(changed) {
@@ -128,6 +131,10 @@ class ZigSightPanel extends LitElement {
       ]);
       this._devices = devices.devices || [];
       this._topology = topology;
+      if (topology.network_map?.pending && !this._mapPollTimer) {
+        // Requested earlier (or from another browser): wait for it.
+        this._startMapPolling(topology.network_map.updated || null);
+      }
       this._channel = { ...(this._channel || {}), status: channel };
       this._error = null;
       if (this._selectedDevice) {
@@ -430,11 +437,11 @@ class ZigSightPanel extends LitElement {
         ${map.supported
           ? html`<button
               class="button"
-              ?disabled=${Boolean(this._mapPollTimer)}
+              ?disabled=${Boolean(this._mapPollTimer || map.pending)}
               @click=${this._requestNetworkMap}
             >
               <ha-icon icon="mdi:radar"></ha-icon>
-              ${this._mapPollTimer ? "Scanning…" : "Request network map"}
+              ${this._mapPollTimer || map.pending ? "Scanning…" : "Request network map"}
             </button>`
           : nothing}
       </div>
@@ -574,33 +581,50 @@ class ZigSightPanel extends LitElement {
 
   async _requestNetworkMap() {
     const before = this._topology?.network_map?.updated || null;
+    let response;
     try {
-      await this._api("POST", "zigsight/topology/networkmap");
+      response = await this._api("POST", "zigsight/topology/networkmap");
     } catch (error) {
       this._mapStatus = `Could not request a network map: ${apiErrorMessage(error)}`;
       return;
     }
-    this._mapStatus =
-      "Network map requested. Waiting for Zigbee2MQTT to scan the network (this can take a few minutes)…";
+    this._mapStatus = response?.pending
+      ? "A network map scan is already running. Waiting for its result…"
+      : "Network map requested. Waiting for Zigbee2MQTT to scan the network (this can take a few minutes)…";
+    this._startMapPolling(before);
+  }
+
+  /** Poll the topology until a network map newer than `before` arrives. */
+  _startMapPolling(before) {
+    clearTimeout(this._mapPollTimer);
     const started = Date.now();
     const poll = async () => {
+      if (this._disconnected) return;
       try {
         const topology = await this._api("GET", "zigsight/topology");
+        // The panel may have been closed while the request was in flight.
+        if (this._disconnected) return;
         this._topology = topology;
-        const updated = topology.network_map?.updated || null;
-        if (updated && updated !== before) {
+        const map = topology.network_map || {};
+        const updated = map.updated || null;
+        if ((updated && updated !== before) || map.pending === false) {
           this._mapPollTimer = null;
-          this._mapStatus = null;
+          this._mapStatus =
+            updated && updated !== before
+              ? null
+              : "No network map received. Zigbee2MQTT may still be scanning; check its logs and refresh later.";
           this.requestUpdate();
           return;
         }
       } catch (error) {
+        if (this._disconnected) return;
         // Keep polling; a single failed request is not fatal.
       }
       if (Date.now() - started > NETWORK_MAP_TIMEOUT_MS) {
         this._mapPollTimer = null;
         this._mapStatus =
           "No network map received yet. Zigbee2MQTT may still be scanning; check its logs and refresh later.";
+        this.requestUpdate();
         return;
       }
       this._mapPollTimer = setTimeout(poll, NETWORK_MAP_POLL_MS);
@@ -740,6 +764,7 @@ class ZigSightPanel extends LitElement {
               <td>
                 <select
                   aria-label="Wi-Fi channel"
+                  .value=${row.channel}
                   @change=${(event) => this._updateRow(index, "channel", event.target.value)}
                 >
                   ${WIFI_CHANNELS.map(

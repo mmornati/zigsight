@@ -61,6 +61,7 @@ from .const import (
     HISTORY_MIN_INTERVAL,
     HISTORY_MIN_INTERVAL_ON_BATTERY_CHANGE,
     ISSUE_ZHA_DIAGNOSTICS_DISABLED,
+    NETWORK_MAP_REQUEST_TIMEOUT,
     RECONNECT_EVENTS_MAX,
     SIGNAL_DEVICE_REMOVED,
     SIGNAL_DEVICE_UPDATE,
@@ -599,6 +600,23 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def network_map_supported(self) -> bool:
         """Return True if a raw network map can be requested (Zigbee2MQTT)."""
         return not self._enable_zha
+
+    @property
+    def network_map_pending(self) -> bool:
+        """Return True while a network map request awaits its response.
+
+        A request older than NETWORK_MAP_REQUEST_TIMEOUT is considered lost
+        (Zigbee2MQTT restarted, request failed without a response, ...).
+        """
+        requested = self.network_map_requested
+        if requested is None:
+            return False
+        if (
+            self.network_map_updated is not None
+            and self.network_map_updated >= requested
+        ):
+            return False
+        return dt_util.utcnow() - requested < NETWORK_MAP_REQUEST_TIMEOUT
 
     async def async_request_network_map(self, routes: bool = False) -> bool:
         """Ask Zigbee2MQTT for a raw network map.

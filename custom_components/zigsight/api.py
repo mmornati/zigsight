@@ -104,6 +104,7 @@ class ZigSightTopologyView(HomeAssistantView):
                 "supported": coordinator.network_map_supported,
                 "updated": _iso(coordinator.network_map_updated),
                 "requested": _iso(coordinator.network_map_requested),
+                "pending": coordinator.network_map_pending,
             }
             topology["network"] = coordinator.get_network_info()
             return self.json(topology)
@@ -507,6 +508,16 @@ class ZigSightNetworkMapRequestView(HomeAssistantView):
                 {"error": "Network maps are only available with Zigbee2MQTT"},
                 status_code=400,
             )
+        if coordinator.network_map_pending:
+            # A scan is already running: don't load the mesh again.
+            return self.json(
+                {
+                    "requested": True,
+                    "pending": True,
+                    "requested_at": _iso(coordinator.network_map_requested),
+                },
+                status_code=202,
+            )
         try:
             await coordinator.async_request_network_map()
         except HomeAssistantError as err:
@@ -517,6 +528,7 @@ class ZigSightNetworkMapRequestView(HomeAssistantView):
         return self.json(
             {
                 "requested": True,
+                "pending": False,
                 "requested_at": _iso(coordinator.network_map_requested),
             },
             status_code=202,

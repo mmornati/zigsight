@@ -27,9 +27,18 @@ Older versions asked you to copy `zigsight-panel.js` to `www/` and to add a
    `www/zigsight/zigsight-panel.js`).
 3. Restart Home Assistant.
 
+4. In **Settings** → **Dashboards** → **Resources**, replace resources
+   pointing to `/local/.../zigsight/...` with the `/zigsight_static/...` ones
+   (see [UI](ui.md)).
+
 Until the YAML entry is removed ZigSight keeps it (your copied, outdated
-panel is shown) and logs a warning:
-`A panel is already registered at /zigsight, probably by a 'panel_custom' entry ...`.
+panel is shown), logs a warning and raises a **repair issue** ("Remove the old
+manual ZigSight panel setup", in **Settings** → **Repairs**) listing the old
+panels. The old copy has known security issues, so please don't ignore it.
+The issue is also raised when another panel (under any URL) loads a
+`zigsight-panel` element from a copied file, since only one definition of
+that element can be active in the browser. It clears once ZigSight's own
+panel registers without conflicts.
 
 ## Devices
 
@@ -68,6 +77,10 @@ Assistant restarts; a map also sent by another tool (e.g. the Zigbee2MQTT
 frontend with type *raw*) is used as well.
 
 Only administrators can request a map (`POST /api/zigsight/topology/networkmap`).
+While a request is pending (no response yet, less than 2 minutes old) further
+requests are not sent again to Zigbee2MQTT: the endpoint answers with the
+pending request (`"pending": true`) and the panel shows **Scanning…**, also
+when it is opened again or in another browser.
 
 ### Controls
 

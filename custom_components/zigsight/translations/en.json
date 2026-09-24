@@ -105,6 +105,10 @@
     "zha_diagnostics_disabled": {
       "title": "ZHA LQI/RSSI sensors are disabled",
       "description": "ZigSight found {count} ZHA link quality (LQI) / RSSI diagnostic sensor(s) still disabled by default. Call the `zigsight.enable_zha_diagnostic_entities` service (Developer Tools > Actions) to enable them; Home Assistant reloads the ZHA integration ~30 seconds afterwards to create the entities."
+    },
+    "legacy_panel": {
+      "title": "Remove the old manual ZigSight panel setup",
+      "description": "ZigSight now serves and registers its sidebar panel itself, but an old panel from a manual setup is still registered: {panels}.\n\nThat old copy of `zigsight-panel.js` is outdated, has known security issues (device names are rendered as HTML) and bugs, and can prevent the current panel from loading. To fix it:\n\n1. Remove the `panel_custom:` entry for ZigSight (`url_path: zigsight` or `name: zigsight-panel`) from `configuration.yaml`.\n2. Delete the copied files, e.g. `www/community/zigsight/` or `www/zigsight/`.\n3. In Settings > Dashboards > Resources, replace resources pointing to `/local/.../zigsight/...` with `/zigsight_static/topology-card.js` or `/zigsight_static/topology-visualization.js`.\n4. Restart Home Assistant."
     }
   }
 }

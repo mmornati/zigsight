@@ -8,6 +8,7 @@ from typing import cast
 
 import voluptuous as vol
 from homeassistant.components import frontend, mqtt, panel_custom
+from homeassistant.components.frontend import DATA_PANELS
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import RELOAD_AFTER_UPDATE_DELAY, ConfigEntry
 from homeassistant.core import (
@@ -43,6 +44,7 @@ from .const import (
     DOMAIN,
     INTEGRATION_TYPE_ZHA,
     INTEGRATION_TYPE_ZIGBEE2MQTT,
+    ISSUE_LEGACY_PANEL,
     ISSUE_ZHA_DIAGNOSTICS_DISABLED,
     LEGACY_MQTT_KEYS,
 )
@@ -237,6 +239,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if hass.services.has_service(DOMAIN, service):
                     hass.services.async_remove(DOMAIN, service)
             ir.async_delete_issue(hass, DOMAIN, ISSUE_ZHA_DIAGNOSTICS_DISABLED)
+            ir.async_delete_issue(hass, DOMAIN, ISSUE_LEGACY_PANEL)
             _async_remove_panel(hass)
 
     return unload_ok
@@ -382,6 +385,55 @@ async def _async_register_static_path(hass: HomeAssistant) -> None:
     )
 
 
+def _legacy_panels(hass: HomeAssistant) -> list[str]:
+    """Describe registered panels that aren't ours but load a ZigSight panel.
+
+    That is the panel at ``/zigsight`` when it isn't served from
+    ``/zigsight_static`` (a ``panel_custom`` YAML entry from the old manual
+    setup), and any other panel defining the ``zigsight-panel`` custom
+    element (only one definition of a custom element can win in a browser).
+    """
+    legacy: list[str] = []
+    for url_path, panel in hass.data.get(DATA_PANELS, {}).items():
+        custom = (panel.config or {}).get("_panel_custom") or {}
+        module_url = str(custom.get("module_url") or custom.get("js_url") or "")
+        if module_url.startswith(f"{STATIC_URL_PATH}/"):
+            continue
+        if url_path == PANEL_URL_PATH or custom.get("name") == PANEL_WEBCOMPONENT:
+            legacy.append(f"/{url_path} ({module_url or 'unknown module'})")
+    return sorted(legacy)
+
+
+@callback
+def _async_update_legacy_panel_issue(hass: HomeAssistant) -> None:
+    """Raise (or clear) the repair issue about an old manual panel setup."""
+    legacy = _legacy_panels(hass)
+    if not legacy:
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_LEGACY_PANEL)
+        return
+    _LOGGER.warning(
+        "Found a ZigSight panel from the old manual setup: %s. ZigSight now "
+        "registers its panel itself: remove the 'panel_custom' entry from "
+        "configuration.yaml and the copied zigsight-panel.js from your www "
+        "folder, then restart Home Assistant",
+        ", ".join(legacy),
+    )
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        ISSUE_LEGACY_PANEL,
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_LEGACY_PANEL,
+        translation_placeholders={"panels": ", ".join(legacy)},
+        learn_more_url=(
+            "https://github.com/mmornati/zigsight/blob/main/docs/frontend_panel.md"
+            "#upgrading-from-zigsight-1x-manual-panel-setup"
+        ),
+    )
+
+
 async def _async_register_panel(hass: HomeAssistant) -> None:
     """Register the ZigSight sidebar panel (admin only)."""
     if hass.data.get(DATA_PANEL_REGISTERED):
@@ -400,17 +452,12 @@ async def _async_register_panel(hass: HomeAssistant) -> None:
         )
     except ValueError:
         # Most likely a panel_custom entry in configuration.yaml, as older
-        # ZigSight versions required. Keep it working, but point to it.
-        _LOGGER.warning(
-            "A panel is already registered at /%s, probably by a "
-            "'panel_custom' entry in configuration.yaml from an older ZigSight "
-            "version. ZigSight now registers its panel automatically: remove "
-            "that panel_custom entry (and any copy of zigsight-panel.js in "
-            "your www folder) and restart Home Assistant",
-            PANEL_URL_PATH,
-        )
-        return
-    hass.data[DATA_PANEL_REGISTERED] = True
+        # ZigSight versions required. It is kept (removing a user's panel
+        # would be surprising) and reported as a repair issue below.
+        pass
+    else:
+        hass.data[DATA_PANEL_REGISTERED] = True
+    _async_update_legacy_panel_issue(hass)
 
 
 @callback

@@ -96,6 +96,10 @@ HISTORY_MIN_INTERVAL = timedelta(minutes=5)
 HISTORY_MIN_INTERVAL_ON_BATTERY_CHANGE = timedelta(seconds=60)
 RECONNECT_EVENTS_MAX = 200
 
+# A network map request is considered pending (and not re-published) until
+# its response arrives or this long has passed: a scan loads the mesh.
+NETWORK_MAP_REQUEST_TIMEOUT = timedelta(minutes=2)
+
 # Coordinator refresh interval (analytics recomputation + ZHA polling).
 UPDATE_INTERVAL = timedelta(seconds=60)
 
@@ -113,3 +117,7 @@ DEVICE_TYPE_END_DEVICE = "EndDevice"
 # Repair issue raised (and cleared) around the ZHA LQI/RSSI diagnostic
 # sensors; see zigsight.enable_zha_diagnostic_entities.
 ISSUE_ZHA_DIAGNOSTICS_DISABLED = "zha_diagnostics_disabled"
+
+# Repair issue raised while a panel from an older, manual ZigSight panel setup
+# (panel_custom YAML pointing to a copied zigsight-panel.js) is registered.
+ISSUE_LEGACY_PANEL = "legacy_panel"

@@ -135,9 +135,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register frontend panel (only once)
     await _async_register_panel(hass)
 
-    # Reload the entry whenever options change (e.g. analytics thresholds
-    # tuned via the options flow) so the coordinator picks up new values.
-    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    # Note: reloading the entry when options change (e.g. analytics
+    # thresholds tuned via the options flow) is handled by
+    # ZigSightOptionsFlowHandler extending OptionsFlowWithReload
+    # (see options_flow.py) rather than a config-entry update listener here
+    # -- HA does not allow combining both on the same entry.
 
     return True
 
@@ -150,11 +152,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_shutdown()
 
     return unload_ok
-
-
-async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload the config entry when its options are updated."""
-    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def _async_setup_services(hass: HomeAssistant) -> None:

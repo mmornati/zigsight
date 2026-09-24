@@ -123,10 +123,9 @@ omit = [
     "*/tests/*",
     "*/__pycache__/*",
     "*/examples/*",
-    # Home Assistant integration entry points - require full HA environment
-    "custom_components/zigsight/__init__.py",
-    "custom_components/zigsight/config_flow.py",
-    "custom_components/zigsight/options_flow.py",
+    # __init__.py, config_flow.py and options_flow.py are now covered by
+    # tests/test_init.py and tests/test_config_flow.py against a real hass
+    # fixture, so they're no longer omitted here.
     "custom_components/zigsight/diagnostics.py",
     # Sensor/binary_sensor platforms - require full HA entity framework
     "custom_components/zigsight/sensor/__init__.py",

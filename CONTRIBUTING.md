@@ -128,6 +128,19 @@ async def async_setup(hass: HomeAssistant) -> bool:
 - **Minimum 85% code coverage is enforced by CI** - PRs failing this check will be rejected
 - Use pytest fixtures from `conftest.py`
 - Follow the existing test structure
+- Prefer the real `hass` fixture (from `pytest-homeassistant-custom-component`)
+  and `MockConfigEntry` for anything that exercises `async_setup_entry`, the
+  config/options flow, or platform setup - reserve `MagicMock` hass objects
+  for tests of pure logic (analytics, recommender, etc.)
+- Note: `requirements-dev.txt` pins `pytest-homeassistant-custom-component`,
+  which pulls in a specific `homeassistant` core release (currently
+  `2026.2.3`) as a transitive dependency. That's newer than ZigSight's
+  documented minimum supported Home Assistant version (`2025.10.0` in
+  `manifest.json`/`hacs.json`) - the pin tracks a recent release that still
+  resolves cleanly on Python 3.13 so CI stays close to what HACS users
+  actually run, not the oldest supported version. If you need to validate
+  against the minimum supported version specifically, install
+  `homeassistant==2025.10.0` separately in a scratch environment.
 
 ### Running Tests
 

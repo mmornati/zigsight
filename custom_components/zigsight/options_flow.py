@@ -17,14 +17,22 @@ from .const import (
 )
 
 
-class ZigSightOptionsFlowHandler(config_entries.OptionsFlow):
+class ZigSightOptionsFlowHandler(config_entries.OptionsFlowWithReload):
     """Handle options flow for ZigSight.
 
-    Note: as of Home Assistant 2025.12, ``OptionsFlow.config_entry`` is a
-    read-only property provided by the base class (backed by
-    ``self.hass.config_entries``); assigning to ``self.config_entry`` here
-    is both unnecessary and a mypy error, so this handler no longer takes
-    or stores a ``config_entry`` argument in ``__init__``.
+    Note: ``OptionsFlow.config_entry`` has been a read-only property
+    (backed by ``self.hass.config_entries``) since Home Assistant 2024.11;
+    *assigning* to ``self.config_entry`` in ``__init__`` (as this handler
+    used to do) still worked by accident until it started raising in
+    2025.12. So this handler no longer takes or stores a ``config_entry``
+    argument in ``__init__``.
+
+    It also extends ``OptionsFlowWithReload`` (available since at least HA
+    2025.10, our minimum supported version) instead of registering a
+    config-entry update listener in ``__init__.py`` -- HA schedules the
+    entry reload automatically when options change, and explicitly
+    disallows combining ``OptionsFlowWithReload`` with an update listener
+    on the same entry.
     """
 
     async def async_step_init(

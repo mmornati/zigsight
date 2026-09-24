@@ -8,6 +8,8 @@ loads through the real config-entry / platform-setup machinery.
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -24,9 +26,9 @@ from custom_components.zigsight.const import (
 
 @pytest.mark.asyncio
 async def test_setup_and_unload_zigbee2mqtt_entry(
-    hass: HomeAssistant, mqtt_mock: None
+    hass: HomeAssistant, mqtt_mock: MagicMock
 ) -> None:
-    """A Zigbee2MQTT config entry should load and unload cleanly."""
+    """A Zigbee2MQTT config entry should load, subscribe, and unload cleanly."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -42,6 +44,13 @@ async def test_setup_and_unload_zigbee2mqtt_entry(
     assert entry.state is ConfigEntryState.LOADED
     assert DOMAIN in hass.data
     assert entry.entry_id in hass.data[DOMAIN]
+
+    # The coordinator should have subscribed to the wildcard Z2M devices
+    # topic through Home Assistant's MQTT integration.
+    subscribed_topics = {
+        call.args[0] for call in mqtt_mock.async_subscribe.call_args_list
+    }
+    assert "zigbee2mqtt/#" in subscribed_topics
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()

@@ -41,10 +41,8 @@ When adding the integration, you'll first choose your Zigbee coordinator:
 
 **For Zigbee2MQTT:**
 
-- **MQTT Broker**: Hostname or IP of your MQTT broker (leave as `localhost` to use Home Assistant's MQTT integration)
-- **MQTT Port**: Port number (default: 1883)
-- **MQTT Username/Password**: Optional, if your broker requires authentication
-- **MQTT Topic Prefix**: Base topic for Zigbee2MQTT (default: `zigbee2mqtt`)
+- **Prerequisite**: Home Assistant's [MQTT integration](https://www.home-assistant.io/integrations/mqtt/) must be set up and connected to the broker Zigbee2MQTT uses. ZigSight receives all Zigbee2MQTT messages through it, so there are no broker, port or credential settings in ZigSight (if MQTT is not set up, the flow stops with a message asking you to set it up first).
+- **Zigbee2MQTT base topic**: `mqtt.base_topic` from your Zigbee2MQTT configuration (default: `zigbee2mqtt`)
 
 **For ZHA:**
 
@@ -57,8 +55,6 @@ Customize the analytics thresholds:
 - **Battery Drain Threshold**: Minimum drain rate (%/hour) to trigger warning (default: 10.0)
 - **Reconnect Rate Threshold**: Maximum reconnect rate (events/hour) before warning (default: 5.0)
 - **Reconnect Rate Window**: Time window in hours for calculations (default: 24)
-- **Reconnect Threshold**: Number of reconnections to track (default: 5)
-- **Data Retention**: Number of days to keep device history (default: 30)
 
 ## Frontend Panel
 
@@ -122,8 +118,8 @@ For complete setup instructions and troubleshooting, see [Frontend Panel Documen
 
 After configuration, ZigSight will:
 
-1. **Discover your devices** - Automatically detect all Zigbee devices from your coordinator
-2. **Create sensors** - Generate health scores, reconnect rates, and battery trends for each device
+1. **Discover your devices** - With Zigbee2MQTT, devices come from the retained `bridge/devices` list (identified by IEEE address); devices paired later are added automatically and removed devices are cleaned up
+2. **Create sensors** - Generate link quality, health scores and reconnect rates for each device, plus battery level, battery trend and battery drain warnings for battery powered devices
 3. **Monitor your network** - Track device connectivity and battery health
 4. **Provide recommendations** - Use the Wi-Fi channel recommendation service to optimize your Zigbee channel
 

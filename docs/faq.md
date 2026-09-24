@@ -33,7 +33,7 @@ See the [Getting Started](getting_started.md) guide for detailed installation in
 
 ### Does ZigSight require MQTT?
 
-MQTT is required only if you use Zigbee2MQTT as your Zigbee coordinator. For ZHA, MQTT is not needed. If you're using Home Assistant's built-in MQTT integration, you can leave the MQTT Broker setting as `localhost` and ZigSight will use it automatically.
+MQTT is required only if you use Zigbee2MQTT as your Zigbee coordinator. For ZHA, MQTT is not needed. ZigSight does not connect to the broker itself: it receives Zigbee2MQTT messages through Home Assistant's MQTT integration, so set that up first (Settings > Devices & Services > MQTT, pointing at the same broker Zigbee2MQTT uses).
 
 ### What are the system requirements?
 

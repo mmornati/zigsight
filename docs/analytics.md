@@ -17,11 +17,13 @@ The analytics engine processes device metrics over time to compute derived insig
 ### Reconnect Rate
 
 **Sensor**: `sensor.<device>_reconnect_rate`
-**Unit**: events/hour
+**Unit**: events/h
 **Description**: Measures how often a device reconnects to the network over a sliding time window.
 
 **Default Window**: 24 hours
-**Calculation**: Counts reconnection events (gaps > 5 minutes between updates) within the window and divides by window duration.
+**Calculation**: Counts reconnect events within the window and divides by the window duration. A reconnect event is an availability transition **offline -> online** as published by Zigbee2MQTT on `<base_topic>/<device>/availability`. A device that simply stays quiet (for example a sleepy battery sensor reporting once an hour) is *not* counted as reconnecting.
+
+> **Note**: reconnects can only be detected when [availability](https://www.zigbee2mqtt.io/guide/configuration/device-availability.html) is enabled in Zigbee2MQTT. Without it the reconnect rate stays at 0. Reconnect events are kept in memory only (at most 200 per device) and restart from zero when Home Assistant restarts.
 
 **Example**:
 - A device that reconnects 12 times in 24 hours = 0.5 events/hour
@@ -34,10 +36,12 @@ The analytics engine processes device metrics over time to compute derived insig
 **Description**: Rate of battery drain computed using linear regression over the last 24 hours.
 
 **Algorithm**:
-- Extracts battery readings from device history
-- Filters readings with battery ≥ 20% (below threshold, readings may be unreliable)
-- Computes linear regression slope to determine trend
-- Returns percentage change per hour (negative = draining)
+- Extracts battery readings from the in-memory device history (a numeric sample is stored at most every 5 minutes, or after 1 minute when the battery value changed; at most 400 samples per device)
+- Uses every reading, including low batteries (below 20%)
+- Requires readings spanning at least 1 hour (otherwise `None`), so two readings a few seconds apart can't extrapolate to a huge drain
+- Computes the linear regression slope and returns the percentage change per hour (negative = draining)
+
+Battery sensors, battery trend and the battery drain warning are only created for battery powered devices.
 
 **Example**:
 - `-0.5` = Battery draining at 0.5% per hour
@@ -52,9 +56,9 @@ The analytics engine processes device metrics over time to compute derived insig
 
 **Components** (default weights):
 - **Link Quality** (30%): Normalized signal strength (0-255 → 0-100)
-- **Battery** (20%): Current battery level (0-100%)
+- **Battery** (20%): Current battery level (0-100%). Left out (and the other weights re-normalised) for mains powered devices
 - **Reconnect Rate** (30%): Inverted reconnect rate (lower is better)
-- **Connectivity** (20%): Based on last_seen recency (< 5 min = 100, > 1 hour = 0)
+- **Connectivity** (20%): 100 when Zigbee2MQTT reports the device online, 0 when offline. Without availability information it decays linearly from 100 (just seen) to 0 when the device has been silent for its [connectivity timeout](#connectivity-warning)
 
 **Score Interpretation**:
 - **90-100**: Excellent health
@@ -97,7 +101,7 @@ Health Score = (78.4 × 0.3) + (80 × 0.2) + (95 × 0.3) + (100 × 0.2) = 86.6
 ### Connectivity Warning
 
 **Binary Sensor**: `binary_sensor.<device>_connectivity_warning`
-**Device Class**: `connectivity`
+**Device Class**: `problem` ("on" = there is a connectivity problem)
 **Description**: Triggers when connectivity issues are detected.
 
 **Default Threshold**: 5 events/hour
@@ -105,7 +109,14 @@ Health Score = (78.4 × 0.3) + (80 × 0.2) + (95 × 0.3) + (100 × 0.2) = 86.6
 
 **When It Triggers**:
 - Reconnect rate ≥ 5 events/hour (default)
-- OR device hasn't been seen for > 1 hour
+- OR Zigbee2MQTT reports the device **offline** (availability enabled)
+- OR, when availability is not known, the device hasn't been seen for longer than its connectivity timeout:
+  - Routers (mains powered): **10 minutes**
+  - End devices (usually sleepy battery devices): **25 hours**
+
+These timeouts mirror Zigbee2MQTT's availability defaults; when Zigbee2MQTT publishes its own `availability.active.timeout` / `availability.passive.timeout` in `bridge/info`, those values are used instead. Enabling availability in Zigbee2MQTT is recommended: routers that only send messages when something changes (e.g. idle bulbs) would otherwise trip the 10 minute router timeout.
+
+The entity has two attributes: `available` (Zigbee2MQTT availability, `null` when unknown) and `reconnect_count` (reconnects since Home Assistant started).
 
 **Troubleshooting**:
 - Check device distance from coordinator

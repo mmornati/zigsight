@@ -1,6 +1,6 @@
 # Makefile for ZigSight integration
 
-.PHONY: help install test lint format clean build docs setup-dev security package zip test-integration start stop restart logs status check-js test-js e2e-up e2e-bootstrap e2e-down e2e
+.PHONY: help install test lint format clean build docs setup-dev security package zip test-integration start stop restart logs status check-js test-js e2e-up e2e-bootstrap e2e-check-logs e2e-down e2e
 
 # Virtual environment detection and binary paths
 VENV := .venv
@@ -45,8 +45,9 @@ help:
 	@echo "production Home Assistant needed - see docs/testing.md):"
 	@echo "  e2e-up         - Start HA + mosquitto + z2m-replay"
 	@echo "  e2e-bootstrap  - Onboard HA, configure MQTT/ZigSight, verify"
+	@echo "  e2e-check-logs - Save stack logs, fail on ZigSight errors in HA log"
 	@echo "  e2e-down       - Stop and remove the e2e stack"
-	@echo "  e2e            - e2e-up + e2e-bootstrap + e2e-down"
+	@echo "  e2e            - up + bootstrap + check-logs, always down"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  lint           - Run Ruff (lint) + mypy"
@@ -155,6 +156,8 @@ status:
 # Default credentials (local-only, override with E2E_HA_USERNAME /
 # E2E_HA_PASSWORD): username "zigsight-e2e", password
 # "ZigSight-e2e-local-only!2026". See docs/testing.md.
+E2E_LOG_DIR := e2e-logs
+
 e2e-up:
 	docker compose --profile e2e up -d --wait home-assistant mosquitto z2m-replay
 
@@ -162,13 +165,25 @@ e2e-bootstrap:
 	$(PYTHON) -m pip install --quiet -r requirements-e2e.txt
 	$(PYTHON) scripts/e2e_bootstrap.py
 
+# Dump the stack's logs and fail on any ZigSight error/traceback/blocking
+# call in the Home Assistant log (same gate as CI).
+e2e-check-logs:
+	@mkdir -p $(E2E_LOG_DIR)
+	docker compose --profile e2e logs --no-color --no-log-prefix home-assistant > $(E2E_LOG_DIR)/home-assistant.log 2>&1
+	-docker compose --profile e2e logs --no-color z2m-replay > $(E2E_LOG_DIR)/z2m-replay.log 2>&1
+	-docker compose --profile e2e logs --no-color mosquitto > $(E2E_LOG_DIR)/mosquitto.log 2>&1
+	$(PYTHON) scripts/ci_check_ha_log.py $(E2E_LOG_DIR)/home-assistant.log
+
 e2e-down:
 	docker compose --profile e2e down -v
 
-# Always tears the stack down, even if bootstrap fails, but still exits
-# non-zero when it did.
-e2e: e2e-up
-	@$(MAKE) e2e-bootstrap; status=$$?; $(MAKE) e2e-down; exit $$status
+# Always tears the stack down - also when e2e-up itself fails (e.g. a
+# healthcheck timeout) - but still exits non-zero when any step did.
+e2e:
+	@status=0; \
+	$(MAKE) e2e-up && $(MAKE) e2e-bootstrap && $(MAKE) e2e-check-logs || status=$$?; \
+	$(MAKE) e2e-down; \
+	exit $$status
 
 # Clean build artifacts and test data
 clean:

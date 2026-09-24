@@ -179,28 +179,17 @@ def test_analytics_computed_on_demand(mock_hass: MagicMock) -> None:
     assert coordinator.get_device_history("nope") == []
 
 
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        (datetime(2026, 9, 24, 8, 0, tzinfo=dt_util.UTC), "2026-09-24T08:00:00+00:00"),
-        (1790236800.0, "2026-09-24T08:00:00+00:00"),
-        ("1790236800.0", "2026-09-24T08:00:00+00:00"),
-        ("2026-09-24T08:00:00+00:00", "2026-09-24T08:00:00+00:00"),
-        ("garbage", NOW.isoformat()),
-        (None, NOW.isoformat()),
-    ],
-)
-def test_normalize_zha_last_seen(value: Any, expected: str) -> None:
-    """ZHA last_seen values (datetime, epoch, ISO) become aware ISO strings."""
-    assert ZigSightCoordinator._normalize_zha_last_seen(value, NOW) == expected
-
-
 def test_zha_device_update_merges_metrics(mock_hass: MagicMock) -> None:
-    """Polled ZHA devices are merged, not replaced."""
+    """Pushed/polled ZHA devices are merged, not replaced."""
     coordinator = ZigSightCoordinator(mock_hass, enable_zha=True)
     assert coordinator._process_zha_device_update(
         "00:11",
-        {"friendly_name": "Plug", "metrics": {"link_quality": 100, "rssi": -60}},
+        {
+            "friendly_name": "Plug",
+            "manufacturer": "Acme",
+            "model": "Plug v1",
+            "metrics": {"link_quality": 100, "rssi": -60},
+        },
     )
     assert not coordinator._process_zha_device_update(
         "00:11", {"metrics": {"battery": 80}}
@@ -211,8 +200,35 @@ def test_zha_device_update_merges_metrics(mock_hass: MagicMock) -> None:
     assert record["metrics"]["battery"] == 80
     assert record["metrics"]["rssi"] == -60
     assert record["friendly_name"] == "Plug"
+    assert record["manufacturer"] == "Acme"
+    assert record["model"] == "Plug v1"
     assert record["source"] == DEVICE_SOURCE_ZHA
     assert coordinator.wants_entities("00:11")
+
+
+def test_zha_device_update_counts_reconnect_on_transition_only(
+    mock_hass: MagicMock,
+) -> None:
+    """Reconnects are only counted on False -> True availability transitions."""
+    coordinator = ZigSightCoordinator(mock_hass, enable_zha=True)
+    coordinator._process_zha_device_update(
+        "00:11", {"friendly_name": "Plug", "available": True, "metrics": {}}
+    )
+    record = coordinator.get_device("00:11")
+    assert record is not None
+    assert record["reconnect_count"] == 0
+
+    # Repeating "available" (e.g. every poll) must not count as a reconnect.
+    coordinator._process_zha_device_update("00:11", {"available": True, "metrics": {}})
+    assert record["reconnect_count"] == 0
+
+    coordinator._process_zha_device_update("00:11", {"available": False, "metrics": {}})
+    assert record["reconnect_count"] == 0
+    assert record["available"] is False
+
+    coordinator._process_zha_device_update("00:11", {"available": True, "metrics": {}})
+    assert record["reconnect_count"] == 1
+    assert record["available"] is True
 
 
 async def test_zha_collector_errors_are_contained(mock_hass: MagicMock) -> None:

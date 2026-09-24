@@ -109,3 +109,7 @@ DEVICE_SOURCE_UNKNOWN = "unknown"
 DEVICE_TYPE_COORDINATOR = "Coordinator"
 DEVICE_TYPE_ROUTER = "Router"
 DEVICE_TYPE_END_DEVICE = "EndDevice"
+
+# Repair issue raised (and cleared) around the ZHA LQI/RSSI diagnostic
+# sensors; see zigsight.enable_zha_diagnostic_entities.
+ISSUE_ZHA_DIAGNOSTICS_DISABLED = "zha_diagnostics_disabled"

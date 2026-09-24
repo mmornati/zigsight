@@ -31,6 +31,7 @@ from custom_components.zigsight.const import (
 )
 
 from .z2m_replay import load_fixture_text
+from .zha_test_helpers import add_mock_zha_config_entry
 
 Z2M_DATA = {
     CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZIGBEE2MQTT,
@@ -78,14 +79,12 @@ async def test_setup_and_unload_zigbee2mqtt_entry(
 async def test_setup_and_unload_zha_entry(hass: HomeAssistant) -> None:
     """A ZHA config entry loads and unloads cleanly without MQTT.
 
-    NOTE: the ZHA data collection path (``ZHACollector.collect_devices``) is
-    known-broken against modern ZHA (see REVIEW.md C2 / the follow-up PR that
-    rewrites ``zha_collector.py``): because the real ``zha`` integration is
-    not set up in this test, ``ZHACollector.is_available()`` returns False
-    and no devices are ever collected. This test pins down that a ZHA entry
-    does not need the MQTT integration (``mqtt`` is only an
-    after_dependency) and sets up/unloads without errors.
+    A loaded ZHA config entry is required (ConfigEntryNotReady otherwise,
+    see test_setup_zha_entry_not_ready_without_zha); no real ZHA
+    radio/gateway is involved, and with no ZHA devices registered no
+    ZigSight devices are collected.
     """
+    add_mock_zha_config_entry(hass)
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZHA},
@@ -110,6 +109,22 @@ async def test_setup_and_unload_zha_entry(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.NOT_LOADED
+
+
+@pytest.mark.asyncio
+async def test_setup_zha_entry_not_ready_without_zha(hass: HomeAssistant) -> None:
+    """A ZHA entry retries setup until the ZHA integration is loaded."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZHA},
+    )
+    entry.add_to_hass(hass)
+
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert entry.entry_id not in hass.data.get(DOMAIN, {})
 
 
 @pytest.mark.asyncio
@@ -141,6 +156,7 @@ async def test_failed_first_refresh_releases_mqtt_subscription(
 @pytest.mark.asyncio
 async def test_remove_device_without_coordinator(hass: HomeAssistant) -> None:
     """Devices of a not loaded entry, or unknown devices, can be removed."""
+    add_mock_zha_config_entry(hass)
     entry = MockConfigEntry(
         domain=DOMAIN, data={CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZHA}
     )

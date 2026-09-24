@@ -27,6 +27,7 @@ from .const import (
     INTEGRATION_TYPE_ZIGBEE2MQTT,
 )
 from .options_flow import ZigSightOptionsFlowHandler
+from .zha_collector import ZHA_DOMAIN
 
 STEP_INTEGRATION_TYPE_SCHEMA = vol.Schema(
     {
@@ -106,6 +107,8 @@ class ZigsightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="mqtt_not_available")
             return await self.async_step_zigbee2mqtt()
         if self._integration_type == INTEGRATION_TYPE_ZHA:
+            if not self.hass.config_entries.async_entries(ZHA_DOMAIN):
+                return self.async_abort(reason="zha_not_available")
             return await self.async_step_common()
 
         return self.async_abort(reason="invalid_integration_type")

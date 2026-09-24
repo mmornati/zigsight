@@ -22,3 +22,12 @@ recommend_channel:
             - "manual"
             - "router_api"
             - "host_scan"
+
+enable_zha_diagnostic_entities:
+  name: Enable ZHA diagnostic entities
+  description: >-
+    Enables the LQI and RSSI diagnostic sensors of ZHA devices that are
+    still disabled by their default (never re-enables an entity a user
+    disabled themselves). Home Assistant reloads the ZHA config entry
+    afterwards to create the newly enabled entities, which can take a few
+    seconds. Returns the number and ids of the entities enabled.

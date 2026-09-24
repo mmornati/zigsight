@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import cast
 
 import voluptuous as vol
-from homeassistant.components import mqtt
+from homeassistant.components import frontend, mqtt, panel_custom
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import RELOAD_AFTER_UPDATE_DELAY, ConfigEntry
 from homeassistant.core import (
     HomeAssistant,
@@ -19,8 +21,11 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceEntry
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.loader import async_get_integration
 from homeassistant.util.json import JsonValueType
 
+from .api import setup_api_views
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
     CONF_ENABLE_ZHA,
@@ -52,6 +57,33 @@ from .zha_collector import (
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[str] = ["sensor", "binary_sensor"]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+# Static files (panel + Lovelace cards) served from custom_components/zigsight/www
+STATIC_URL_PATH = "/zigsight_static"
+WWW_PATH = Path(__file__).parent / "www"
+
+# Sidebar panel
+PANEL_URL_PATH = "zigsight"
+PANEL_WEBCOMPONENT = "zigsight-panel"
+PANEL_MODULE = "zigsight-panel.js"
+PANEL_TITLE = "ZigSight"
+PANEL_ICON = "mdi:zigbee"
+
+DATA_STATIC_PATH_REGISTERED = f"{DOMAIN}_static_path_registered"
+DATA_PANEL_REGISTERED = f"{DOMAIN}_panel_registered"
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the parts of ZigSight shared by all config entries.
+
+    The static files (panel, Lovelace cards) and the REST API are
+    registered once per Home Assistant run; aiohttp routes can't be removed.
+    """
+    await _async_register_static_path(hass)
+    setup_api_views(hass)
+    return True
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -165,12 +197,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register services
     await _async_setup_services(hass)
 
-    # Register API views
-    from .api import setup_api_views
-
-    setup_api_views(hass)
-
-    # Register frontend panel (only once)
+    # Sidebar panel, served from the integration folder.
     await _async_register_panel(hass)
 
     # Note: reloading the entry when options change (e.g. analytics
@@ -210,6 +237,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if hass.services.has_service(DOMAIN, service):
                     hass.services.async_remove(DOMAIN, service)
             ir.async_delete_issue(hass, DOMAIN, ISSUE_ZHA_DIAGNOSTICS_DISABLED)
+            _async_remove_panel(hass)
 
     return unload_ok
 
@@ -338,52 +366,55 @@ def _async_setup_enable_zha_diagnostics_service(hass: HomeAssistant) -> None:
     )
 
 
-async def _async_register_panel(hass: HomeAssistant) -> None:
-    """Register the ZigSight frontend panel automatically.
+async def _async_register_static_path(hass: HomeAssistant) -> None:
+    """Serve the panel and card files from the integration folder (once).
 
-    Note: In Home Assistant 2025+, programmatic panel registration is deprecated.
-    Panels must be registered via panel_custom in configuration.yaml.
-    This function provides helpful setup instructions.
+    aiohttp routes can't be removed, so this runs once per Home Assistant
+    run no matter how often the config entry is reloaded. Cache headers are
+    disabled: the files import each other with relative URLs, which the
+    ``?v=`` cache buster of the panel module URL doesn't cover.
     """
-    # Check if panel is already registered
-    frontend_panels = hass.data.setdefault("frontend_panels", {})
-    if "zigsight" in frontend_panels:
-        _LOGGER.debug("ZigSight panel already registered")
+    if hass.data.get(DATA_STATIC_PATH_REGISTERED):
         return
-
-    # In Home Assistant 2025+, async_register_built_in_panel is deprecated
-    # and custom panels must be registered via panel_custom in configuration.yaml
-    # We'll log clear instructions for the user
-
-    _LOGGER.info(
-        "ZigSight frontend panel setup required. "
-        "In Home Assistant 2025+, panels must be registered manually.\n"
-        "\n"
-        "STEP 1: Copy the panel file to your www directory:\n"
-        "  For HACS: mkdir -p config/www/community/zigsight && "
-        "cp config/custom_components/zigsight/www/zigsight-panel.js config/www/community/zigsight/\n"
-        "  For manual: mkdir -p config/www/zigsight && "
-        "cp custom_components/zigsight/www/zigsight-panel.js config/www/zigsight/\n"
-        "\n"
-        "STEP 2: Add to configuration.yaml:\n"
-        "  For HACS:\n"
-        "    panel_custom:\n"
-        "      - name: zigsight\n"
-        "        sidebar_title: ZigSight\n"
-        "        sidebar_icon: mdi:zigbee\n"
-        "        url_path: zigsight\n"
-        "        module_url: /local/community/zigsight/zigsight-panel.js\n"
-        "        require_admin: false\n"
-        "  For manual:\n"
-        "    panel_custom:\n"
-        "      - name: zigsight\n"
-        "        sidebar_title: ZigSight\n"
-        "        sidebar_icon: mdi:zigbee\n"
-        "        url_path: zigsight\n"
-        "        module_url: /local/zigsight/zigsight-panel.js\n"
-        "        require_admin: false\n"
-        "\n"
-        "STEP 3: Restart Home Assistant.\n"
-        "\n"
-        "See docs/frontend_panel.md for complete instructions."
+    hass.data[DATA_STATIC_PATH_REGISTERED] = True
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(STATIC_URL_PATH, str(WWW_PATH), cache_headers=False)]
     )
+
+
+async def _async_register_panel(hass: HomeAssistant) -> None:
+    """Register the ZigSight sidebar panel (admin only)."""
+    if hass.data.get(DATA_PANEL_REGISTERED):
+        return
+    integration = await async_get_integration(hass, DOMAIN)
+    try:
+        await panel_custom.async_register_panel(
+            hass,
+            frontend_url_path=PANEL_URL_PATH,
+            webcomponent_name=PANEL_WEBCOMPONENT,
+            sidebar_title=PANEL_TITLE,
+            sidebar_icon=PANEL_ICON,
+            module_url=f"{STATIC_URL_PATH}/{PANEL_MODULE}?v={integration.version}",
+            embed_iframe=False,
+            require_admin=True,
+        )
+    except ValueError:
+        # Most likely a panel_custom entry in configuration.yaml, as older
+        # ZigSight versions required. Keep it working, but point to it.
+        _LOGGER.warning(
+            "A panel is already registered at /%s, probably by a "
+            "'panel_custom' entry in configuration.yaml from an older ZigSight "
+            "version. ZigSight now registers its panel automatically: remove "
+            "that panel_custom entry (and any copy of zigsight-panel.js in "
+            "your www folder) and restart Home Assistant",
+            PANEL_URL_PATH,
+        )
+        return
+    hass.data[DATA_PANEL_REGISTERED] = True
+
+
+@callback
+def _async_remove_panel(hass: HomeAssistant) -> None:
+    """Remove the sidebar panel registered by ZigSight (not a YAML one)."""
+    if hass.data.pop(DATA_PANEL_REGISTERED, False):
+        frontend.async_remove_panel(hass, PANEL_URL_PATH, warn_if_unknown=False)

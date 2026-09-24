@@ -1,7 +1,7 @@
 {
   "domain": "zigsight",
   "name": "ZigSight",
-  "after_dependencies": ["mqtt", "zha"],
+  "after_dependencies": ["frontend", "mqtt", "panel_custom", "zha"],
   "codeowners": ["@mmornati"],
   "config_flow": true,
   "dependencies": ["http"],

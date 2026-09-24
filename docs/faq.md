@@ -121,14 +121,12 @@ ZigSight provides two UI components:
 
 ### How do I add the topology card?
 
-1. Register the card as a Lovelace resource (see [UI documentation](ui.md))
+1. Register `/zigsight_static/topology-card.js` as a Lovelace resource of type "JavaScript module" (see [UI documentation](ui.md)); the file is served by the integration, no copy needed
 2. Add `type: custom:zigsight-topology-card` to your dashboard
 
 ### How do I enable the frontend panel?
 
-1. Add the panel configuration to `configuration.yaml` (see [Frontend Panel Documentation](frontend_panel.md))
-2. Restart Home Assistant
-3. Access "ZigSight" from the sidebar
+Nothing to configure: the integration registers the panel itself. "ZigSight" appears in the sidebar of administrator users once the integration is set up. If you added a `panel_custom` entry for ZigSight with an older version, remove it (see [Frontend Panel Documentation](frontend_panel.md)).
 
 ### The topology card shows "No data" - what's wrong?
 
@@ -140,7 +138,7 @@ Check that:
 
 ### Can I see a graph visualization of my network?
 
-The current version shows devices as cards. A graph/tree visualization using D3.js or vis-network is planned for a future release.
+Yes: the **Topology** tab of the ZigSight panel and the `custom:zigsight-topology-visualization` card draw the network as a graph. With Zigbee2MQTT, click **Request network map** in the panel to replace the inferred "star" (every device linked to the coordinator) with the real neighbour links and their LQI. See [Frontend Panel Documentation](frontend_panel.md#topology).
 
 ## Automations
 

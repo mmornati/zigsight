@@ -1,4 +1,4 @@
-"""Tests for ZigSight topology builder."""
+"""Tests for the ZigSight topology builder."""
 
 from __future__ import annotations
 
@@ -6,340 +6,191 @@ from typing import Any
 
 from custom_components.zigsight.topology import build_topology
 
-
-def test_build_topology_empty_devices() -> None:
-    """Test topology building with empty device list."""
-    devices: dict[str, Any] = {}
-    topology = build_topology(devices)
-
-    assert topology is not None
-    assert "nodes" in topology
-    assert "edges" in topology
-    assert len(topology["nodes"]) == 1  # Coordinator should be added
-    assert topology["nodes"][0]["type"] == "coordinator"
-    assert topology["device_count"] == 1
-    assert topology["coordinator_count"] == 1
-    assert topology["router_count"] == 0
-    assert topology["end_device_count"] == 0
+COORD = "0x00124b0024c1a2b3"
+ROUTER = "0xrouter"
+ROUTER2 = "0xrouter2"
+END = "0xend"
 
 
-def test_build_topology_with_coordinator() -> None:
-    """Test topology building with explicit coordinator."""
-    devices = {
-        "bridge": {
-            "state": "online",
-        }
-    }
-    topology = build_topology(devices)
-
-    assert topology is not None
-    assert len(topology["nodes"]) == 1  # Coordinator added automatically
-    assert topology["coordinator_count"] == 1
-
-
-def test_build_topology_with_end_devices() -> None:
-    """Test topology building with end devices."""
-    devices = {
-        "device1": {
-            "friendly_name": "Living Room Sensor",
-            "metrics": {
-                "link_quality": 150,
-                "battery": 80,
-                "last_seen": "2024-01-01T12:00:00Z",
-                "last_message": {
-                    "type": "EndDevice",
-                },
-            },
+def _devices() -> dict[str, Any]:
+    return {
+        ROUTER: {
+            "friendly_name": "Plug",
+            "type": "Router",
+            "model": "Smart plug",
+            "manufacturer": "IKEA",
+            "available": True,
+            "source": "zigbee2mqtt",
+            "metrics": {"link_quality": 200, "last_seen": "2026-09-24T08:00:00+00:00"},
+            "analytics_metrics": {"health_score": 95.0, "reconnect_rate": 0.0},
+        },
+        ROUTER2: {
+            "friendly_name": "Lamp",
+            "type": "Router",
+            "metrics": {"link_quality": 150},
+            "analytics_metrics": {},
+        },
+        END: {
+            "friendly_name": "Sensor",
+            "type": "EndDevice",
+            "metrics": {"link_quality": 80, "battery": 55},
             "analytics_metrics": {
-                "health_score": 85.0,
-                "reconnect_rate": 0.5,
-            },
-        },
-        "device2": {
-            "friendly_name": "Bedroom Sensor",
-            "metrics": {
-                "link_quality": 200,
-                "battery": 90,
-                "last_seen": "2024-01-01T12:05:00Z",
-                "last_message": {
-                    "type": "EndDevice",
-                },
-            },
-            "analytics_metrics": {
-                "health_score": 95.0,
-            },
-        },
-    }
-
-    topology = build_topology(devices)
-
-    assert topology is not None
-    assert len(topology["nodes"]) == 3  # 2 devices + coordinator
-    assert topology["device_count"] == 3
-    assert topology["end_device_count"] == 2
-
-    # Check device nodes
-    device_nodes = [n for n in topology["nodes"] if n["type"] == "end_device"]
-    assert len(device_nodes) == 2
-
-    device1_node = next((n for n in device_nodes if n["id"] == "device1"), None)
-    assert device1_node is not None
-    assert device1_node["label"] == "Living Room Sensor"
-    assert device1_node["link_quality"] == 150
-    assert device1_node["battery"] == 80
-    assert device1_node["health_score"] == 85.0
-
-
-def test_build_topology_with_routers() -> None:
-    """Test topology building with router devices."""
-    devices = {
-        "router1": {
-            "friendly_name": "Router 1",
-            "metrics": {
-                "link_quality": 255,
-                "last_seen": "2024-01-01T12:00:00Z",
-                "last_message": {
-                    "type": "Router",
-                },
-            },
-            "analytics_metrics": {
-                "health_score": 98.0,
-            },
-        },
-    }
-
-    topology = build_topology(devices)
-
-    assert topology is not None
-    assert len(topology["nodes"]) == 2  # Router + coordinator
-    assert topology["router_count"] == 1
-
-    router_node = next((n for n in topology["nodes"] if n["id"] == "router1"), None)
-    assert router_node is not None
-    assert router_node["type"] == "router"
-    assert router_node["label"] == "Router 1"
-
-
-def test_build_topology_with_edges() -> None:
-    """Test topology building with parent-child relationships."""
-    devices = {
-        "router1": {
-            "friendly_name": "Router 1",
-            "metrics": {
-                "link_quality": 255,
-                "last_message": {
-                    "type": "Router",
-                    "parent_ieee": "coordinator",
-                },
-            },
-            "analytics_metrics": {},
-        },
-        "device1": {
-            "friendly_name": "Device 1",
-            "metrics": {
-                "link_quality": 150,
-                "last_message": {
-                    "type": "EndDevice",
-                    "parent_ieee": "router1",
-                },
-            },
-            "analytics_metrics": {},
-        },
-    }
-
-    topology = build_topology(devices)
-
-    assert topology is not None
-    assert len(topology["edges"]) == 2
-
-    # Check edge from coordinator to router
-    coordinator_edge = next(
-        (e for e in topology["edges"] if e["from"] == "coordinator"), None
-    )
-    assert coordinator_edge is not None
-    assert coordinator_edge["to"] == "router1"
-
-    # Check edge from router to device
-    router_edge = next((e for e in topology["edges"] if e["from"] == "router1"), None)
-    assert router_edge is not None
-    assert router_edge["to"] == "device1"
-    assert router_edge["link_quality"] == 150
-
-
-def test_build_topology_mixed_devices() -> None:
-    """Test topology building with mixed device types."""
-    devices = {
-        "router1": {
-            "friendly_name": "Router 1",
-            "metrics": {
-                "link_quality": 255,
-                "last_message": {"type": "Router"},
-            },
-            "analytics_metrics": {},
-        },
-        "router2": {
-            "friendly_name": "Router 2",
-            "metrics": {
-                "link_quality": 240,
-                "last_message": {"type": "Router"},
-            },
-            "analytics_metrics": {},
-        },
-        "device1": {
-            "friendly_name": "Device 1",
-            "metrics": {
-                "link_quality": 150,
-                "last_message": {"type": "EndDevice"},
-            },
-            "analytics_metrics": {},
-        },
-        "device2": {
-            "friendly_name": "Device 2",
-            "metrics": {
-                "link_quality": 180,
-                "last_message": {"type": "EndDevice"},
-            },
-            "analytics_metrics": {},
-        },
-    }
-
-    topology = build_topology(devices)
-
-    assert topology is not None
-    assert topology["device_count"] == 5  # 2 routers + 2 devices + coordinator
-    assert topology["coordinator_count"] == 1
-    assert topology["router_count"] == 2
-    assert topology["end_device_count"] == 2
-
-
-def test_build_topology_with_warnings() -> None:
-    """Test topology building with devices having warnings."""
-    devices = {
-        "device1": {
-            "friendly_name": "Problem Device",
-            "metrics": {
-                "link_quality": 50,
-                "battery": 10,
-                "last_message": {"type": "EndDevice"},
-            },
-            "analytics_metrics": {
-                "health_score": 30.0,
-                "battery_drain_warning": True,
+                "health_score": 40.0,
                 "connectivity_warning": True,
             },
         },
     }
 
-    topology = build_topology(devices)
 
-    assert topology is not None
-    device_node = next((n for n in topology["nodes"] if n["id"] == "device1"), None)
-    assert device_node is not None
-    assert device_node["analytics"]["battery_drain_warning"] is True
-    assert device_node["analytics"]["connectivity_warning"] is True
+def _edges(topology: dict[str, Any]) -> set[tuple[str, str, Any]]:
+    return {(e["from"], e["to"], e["link_quality"]) for e in topology["edges"]}
 
 
-def test_build_topology_with_missing_metrics() -> None:
-    """Test topology building with devices missing metrics."""
-    devices = {
-        "device1": {
-            "friendly_name": "Device 1",
-            "metrics": {},
-            "analytics_metrics": {},
-        },
-    }
+def test_empty_devices_only_coordinator() -> None:
+    """Without devices the topology has the coordinator only."""
+    topology = build_topology({})
 
-    topology = build_topology(devices)
-
-    assert topology is not None
-    device_node = next((n for n in topology["nodes"] if n["id"] == "device1"), None)
-    assert device_node is not None
-    assert device_node["link_quality"] is None
-    assert device_node["battery"] is None
-    assert device_node["health_score"] is None
+    assert [n["id"] for n in topology["nodes"]] == ["coordinator"]
+    assert topology["nodes"][0]["type"] == "coordinator"
+    assert topology["edges"] == []
+    assert topology["device_count"] == 1
+    assert topology["coordinator_count"] == 1
+    assert topology["links_source"] == "inferred"
 
 
-def test_build_topology_with_source() -> None:
-    """Test topology building includes device source field."""
-    devices = {
-        "device1": {
-            "friendly_name": "ZHA Device",
-            "source": "zha",
-            "metrics": {
-                "link_quality": 150,
-                "last_message": {"type": "EndDevice"},
-            },
-            "analytics_metrics": {},
-        },
-        "device2": {
-            "friendly_name": "Zigbee2MQTT Device",
-            "source": "zigbee2mqtt",
-            "metrics": {
-                "link_quality": 200,
-                "last_message": {"type": "Router"},
-            },
-            "analytics_metrics": {},
-        },
-        "device3": {
-            "friendly_name": "Unknown Source Device",
-            "metrics": {
-                "last_message": {"type": "EndDevice"},
-            },
-            "analytics_metrics": {},
-        },
-    }
-
-    topology = build_topology(devices)
-
-    assert topology is not None
-
-    # Check ZHA device has correct source
-    zha_node = next((n for n in topology["nodes"] if n["id"] == "device1"), None)
-    assert zha_node is not None
-    assert zha_node["source"] == "zha"
-
-    # Check Zigbee2MQTT device has correct source
-    z2m_node = next((n for n in topology["nodes"] if n["id"] == "device2"), None)
-    assert z2m_node is not None
-    assert z2m_node["source"] == "zigbee2mqtt"
-
-    # Check device without source defaults to "unknown"
-    unknown_node = next((n for n in topology["nodes"] if n["id"] == "device3"), None)
-    assert unknown_node is not None
-    assert unknown_node["source"] == "unknown"
+def test_legacy_bridge_record_ignored() -> None:
+    """The legacy "bridge" pseudo device is not a node."""
+    topology = build_topology({"bridge": {"state": "online"}})
+    assert [n["id"] for n in topology["nodes"]] == ["coordinator"]
 
 
-def test_build_topology_from_z2m_records_and_network_map() -> None:
-    """Real device types and raw network map links (IEEE based ids)."""
-    devices = {
-        "0xrouter": {
-            "friendly_name": "Plug",
-            "type": "Router",
-            "metrics": {"link_quality": 200},
-            "analytics_metrics": {},
-            "source": "zigbee2mqtt",
-        },
-        "0xend": {
-            "friendly_name": "Sensor",
-            "type": "EndDevice",
-            "metrics": {"link_quality": 80},
-            "analytics_metrics": {},
-        },
-    }
-    links = [
-        {"source": "0xrouter", "target": "0xcoord", "lqi": 200, "relationship": 1},
-        {"source": "0xend", "target": "0xrouter", "lqi": 80, "depth": 2},
-        {"source": None, "target": "0xrouter"},
-    ]
-    topology = build_topology(devices, links=links, coordinator_id="0xcoord")
+def test_nodes_keyed_by_ieee_with_names_and_types() -> None:
+    """Nodes use the IEEE as id, the friendly name as label, real types."""
+    topology = build_topology(_devices(), coordinator_id=COORD)
 
-    assert topology["nodes"][0]["id"] == "0xcoord"
-    assert topology["router_count"] == 1
+    nodes = {n["id"]: n for n in topology["nodes"]}
+    assert set(nodes) == {COORD, ROUTER, ROUTER2, END}
+    assert topology["nodes"][0]["id"] == COORD
+    assert nodes[COORD]["label"] == "Coordinator"
+    assert nodes[ROUTER]["label"] == "Plug"
+    assert nodes[ROUTER]["type"] == "router"
+    assert nodes[ROUTER]["model"] == "Smart plug"
+    assert nodes[ROUTER]["manufacturer"] == "IKEA"
+    assert nodes[ROUTER]["available"] is True
+    assert nodes[ROUTER]["source"] == "zigbee2mqtt"
+    assert nodes[ROUTER]["health_score"] == 95.0
+    assert nodes[END]["type"] == "end_device"
+    assert nodes[END]["battery"] == 55
+    assert nodes[END]["analytics"]["connectivity_warning"] is True
+    assert nodes[END]["source"] == "unknown"
+    assert topology["router_count"] == 2
     assert topology["end_device_count"] == 1
-    assert {(e["from"], e["to"], e["link_quality"]) for e in topology["edges"]} == {
-        ("0xcoord", "0xrouter", 200),
-        ("0xrouter", "0xend", 80),
+    assert topology["unknown_count"] == 0
+
+
+def test_unknown_device_type() -> None:
+    """Devices without a known Zigbee type (e.g. ZHA) are "unknown"."""
+    topology = build_topology({"0xzha": {"friendly_name": "ZHA plug", "type": None}})
+    node = next(n for n in topology["nodes"] if n["id"] == "0xzha")
+    assert node["type"] == "unknown"
+    assert topology["unknown_count"] == 1
+
+
+def test_inferred_star_without_network_map() -> None:
+    """Without a network map every device hangs off the coordinator."""
+    topology = build_topology(_devices(), links=[], coordinator_id=COORD)
+
+    assert topology["links_source"] == "inferred"
+    assert topology["coordinator_id"] == COORD
+    assert _edges(topology) == {
+        (COORD, ROUTER, 200),
+        (COORD, ROUTER2, 150),
+        (COORD, END, 80),
     }
-    # Node ids and edge endpoints use the same (IEEE) identifiers
-    node_ids = {node["id"] for node in topology["nodes"]}
+    assert all(edge["inferred"] for edge in topology["edges"])
+
+
+def test_network_map_edges_deduplicated_and_oriented() -> None:
+    """Map links become one parent -> child edge per pair with the best LQI."""
+    links = [
+        # ROUTER is a child of the coordinator (listed by the coordinator)
+        {"source": ROUTER, "target": COORD, "lqi": 190, "relationship": 1},
+        # ... and the coordinator is ROUTER's parent (listed by ROUTER)
+        {"source": COORD, "target": ROUTER, "lqi": 210, "relationship": 0},
+        # Siblings, reported by both routers
+        {"source": ROUTER2, "target": ROUTER, "lqi": 120, "relationship": 2},
+        {"source": ROUTER, "target": ROUTER2, "lqi": None, "relationship": 2},
+        # END is a child of ROUTER2
+        {"source": END, "target": ROUTER2, "lqi": 70, "relationship": 1, "depth": 2},
+        # Invalid / stale links are ignored
+        {"source": None, "target": ROUTER},
+        {"source": ROUTER, "target": ROUTER},
+        {"source": "0xgone", "target": ROUTER, "lqi": 50},
+    ]
+    topology = build_topology(_devices(), links=links, coordinator_id=COORD)
+
+    assert topology["links_source"] == "networkmap"
+    assert _edges(topology) == {
+        (COORD, ROUTER, 210),
+        (ROUTER, ROUTER2, 120),
+        (ROUTER2, END, 70),
+    }
+    by_pair = {(e["from"], e["to"]): e for e in topology["edges"]}
+    assert by_pair[(COORD, ROUTER)]["relationship"] == "child"
+    assert by_pair[(ROUTER, ROUTER2)]["relationship"] == "sibling"
+    assert by_pair[(ROUTER2, END)]["depth"] == 2
+    assert not any(edge["inferred"] for edge in topology["edges"])
+    node_ids = {n["id"] for n in topology["nodes"]}
     assert all(e["from"] in node_ids and e["to"] in node_ids for e in topology["edges"])
+
+
+def test_sibling_then_parent_relationship_wins() -> None:
+    """A known parent/child relationship overrides a sibling one."""
+    links = [
+        {"source": ROUTER, "target": ROUTER2, "lqi": 100, "relationship": 2},
+        {"source": ROUTER2, "target": ROUTER, "lqi": 90, "relationship": 0},
+        {"source": ROUTER, "target": COORD, "lqi": "bad", "relationship": "x"},
+    ]
+    topology = build_topology(_devices(), links=links, coordinator_id=COORD)
+    by_pair = {(e["from"], e["to"]): e for e in topology["edges"]}
+    edge = by_pair[(ROUTER2, ROUTER)]
+    assert edge["relationship"] == "parent"
+    assert edge["link_quality"] == 100
+    assert by_pair[(COORD, ROUTER)]["relationship"] is None
+
+
+def test_network_map_nodes_add_untracked_devices_and_coordinator() -> None:
+    """Map nodes label devices ZigSight doesn't track and give the coordinator."""
+    map_nodes = [
+        {"ieee_address": COORD, "friendly_name": "Coordinator", "type": "Coordinator"},
+        {"ieee_address": "0xnew", "friendly_name": "New Router", "type": "Router"},
+        {"ieee_address": None},
+    ]
+    links = [
+        {"source": "0xnew", "target": COORD, "lqi": 99, "relationship": 1},
+        {"source": ROUTER, "target": COORD, "lqi": 180, "relationship": 1},
+    ]
+    topology = build_topology(_devices(), links=links, map_nodes=map_nodes)
+
+    nodes = {n["id"]: n for n in topology["nodes"]}
+    assert topology["coordinator_id"] == COORD
+    assert topology["coordinator_count"] == 1
+    assert nodes["0xnew"]["label"] == "New Router"
+    assert nodes["0xnew"]["type"] == "router"
+    assert (COORD, "0xnew", 99) in _edges(topology)
+
+
+def test_network_map_without_usable_links_falls_back_to_inferred() -> None:
+    """A map whose links reference only unknown devices is not used."""
+    links = [{"source": "0xa", "target": "0xb", "lqi": 10}]
+    topology = build_topology(_devices(), links=links, coordinator_id=COORD)
+    assert topology["links_source"] == "inferred"
+    assert len(topology["edges"]) == 3
+
+
+def test_coordinator_record_is_reused() -> None:
+    """A tracked coordinator record is not duplicated."""
+    devices = {COORD: {"friendly_name": "My coordinator", "type": "Coordinator"}}
+    topology = build_topology(devices, coordinator_id="0xother")
+    assert [n["id"] for n in topology["nodes"]] == [COORD]
+    assert topology["coordinator_id"] == COORD

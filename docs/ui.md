@@ -1,330 +1,153 @@
-# ZigSight UI - Network Topology Visualization
+# ZigSight UI - Dashboard Cards
 
-This document describes how to use the ZigSight Network Topology card to visualize your Zigbee network in a Lovelace dashboard card.
+ZigSight ships two Lovelace cards. They are served by the integration itself
+from `/zigsight_static/` (nothing to copy into `www/`) and work without
+internet access.
 
-## Overview
+| Card | Type | What it shows |
+|------|------|---------------|
+| Network Topology | `custom:zigsight-topology-card` | Device counts by type and a grid of devices (type, LQI, battery, health), with a details popup |
+| Interactive Network Topology | `custom:zigsight-topology-visualization` | The network as a graph (same view as the panel's Topology tab): pan, zoom, filters, LQI labels |
 
-The ZigSight Network Topology card is a **Lovelace dashboard card** that provides an interactive visualization of your Zigbee network, showing:
-
-> **Note**: ZigSight also includes a comprehensive [Frontend Panel](frontend_panel.md) accessible from the Home Assistant sidebar. The panel provides a full-screen interface with device management, topology visualization, analytics, and channel recommendations. The topology card described here is a separate component for use in Lovelace dashboards.
-
-- **Coordinator**: The Zigbee coordinator (typically your Zigbee2MQTT bridge)
-- **Routers**: Devices that can route messages (typically powered devices)
-- **End Devices**: Battery-powered devices that don't route messages
-- **Link Quality**: Visual indicators for signal strength between devices
-- **Device Health**: Health scores and warnings for problematic devices
+> ZigSight also adds a full-screen [panel](frontend_panel.md) to the sidebar
+> (devices, topology, analytics, channel recommendation). The cards are for
+> embedding a view in your own dashboards.
 
 ## Installation
 
-### Step 1: Add the Custom Card Resource
+### Step 1: Register the card resource
 
-The topology card is automatically included with ZigSight. To use it, you need to register it as a Lovelace resource.
+The card files are already served by ZigSight; you only need to tell the
+dashboards to load them.
 
-#### Option A: Using the UI (Recommended)
+#### Using the UI (recommended)
 
-1. Navigate to **Settings** → **Dashboards** → **Resources** (click the three-dot menu in the top right)
-2. Click **Add Resource**
-3. Enter the URL: `/local/community/zigsight/topology-card.js`
-4. Set Resource type to **JavaScript Module**
-5. Click **Create**
+1. Go to **Settings** → **Dashboards** → three-dot menu → **Resources**
+   (enable *Advanced mode* in your user profile if the menu entry is missing).
+2. Click **Add resource**.
+3. URL: `/zigsight_static/topology-card.js` (or
+   `/zigsight_static/topology-visualization.js`, or add both).
+4. Resource type: **JavaScript module**.
+5. Click **Create** and reload the browser tab.
 
-#### Option B: Using YAML Configuration
-
-Add the following to your `configuration.yaml`:
+#### Using YAML dashboards
 
 ```yaml
 lovelace:
   mode: yaml
   resources:
-    - url: /local/community/zigsight/topology-card.js
+    - url: /zigsight_static/topology-card.js
+      type: module
+    - url: /zigsight_static/topology-visualization.js
       type: module
 ```
 
-**Note**: You'll need to copy the `topology-card.js` file from `custom_components/zigsight/www/` to your `www/community/zigsight/` directory:
+> Upgrading from an older ZigSight version? Replace resource URLs such as
+> `/local/community/zigsight/topology-card.js` with the `/zigsight_static/...`
+> ones above and delete the old copies from your `www` folder: copies no
+> longer get updates.
 
-```bash
-mkdir -p config/www/community/zigsight
-cp custom_components/zigsight/www/topology-card.js config/www/community/zigsight/
-```
+### Step 2: Add the card to a dashboard
 
-### Step 2: Add the Card to Your Dashboard
-
-#### Using the UI
-
-1. Open the dashboard where you want to add the card
-2. Click **Edit Dashboard** (three-dot menu → **Edit Dashboard**)
-3. Click **Add Card**
-4. Search for "ZigSight Network Topology"
-5. Click to add the card
-
-#### Using YAML
-
-Add the following to your dashboard configuration:
+Search for "ZigSight" in the card picker, or use YAML:
 
 ```yaml
 type: custom:zigsight-topology-card
 title: Zigbee Network Topology
 ```
 
-## Configuration Options
-
-The topology card supports the following configuration options:
-
 ```yaml
-type: custom:zigsight-topology-card
-title: My Zigbee Network        # Optional: Custom title (default: "Zigbee Network Topology")
+type: custom:zigsight-topology-visualization
+title: Network Topology
+layout: radial   # radial (default) or force
+height: 500      # graph height in pixels
 ```
 
-### Available Options
+## Configuration options
+
+### `custom:zigsight-topology-card`
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `title` | string | "Zigbee Network Topology" | Card title displayed in the header |
+| `title` | string | `Zigbee Network Topology` | Card title |
 
-## Understanding the Visualization
+### `custom:zigsight-topology-visualization`
 
-### Network Statistics
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `title` | string | `Network Topology` | Card title |
+| `layout` | `radial` / `force` | `radial` | Initial graph layout |
+| `height` | number | `500` | Graph height in pixels |
 
-At the top of the card, you'll see statistics about your network:
+## Understanding the view
 
-- **Total Devices**: Total number of devices in your network
-- **Coordinator**: Number of coordinators (typically 1)
-- **Routers**: Number of router devices
-- **End Devices**: Number of battery-powered end devices
+- **Nodes** are keyed by IEEE address and labelled with the friendly name.
+  Shapes and colours: coordinator (blue diamond), routers (green squares),
+  end devices (orange circles), unknown type (grey, e.g. ZHA devices whose
+  role ZigSight can't read). Offline devices are faded.
+- **Links**:
+  - With Zigbee2MQTT and a **network map** (requested from the ZigSight
+    panel), links are the neighbour tables reported by the devices, coloured
+    by LQI (green excellent ≥ 200, light green good ≥ 150, orange fair ≥ 100,
+    red poor). A pair of devices is drawn once, with the best LQI of both
+    directions.
+  - Without a network map (not requested yet, or ZHA), every device is drawn
+    linked to the coordinator with a dashed grey line: these links are
+    **inferred** and don't say how messages are routed.
+- **Highlight issues** colours devices with connectivity or battery drain
+  warnings, offline devices and devices with a health score below 50 in red.
 
-### Device Cards
+The cards refresh every minute; the **Refresh** button reloads immediately.
 
-Each device is displayed as a card with the following information:
+## Data source
 
-- **Device Name**: Friendly name of the device
-- **Device Type**: Coordinator, Router, or End Device
-- **Link Quality (LQI)**: Signal strength indicator (0-255)
-  - 🟢 Green (200-255): Excellent
-  - 🟡 Yellow-Green (150-199): Good
-  - 🟠 Orange (100-149): Fair
-  - 🔴 Red (0-99): Poor
-- **Battery**: Battery percentage (if applicable)
-- **Health Score**: Overall device health (0-100)
-
-### Color Legend
-
-- **Blue border**: Coordinator
-- **Green border**: Router
-- **Orange border**: End Device
-- **Red border**: Device with warnings (connectivity or battery issues)
-
-### Device Details Dialog
-
-Click on any device card to open a detailed dialog showing:
-
-- Device type and friendly name
-- Link quality
-- Battery level (if applicable)
-- Health score
-- Reconnect rate
-- Last seen timestamp
-- Active warnings
-
-## API Endpoint
-
-The card fetches topology data from the following API endpoint:
-
-```
-GET /api/zigsight/topology
-```
-
-This endpoint returns JSON data with the following structure:
+Both cards read `GET /api/zigsight/topology` (any logged in user):
 
 ```json
 {
   "nodes": [
-    {
-      "id": "device_id",
-      "label": "Friendly Name",
-      "type": "coordinator|router|end_device",
-      "link_quality": 255,
-      "battery": 80,
-      "last_seen": "2024-01-01T12:00:00Z",
-      "health_score": 85.0,
-      "analytics": {
-        "reconnect_rate": 0.5,
-        "battery_trend": -0.1,
-        "battery_drain_warning": false,
-        "connectivity_warning": false
-      }
-    }
+    {"id": "0x00124b0024c1a2b3", "label": "Coordinator", "type": "coordinator", ...},
+    {"id": "0x0017880104e45517", "label": "Living Room Lamp", "type": "router",
+     "model": "Hue white and color ambiance E26/E27", "manufacturer": "Philips",
+     "available": true, "link_quality": 156, "battery": null, "health_score": 95.0,
+     "last_seen": "2026-09-24T08:10:00+00:00", "source": "zigbee2mqtt", "analytics": {...}}
   ],
   "edges": [
-    {
-      "from": "parent_device_id",
-      "to": "child_device_id",
-      "link_quality": 150
-    }
+    {"from": "0x00124b0024c1a2b3", "to": "0x0017880104e45517", "link_quality": 156,
+     "relationship": "child", "depth": 1, "inferred": false}
   ],
-  "device_count": 10,
-  "coordinator_count": 1,
-  "router_count": 3,
-  "end_device_count": 6
+  "links_source": "networkmap",
+  "coordinator_id": "0x00124b0024c1a2b3",
+  "network_map": {"supported": true, "updated": "...", "requested": "..."},
+  "network": {"channel": 15, "pan_id": 6754, ...},
+  "device_count": 6, "coordinator_count": 1, "router_count": 2,
+  "end_device_count": 3, "unknown_count": 0
 }
 ```
 
 ## Troubleshooting
 
-### Card Not Loading
+### Card not loading ("Custom element doesn't exist")
 
-1. **Check Resource Registration**: Ensure the card is properly registered in Lovelace resources
-2. **Check File Location**: Verify `topology-card.js` is in the correct location
-3. **Clear Browser Cache**: Try clearing your browser cache or opening in incognito mode
-4. **Check Browser Console**: Open browser developer tools (F12) and check for JavaScript errors
+- Check the resource URL is `/zigsight_static/...` and the type is
+  *JavaScript module*.
+- Open `http://<your-ha>/zigsight_static/topology-card.js` in the browser: it
+  must return JavaScript. If it returns 404 the ZigSight integration is not
+  set up (the files are served once the integration is loaded).
+- Hard-reload the browser tab (the Companion app: *Settings* → *Companion app*
+  → *Debugging* → *Reset frontend cache*).
 
-### No Data Displayed
+### "No ZigSight coordinator found"
 
-1. **Check ZigSight Integration**: Ensure ZigSight integration is properly configured
-2. **Check MQTT Connection**: Verify Zigbee2MQTT is running and connected
-3. **Check API Endpoint**: Try accessing `/api/zigsight/topology` directly in your browser
-4. **Check Logs**: Review Home Assistant logs for any ZigSight errors
+The ZigSight integration has no loaded config entry. Check **Settings** →
+**Devices & services** → ZigSight.
 
-### Incorrect Device Information
+### All links are dashed / grey
 
-1. **Refresh the Card**: Click the "Refresh" button in the card header
-2. **Restart Integration**: Restart the ZigSight integration from Settings → Devices & Services
-3. **Check Zigbee2MQTT**: Ensure your Zigbee2MQTT instance is providing correct device data
+No network map yet: open the ZigSight panel, **Topology** tab, and click
+**Request network map** (Zigbee2MQTT only).
 
-## Advanced Usage
+## See also
 
-### Multiple Networks
-
-If you have multiple Zigbee networks (multiple coordinators), the API endpoint will return data from the first configured ZigSight instance. To visualize multiple networks, you can:
-
-1. Add multiple instances of the card
-2. Configure each ZigSight integration with a unique identifier
-3. (Future feature) Use a `coordinator_id` configuration option to specify which network to display
-
-### Custom Styling
-
-The card uses Home Assistant's theme variables for styling. You can customize the appearance by:
-
-1. Using a custom Home Assistant theme
-2. Adding custom CSS using `card-mod` (community plugin)
-
-Example with `card-mod`:
-
-```yaml
-type: custom:zigsight-topology-card
-title: My Network
-card_mod:
-  style: |
-    .card {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-```
-
-## Examples
-
-### Basic Configuration
-
-```yaml
-type: custom:zigsight-topology-card
-```
-
-### Custom Title
-
-```yaml
-type: custom:zigsight-topology-card
-title: Living Room Zigbee Network
-```
-
-### In a Vertical Stack
-
-```yaml
-type: vertical-stack
-cards:
-  - type: markdown
-    content: |
-      ## Network Overview
-      Monitor your Zigbee network health and topology.
-
-  - type: custom:zigsight-topology-card
-    title: Zigbee Network
-
-  - type: entities
-    entities:
-      - sensor.zigsight_network_health
-      - sensor.zigsight_device_count
-```
-
-## Integration with Other Cards
-
-The topology card works well alongside other ZigSight sensors and cards:
-
-```yaml
-type: horizontal-stack
-cards:
-  - type: custom:zigsight-topology-card
-    title: Network Topology
-
-  - type: vertical-stack
-    cards:
-      - type: gauge
-        entity: sensor.zigsight_network_health
-        name: Network Health
-        min: 0
-        max: 100
-
-      - type: entities
-        entities:
-          - sensor.zigsight_coordinator
-          - sensor.zigsight_routers
-          - sensor.zigsight_end_devices
-```
-
-## Frequently Asked Questions
-
-### Q: Can I see the actual network graph/tree visualization?
-
-A: The current version displays devices as cards for better readability on mobile devices. A future version may include an interactive graph visualization using libraries like vis-network or D3.js.
-
-### Q: Can I filter devices by type?
-
-A: This feature is planned for a future release. For now, device cards are color-coded by type.
-
-### Q: How often is the topology data refreshed?
-
-A: The topology data is loaded when the card is first displayed. Click the "Refresh" button to manually update. Automatic refresh every 60 seconds can be added if needed.
-
-### Q: Can I export the topology data?
-
-A: You can access the raw JSON data by visiting `/api/zigsight/topology` in your browser. Copy and save the JSON response for analysis or backup.
-
-## Frontend Panel vs. Topology Card
-
-ZigSight provides two different UI components for network visualization:
-
-### Topology Card (This Document)
-
-- **Type**: Lovelace dashboard card
-- **Location**: Embedded in your Lovelace dashboards
-- **Use Case**: Quick network overview on a dashboard
-- **Features**: Device cards with basic information, statistics, device details dialog
-
-### Frontend Panel
-
-- **Type**: Full-screen panel accessible from sidebar
-- **Location**: Home Assistant sidebar → ZigSight
-- **Use Case**: Comprehensive network management and monitoring
-- **Features**:
-  - Device management with filtering and sorting
-  - Network topology with statistics
-  - Analytics dashboard
-  - Channel recommendation interface
-  - Real-time updates
-
-For more information about the frontend panel, see the [Frontend Panel Documentation](frontend_panel.md).
-
-## See Also
-
-- [Frontend Panel](frontend_panel.md) - Comprehensive web interface for network management
-- [Getting Started Guide](getting_started.md)
-- [Analytics Documentation](analytics.md)
-- [Wi-Fi Recommendations](wifi_recommendation.md)
-- [Developer README](DEVELOPER_README.md)
+- [Frontend panel](frontend_panel.md)
+- [Getting started](getting_started.md)

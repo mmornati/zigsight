@@ -1,184 +1,38 @@
-# ZigSight Lovelace Cards
+# ZigSight frontend files
 
-This directory contains custom Lovelace cards for ZigSight.
+Served by the integration at `/zigsight_static/` (see `async_setup` in
+`../__init__.py`). No copy into Home Assistant's `www/` folder and no build
+step are needed, and nothing is loaded from a CDN.
 
-## Included Cards
+| File | What |
+|------|------|
+| `zigsight-panel.js` | Sidebar panel `<zigsight-panel>`, registered automatically (admin only) |
+| `topology-card.js` | Lovelace card `custom:zigsight-topology-card` (device grid) |
+| `topology-visualization.js` | Lovelace card `custom:zigsight-topology-visualization` (graph) |
+| `lib/topology-graph.js` | `<zigsight-topology-graph>`: SVG graph with pan / zoom / selection, used by the panel and the graph card |
+| `lib/layout.js` | Radial tree and force directed layouts (pure functions) |
+| `lib/format.js`, `lib/wifi.js` | Formatting and Wi-Fi scan validation helpers (pure functions) |
+| `vendor/` | Vendored Lit build and its license, see `vendor/README.md` |
 
-### topology-card.js
+## Using the cards
 
-Legacy network topology visualization card showing device cards in a grid layout.
+Add a dashboard resource (Settings → Dashboards → Resources) of type
+*JavaScript module* with the URL `/zigsight_static/topology-card.js` and/or
+`/zigsight_static/topology-visualization.js`, then:
 
-**Features:**
-- Device statistics by type
-- Grid-based device cards
-- Basic device information display
+```yaml
+type: custom:zigsight-topology-card
+title: Zigbee Network Topology
+```
 
-**Note**: This card provides a basic topology view. For advanced interactive network visualization, use the topology view in `zigsight-panel.js`.
+```yaml
+type: custom:zigsight-topology-visualization
+title: Network Topology
+layout: radial   # or force
+height: 500
+```
 
-### zigsight-panel.js
-
-Comprehensive device management panel with two view modes:
-
-**List View:**
-- Advanced filtering, sorting, and search
-- Bulk actions and data export
-- Pagination for large networks
-
-**Topology View (New!):**
-- Interactive network graph visualization
-- Multiple layout algorithms (hierarchical, force-directed)
-- Device type filtering and problematic device highlighting
-- Link quality visualization
-- Click-to-view device details
-- Zoom and pan controls
-- Optimized for 100+ device networks
-
-### topology-visualization.js
-
-Standalone interactive network topology visualization component that can be used independently.
-
-**Features:**
-- Full-featured network graph visualization
-- All topology view features from zigsight-panel.js
-- Can be embedded separately if needed
-
-## Installation
-
-### Automatic (HACS)
-
-If you installed ZigSight via HACS, the card files are already included in your installation.
-
-### Manual Installation
-
-1. Copy the card files to your Home Assistant `www` directory:
-
-   ```bash
-   mkdir -p config/www/community/zigsight
-   cp custom_components/zigsight/www/*.js config/www/community/zigsight/
-   ```
-
-2. Register the cards as Lovelace resources:
-
-   **Option A: Via UI**
-   - Go to **Settings** → **Dashboards** → **Resources** (three-dot menu)
-   - Click **Add Resource**
-   - URL: `/local/community/zigsight/zigsight-panel.js` (recommended)
-   - Resource type: **JavaScript Module**
-   - Optionally add other cards similarly
-
-   **Option B: Via YAML**
-   Add to your `configuration.yaml`:
-   ```yaml
-   lovelace:
-     mode: yaml
-     resources:
-       - url: /local/community/zigsight/zigsight-panel.js
-         type: module
-       - url: /local/community/zigsight/topology-card.js
-         type: module
-       - url: /local/community/zigsight/topology-visualization.js
-         type: module
-   ```
-
-3. Add the cards to your dashboard:
-
-   **Device Management Panel (Recommended):**
-   ```yaml
-   type: custom:zigsight-panel
-   ```
-
-   **Legacy Topology Card:**
-   ```yaml
-   type: custom:zigsight-topology-card
-   title: Zigbee Network Topology
-   ```
-
-   **Standalone Topology Visualization:**
-   ```yaml
-   type: custom:zigsight-topology-visualization
-   title: Network Topology
-   ```
-
-## Usage
-
-See [docs/frontend_panel.md](../../../docs/frontend_panel.md) for complete device management panel documentation including topology visualization.
-
-## Features Comparison
-
-| Feature | topology-card.js | zigsight-panel.js | topology-visualization.js |
-|---------|-----------------|-------------------|---------------------------|
-| Device grid view | ✅ | ❌ | ❌ |
-| Interactive graph | ❌ | ✅ | ✅ |
-| List view with filters | ❌ | ✅ | ❌ |
-| Multiple layouts | ❌ | ✅ | ✅ |
-| Device type filtering | ❌ | ✅ | ✅ |
-| Link quality viz | Basic | Advanced | Advanced |
-| Zoom/pan controls | ❌ | ✅ | ✅ |
-| Problem highlighting | ✅ | ✅ | ✅ |
-| Bulk export | ❌ | ✅ | ❌ |
-| View mode toggle | ❌ | ✅ | ❌ |
-
-**Recommendation**: Use `zigsight-panel.js` for the best experience with both list and topology views.
-
-## Device Management Panel Features
-
-### List View
-- **Advanced Filtering**: Filter by device type, health status, battery level, link quality, and integration source
-- **Flexible Sorting**: Sort by name, health score, battery level, link quality, last seen, and reconnect count
-- **Real-time Search**: Find devices by name or device ID
-- **Bulk Selection**: Select multiple devices for batch operations
-- **Data Export**: Export selected or all devices to JSON
-- **Pagination**: Browse large device lists efficiently (20 devices per page)
-- **Statistics Dashboard**: View network health at a glance
-
-### Topology View
-- **Interactive Network Graph**: Visual representation of network structure
-- **Multiple Layouts**: Hierarchical tree or force-directed graph
-- **Device Nodes**: Different shapes for coordinator, routers, and end devices
-- **Link Quality**: Color-coded edges with optional LQI labels
-- **Device Filtering**: Show/hide device types
-- **Problem Highlighting**: Identify devices with issues
-- **Click for Details**: View device information in side panel
-- **Navigation**: Zoom, pan, and fit-to-screen controls
-- **Performance**: Optimized for 100+ device networks
-
-## Dependencies
-
-### vis-network Library
-
-The topology visualization features use the `vis-network` library (v9.1.9) which is automatically loaded from CDN when needed:
-
-- **CDN**: https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js
-- **License**: MIT/Apache-2.0
-- **Size**: ~300KB (loaded only when using topology view)
-- **Performance**: Canvas-based rendering for smooth interaction
-
-**Note**: Requires internet connection to load the library. If you're running Home Assistant without internet access, you'll need to self-host the vis-network library.
-
-## Development
-
-The cards are written in vanilla JavaScript and require no build process. To modify:
-
-1. Edit the card file (e.g., `zigsight-panel.js`)
-2. Copy updated file to your `www` directory
-3. Clear browser cache (Ctrl+Shift+R)
-4. Refresh dashboard
-
-For detailed development information, see the main project documentation.
-
-## Browser Compatibility
-
-- **Chrome/Edge**: 90+ (recommended)
-- **Firefox**: 88+
-- **Safari**: 14+
-
-## Performance Tips
-
-For optimal performance with large networks:
-
-1. **List View**: Use pagination (default 20 items)
-2. **Topology View**: 
-   - Use hierarchical layout for 100+ devices
-   - Hide end devices to focus on infrastructure
-   - Disable link quality labels for cleaner view
-3. **General**: Refresh only when needed to reduce API calls
+See `docs/ui.md` and `docs/frontend_panel.md` for the user documentation and
+`docs/DEVELOPER_README.md` (Frontend Development) for the development rules
+(Lit templates only, no `innerHTML`; checked by `tests/test_frontend_assets.py`
+and `node --test "tests/js/*.test.mjs"`).

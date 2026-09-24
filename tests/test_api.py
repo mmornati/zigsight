@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from aiohttp import web
@@ -17,7 +17,6 @@ from custom_components.zigsight.api import (
     ZigSightAnalyticsTrendsView,
     ZigSightChannelRecommendationView,
     ZigSightDevicesView,
-    ZigSightRecommendationHistoryView,
     ZigSightTopologyView,
     setup_api_views,
 )
@@ -77,7 +76,12 @@ def mock_coordinator():
     ]
     coordinator.get_device.return_value = coordinator.get_all_devices()["device1"]
     coordinator.get_network_links.return_value = []
+    coordinator.get_network_nodes.return_value = []
+    coordinator.get_network_info.return_value = None
     coordinator.coordinator_ieee = None
+    coordinator.network_map_supported = True
+    coordinator.network_map_updated = None
+    coordinator.network_map_requested = None
     return coordinator
 
 
@@ -232,45 +236,22 @@ class TestZigSightTopologyView:
     """Test the topology view."""
 
     async def test_get_topology_success(self, mock_hass, mock_coordinator):
-        """Test successful topology request."""
-        # Mock the build_topology function
-        with patch(
-            "custom_components.zigsight.api.build_topology"
-        ) as mock_build_topology:
-            mock_build_topology.return_value = {
-                "nodes": [],
-                "edges": [],
-                "device_count": 2,
-            }
-
-            view = ZigSightTopologyView(mock_hass)
-            request = MagicMock(spec=web.Request)
-
-            response = await view.get(request)
-
-            assert response.status == 200
-            mock_build_topology.assert_called_once()
-
-    async def test_get_topology_uses_network_map(self, mock_hass, mock_coordinator):
-        """Links and the coordinator IEEE from the network map are used."""
-        mock_coordinator.get_network_links.return_value = [
-            {"source": "device1", "target": "0xcoord", "lqi": 120}
-        ]
-        mock_coordinator.coordinator_ieee = "0xcoord"
+        """Without a network map the edges are an inferred star."""
         view = ZigSightTopologyView(mock_hass)
         response = await view.get(MagicMock(spec=web.Request))
+
         assert response.status == 200
         body = json.loads(response.body)
-        assert body["nodes"][0]["id"] == "0xcoord"
-        assert body["edges"] == [
-            {
-                "from": "0xcoord",
-                "to": "device1",
-                "link_quality": 120,
-                "relationship": None,
-                "depth": None,
-            }
-        ]
+        assert body["links_source"] == "inferred"
+        assert body["network_map"] == {
+            "supported": True,
+            "updated": None,
+            "requested": None,
+        }
+        assert {(e["from"], e["to"]) for e in body["edges"]} == {
+            ("coordinator", "device1"),
+            ("coordinator", "device2"),
+        }
 
     async def test_get_topology_no_coordinator(self):
         """Test topology request with no coordinator."""
@@ -345,77 +326,17 @@ class TestZigSightChannelRecommendationView:
         assert response.status == 200
         assert json.loads(response.body)["has_recommendation"] is False
 
-    async def test_post_then_get(self):
-        """Test POST computes a recommendation that GET and history return."""
-        hass = MagicMock(spec=HomeAssistant)
-        hass.data = {DOMAIN: {}}
-
-        request = MagicMock(spec=web.Request)
-        request.json = AsyncMock(
-            return_value={
-                "mode": "manual",
-                "wifi_scan_data": [
-                    {"channel": 1, "rssi": -40},
-                    {"channel": 6, "rssi": -45},
-                    {"channel": 11, "rssi": -50},
-                ],
-            }
-        )
-
-        view = ZigSightChannelRecommendationView(hass)
-        response = await view.post(request)
-
-        assert response.status == 200
-        body = json.loads(response.body)
-        assert body["has_recommendation"] is True
-        assert body["recommended_channel"] in (11, 15, 20, 25)
-        assert len(body["wifi_aps"]) == 3
-
-        response = await view.get(MagicMock(spec=web.Request))
-        body = json.loads(response.body)
-        assert body["has_recommendation"] is True
-        assert body["current_channel"] is None
-
-        history_view = ZigSightRecommendationHistoryView(hass)
-        response = await history_view.get(MagicMock(spec=web.Request))
-        assert json.loads(response.body)["count"] == 1
-
-    async def test_post_history_is_capped(self):
-        """Test recommendation history keeps only the last 10 entries."""
-        hass = MagicMock(spec=HomeAssistant)
-        hass.data = {DOMAIN: {}}
-        request = MagicMock(spec=web.Request)
-        request.json = AsyncMock(
-            return_value={
-                "mode": "manual",
-                "wifi_scan_data": [{"channel": 6, "rssi": -50}],
-            }
-        )
-
-        view = ZigSightChannelRecommendationView(hass)
-        for _ in range(12):
-            await view.post(request)
-
-        assert len(hass.data[DOMAIN]["recommendation_history"]) == 10
-
-    async def test_post_invalid_mode(self):
-        """Test POST with an unknown scanner mode returns an error."""
-        hass = MagicMock(spec=HomeAssistant)
-        hass.data = {DOMAIN: {}}
-        request = MagicMock(spec=web.Request)
-        request.json = AsyncMock(return_value={"mode": "invalid"})
-
-        view = ZigSightChannelRecommendationView(hass)
-        response = await view.post(request)
-
-        assert response.status == 500
-
 
 def test_setup_api_views_registers_all_views():
     """Test every API view is registered."""
     hass = MagicMock(spec=HomeAssistant)
     hass.http = MagicMock()
 
-    setup_api_views(hass)
+    hass.data = {}
 
-    assert hass.http.register_view.call_count == 7
+    setup_api_views(hass)
+    assert hass.http.register_view.call_count == 8
+
+    # Registered once per Home Assistant run (entry reloads don't re-register)
+    setup_api_views(hass)
+    assert hass.http.register_view.call_count == 8

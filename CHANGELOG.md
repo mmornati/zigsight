@@ -35,6 +35,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Device diagnostics accept the `DeviceEntry` Home Assistant passes.
 - MQTT subscriptions are released when setup fails after subscribing.
 
+### Fixed (frontend panel and cards)
+- The sidebar panel is registered automatically (`panel_custom`, admin only)
+  and the frontend files are served by the integration at
+  `/zigsight_static/`: no more copying `zigsight-panel.js` to `www/` or
+  `panel_custom:` YAML. The panel is removed when the integration is unloaded.
+  A leftover `panel_custom` YAML entry for `/zigsight` is kept and a warning
+  asks to remove it.
+- Works offline: Lit is vendored (`www/vendor/lit-core.min.js`, 3.3.3,
+  BSD-3-Clause); the topology graph is drawn with a small built-in SVG
+  renderer instead of vis-network loaded from unpkg.
+- Stored XSS: device names, IEEE addresses, models and the recommendation
+  explanation were inserted with `innerHTML` (and vis-network HTML
+  tooltips). Every file now renders through Lit templates; a test forbids
+  HTML string sinks and remote imports.
+- API calls from the panel and cards used `/api/api/...` URLs
+  (`hass.callApi` already prefixes `/api/`).
+- Channel tab: Wi-Fi scan data can be entered (table or pasted JSON) and the
+  result comes from the API response (it read a non-existent
+  `hass.data` in the browser and called the service without scan data). The
+  current Zigbee channel comes from Zigbee2MQTT `bridge/info`.
+- Topology: nodes are keyed by IEEE address with friendly-name labels and
+  real types from `bridge/devices`; links come from the Zigbee2MQTT raw
+  network map (deduplicated, best LQI, parent -> child) or, without one, an
+  explicitly *inferred* star to the coordinator. Admins can request a new
+  network map from the panel (`POST /api/zigsight/topology/networkmap`).
+- Removed HA frontend elements (`mwc-button`, `ha-circular-progress`) are no
+  longer used.
+
 ### Fixed (ZHA)
 - ZHA device collection no longer reaches into `hass.data["zha"]` (an
   undocumented, unstable structure that changed shape across ZHA releases
@@ -107,7 +135,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recorded-style Zigbee2MQTT fixtures (`tests/fixtures/z2m/`) with a replay
   helper, and end-to-end tests against a real Home Assistant test instance.
 
+### Changed (API)
+- `POST /api/zigsight/channel-recommendation` requires an admin user (it can
+  run a Wi-Fi scan on the host), validates the scan data (400 on invalid
+  input) and no longer returns exception text; `GET` always returns the
+  current Zigbee channel.
+- `GET /api/zigsight/topology` adds `links_source`, `coordinator_id`,
+  `network_map` and `network`; edges have `inferred`; devices without a known
+  Zigbee type are `unknown` (was `end_device`).
+- API views are registered once per Home Assistant run (not on every reload).
+
 ### Removed
+- `FRONTEND_PANEL_IMPLEMENTATION.md` (obsolete).
 - Direct MQTT client mode (`aiomqtt` requirement) and the MQTT broker, port,
   username and password configuration fields (removed from existing entries
   by the config entry migration to version 1.2).

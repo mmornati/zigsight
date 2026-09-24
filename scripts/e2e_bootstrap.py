@@ -199,17 +199,25 @@ def _default_for_field(field: dict[str, Any], overrides: dict[str, Any]) -> Any:
             if value is not _MISSING:
                 nested[sub_name] = value
         return nested
-    if field.get("type") == "boolean":
-        # No explicit default serialized for this boolean selector (seen for
-        # e.g. MQTT's "set_client_cert"/"set_ca_cert" toggles on some HA
+    # Leaf fields (e.g. inside a section) are voluptuous_serialize'd with
+    # their actual HA selector kept as a nested {"selector": {"boolean": {}}}
+    # / {"selector": {"select": {"options": [...]}}} dict, not a top-level
+    # "type" key (only a handful of types, like the expandable section
+    # above or NumberSelector, get "type" set directly) -- so a selector
+    # without an explicit "default" has to be recognised that way.
+    selector = field.get("selector") or {}
+    if "boolean" in selector:
+        # No explicit default serialized for this toggle (seen for e.g.
+        # MQTT's "set_client_cert"/"set_ca_cert" section on some HA
         # releases) -- False (don't enable the optional extra) is the safe
         # choice for every such field this bootstrap script cares about.
         return False
-    options = field.get("options")
+    options = field.get("options") or selector.get("select", {}).get("options")
     if options:
         first = options[0]
-        # HA renders select options either as [value, label] pairs or as
-        # {"value": ..., "label": ...} dicts, depending on the selector.
+        # HA renders select options either as [value, label] pairs, as
+        # {"value": ..., "label": ...} dicts, or as plain strings,
+        # depending on the selector.
         if isinstance(first, list | tuple):
             return first[0]
         if isinstance(first, dict) and "value" in first:

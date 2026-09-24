@@ -69,6 +69,11 @@ from .const import (
     SILENT_DEVICE_TIMEOUT,
     UPDATE_INTERVAL,
 )
+from .device_registry_compat import (
+    async_get_entry_device,
+    async_remove_entry_device,
+    via_device_info,
+)
 from .z2m import (
     NetworkLink,
     TopicKind,
@@ -402,7 +407,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._analytics.silent_timeout = info.passive_timeout or SILENT_DEVICE_TIMEOUT
         if self.config_entry is not None:
             dev_reg = dr.async_get(self.hass)
-            if device := dev_reg.async_get_device(identifiers={self.bridge_identifier}):
+            if device := async_get_entry_device(
+                dev_reg, self.config_entry.entry_id, self.bridge_identifier
+            ):
                 dev_reg.async_update_device(
                     device.id,
                     sw_version=info.version,
@@ -513,7 +520,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if ids & known:
                 continue
             self.logger.debug("Removing stale device %s", device.name)
-            dev_reg.async_update_device(device.id, remove_config_entry_id=entry_id)
+            async_remove_entry_device(dev_reg, device, entry_id)
 
     @callback
     def _remove_unprovided_entities(self, ieee: str) -> None:
@@ -709,10 +716,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         if self.config_entry is not None:
             dev_reg = dr.async_get(self.hass)
-            if device := dev_reg.async_get_device(identifiers={(DOMAIN, ieee)}):
-                dev_reg.async_update_device(
-                    device.id, remove_config_entry_id=self.config_entry.entry_id
-                )
+            entry_id = self.config_entry.entry_id
+            if device := async_get_entry_device(dev_reg, entry_id, (DOMAIN, ieee)):
+                async_remove_entry_device(dev_reg, device, entry_id)
         async_dispatcher_send(self.hass, self.signal_device_removed, ieee)
 
     @callback
@@ -722,7 +728,9 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
         record = self._devices[ieee]
         dev_reg = dr.async_get(self.hass)
-        if device := dev_reg.async_get_device(identifiers={(DOMAIN, ieee)}):
+        if device := async_get_entry_device(
+            dev_reg, self.config_entry.entry_id, (DOMAIN, ieee)
+        ):
             dev_reg.async_update_device(
                 device.id,
                 name=record["friendly_name"],
@@ -811,19 +819,17 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             if legacy == ieee:
                 continue
-            old_device = dev_reg.async_get_device(identifiers={(DOMAIN, legacy)})
+            old_device = async_get_entry_device(dev_reg, entry_id, (DOMAIN, legacy))
             if old_device is None:
                 continue
-            if dev_reg.async_get_device(identifiers={(DOMAIN, ieee)}) is None:
+            if async_get_entry_device(dev_reg, entry_id, (DOMAIN, ieee)) is None:
                 dev_reg.async_update_device(
                     old_device.id,
                     new_identifiers={(DOMAIN, ieee)},
                     via_device_id=None,
                 )
             else:
-                dev_reg.async_update_device(
-                    old_device.id, remove_config_entry_id=entry_id
-                )
+                async_remove_entry_device(dev_reg, old_device, entry_id)
 
     # ------------------------------------------------------------------
     # History / analytics / events
@@ -1197,15 +1203,23 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def device_info(self, ieee: str) -> DeviceInfo:
         """Return the DeviceInfo for a tracked device."""
         record = self._devices.get(ieee) or {}
-        return DeviceInfo(
+        info = DeviceInfo(
             identifiers={(DOMAIN, ieee)},
             name=record.get("friendly_name") or ieee,
             manufacturer=record.get("manufacturer"),
             model=record.get("model"),
             model_id=record.get("model_id"),
             sw_version=record.get("sw_version"),
-            via_device=self.bridge_identifier,
         )
+        if self.config_entry is not None:
+            info.update(
+                via_device_info(  # type: ignore[typeddict-item]
+                    dr.async_get(self.hass),
+                    self.config_entry.entry_id,
+                    self.bridge_identifier,
+                )
+            )
+        return info
 
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Get device data by device ID (IEEE address)."""

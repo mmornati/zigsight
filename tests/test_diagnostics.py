@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.zigsight.const import (
@@ -21,6 +20,7 @@ from custom_components.zigsight.diagnostics import (
     async_get_device_diagnostics,
 )
 
+from .registry_helpers import get_device
 from .z2m_replay import async_fire_messages, session_messages
 
 CLIMATE = "0x00158d0001a2b3c4"
@@ -90,8 +90,7 @@ async def test_device_diagnostics(
             CONF_MQTT_TOPIC_PREFIX: "zigbee2mqtt",
         },
     )
-    dev_reg = dr.async_get(hass)
-    device = dev_reg.async_get_device(identifiers={(DOMAIN, CLIMATE)})
+    device = get_device(hass, (DOMAIN, CLIMATE))
     assert device is not None
     diagnostics = await async_get_device_diagnostics(hass, entry, device)
     assert diagnostics["ieee_address"] == CLIMATE
@@ -99,9 +98,7 @@ async def test_device_diagnostics(
     assert diagnostics["history"]["entries"]
     assert diagnostics["analytics_metrics"]["health_score"] is not None
 
-    bridge = dev_reg.async_get_device(
-        identifiers={(DOMAIN, f"{entry.entry_id}_bridge")}
-    )
+    bridge = get_device(hass, (DOMAIN, f"{entry.entry_id}_bridge"))
     assert bridge is not None
     assert await async_get_device_diagnostics(hass, entry, bridge) == {
         "error": "Device not tracked by ZigSight"

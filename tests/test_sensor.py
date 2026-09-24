@@ -91,7 +91,11 @@ def test_voltage_unit_from_definition(coordinator: ZigSightCoordinator) -> None:
 
 
 def test_device_info(coordinator: ZigSightCoordinator) -> None:
-    """DeviceInfo uses the IEEE identifier and the bridge as via device."""
+    """DeviceInfo uses the IEEE identifier.
+
+    The link to the bridge (via device) needs a config entry; it is covered
+    by the device registry tests in test_z2m_integration.py.
+    """
     _add(coordinator, manufacturer="Aqara", model="Sensor", model_id="WSDCGQ11LM")
     sensor = next(iter(build_sensors(coordinator, IEEE)))
     info = sensor.device_info
@@ -102,9 +106,7 @@ def test_device_info(coordinator: ZigSightCoordinator) -> None:
         model="Sensor",
         model_id="WSDCGQ11LM",
         sw_version=None,
-        via_device=(DOMAIN, f"{DOMAIN}_bridge"),
     )
-    assert info["via_device"] != (DOMAIN, IEEE)
 
 
 def test_values(coordinator: ZigSightCoordinator) -> None:

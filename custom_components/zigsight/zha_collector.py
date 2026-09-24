@@ -95,6 +95,8 @@ from homeassistant.helpers.event import (
     async_track_state_change_event,
 )
 
+from .device_registry_compat import async_all_devices
+
 _LOGGER = logging.getLogger(__name__)
 
 ZHA_DOMAIN = "zha"
@@ -165,7 +167,7 @@ def _matches(entry: er.RegistryEntry, translation_key: str, suffix: str) -> bool
 
 def async_discover_devices(hass: HomeAssistant) -> dict[str, ZHADeviceInfo]:
     """Build the ZHA device map from the device/entity registries."""
-    zha_entry_ids = {entry.entry_id for entry in async_get_zha_config_entries(hass)}
+    zha_entry_ids = [entry.entry_id for entry in async_get_zha_config_entries(hass)]
     if not zha_entry_ids:
         return {}
 
@@ -173,16 +175,19 @@ def async_discover_devices(hass: HomeAssistant) -> dict[str, ZHADeviceInfo]:
     ent_reg = er.async_get(hass)
 
     ieee_by_device_id: dict[str, str] = {}
-    for device in dev_reg.devices.values():
+    for device in async_all_devices(dev_reg):
         for domain, identifier in device.identifiers:
             if domain == ZHA_DOMAIN:
                 ieee_by_device_id[device.id] = identifier
                 break
 
     devices: dict[str, ZHADeviceInfo] = {}
-    for device in dev_reg.devices.values():
-        if not device.config_entries & zha_entry_ids:
-            continue
+    zha_devices = [
+        device
+        for entry_id in zha_entry_ids
+        for device in dr.async_entries_for_config_entry(dev_reg, entry_id)
+    ]
+    for device in zha_devices:
         ieee = ieee_by_device_id.get(device.id)
         if ieee is None:
             continue

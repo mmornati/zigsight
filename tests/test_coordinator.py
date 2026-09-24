@@ -179,28 +179,17 @@ def test_analytics_computed_on_demand(mock_hass: MagicMock) -> None:
     assert coordinator.get_device_history("nope") == []
 
 
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        (datetime(2026, 9, 24, 8, 0, tzinfo=dt_util.UTC), "2026-09-24T08:00:00+00:00"),
-        (1790236800.0, "2026-09-24T08:00:00+00:00"),
-        ("1790236800.0", "2026-09-24T08:00:00+00:00"),
-        ("2026-09-24T08:00:00+00:00", "2026-09-24T08:00:00+00:00"),
-        ("garbage", NOW.isoformat()),
-        (None, NOW.isoformat()),
-    ],
-)
-def test_normalize_zha_last_seen(value: Any, expected: str) -> None:
-    """ZHA last_seen values (datetime, epoch, ISO) become aware ISO strings."""
-    assert ZigSightCoordinator._normalize_zha_last_seen(value, NOW) == expected
-
-
 def test_zha_device_update_merges_metrics(mock_hass: MagicMock) -> None:
-    """Polled ZHA devices are merged, not replaced."""
+    """Pushed/polled ZHA devices are merged, not replaced."""
     coordinator = ZigSightCoordinator(mock_hass, enable_zha=True)
     assert coordinator._process_zha_device_update(
         "00:11",
-        {"friendly_name": "Plug", "metrics": {"link_quality": 100, "rssi": -60}},
+        {
+            "friendly_name": "Plug",
+            "manufacturer": "Acme",
+            "model": "Plug v1",
+            "metrics": {"link_quality": 100, "rssi": -60},
+        },
     )
     assert not coordinator._process_zha_device_update(
         "00:11", {"metrics": {"battery": 80}}
@@ -211,8 +200,101 @@ def test_zha_device_update_merges_metrics(mock_hass: MagicMock) -> None:
     assert record["metrics"]["battery"] == 80
     assert record["metrics"]["rssi"] == -60
     assert record["friendly_name"] == "Plug"
+    assert record["manufacturer"] == "Acme"
+    assert record["model"] == "Plug v1"
     assert record["source"] == DEVICE_SOURCE_ZHA
     assert coordinator.wants_entities("00:11")
+
+
+def test_zha_device_update_counts_reconnect_on_transition_only(
+    mock_hass: MagicMock,
+) -> None:
+    """Reconnects are only counted on False -> True availability transitions."""
+    coordinator = ZigSightCoordinator(mock_hass, enable_zha=True)
+    coordinator._process_zha_device_update(
+        "00:11", {"friendly_name": "Plug", "available": True, "metrics": {}}
+    )
+    record = coordinator.get_device("00:11")
+    assert record is not None
+    assert record["reconnect_count"] == 0
+
+    # Repeating "available" (e.g. every poll) must not count as a reconnect.
+    coordinator._process_zha_device_update("00:11", {"available": True, "metrics": {}})
+    assert record["reconnect_count"] == 0
+
+    coordinator._process_zha_device_update("00:11", {"available": False, "metrics": {}})
+    assert record["reconnect_count"] == 0
+    assert record["available"] is False
+
+    coordinator._process_zha_device_update("00:11", {"available": True, "metrics": {}})
+    assert record["reconnect_count"] == 1
+    assert record["available"] is True
+
+
+def test_zha_last_seen_only_advances_on_push(mock_hass: MagicMock) -> None:
+    """last_seen only moves on a live push, never on a poll snapshot.
+
+    Otherwise a device whose tracked entities went silent would look
+    "freshly seen" on every periodic refresh, and never trigger the
+    connectivity warning (see analytics.check_connectivity_warning, which
+    falls back to last_seen whenever availability is unknown).
+    """
+    coordinator = ZigSightCoordinator(mock_hass, enable_zha=True)
+    seen_at = NOW
+    coordinator._process_zha_device_update(
+        "00:11",
+        {"friendly_name": "Plug", "last_seen": seen_at, "metrics": {}},
+        is_push=True,
+    )
+    record = coordinator.get_device("00:11")
+    assert record is not None
+    assert record["metrics"]["last_seen"] == seen_at.isoformat()
+
+    # A poll/snapshot re-discovery must not advance it, even if it carries
+    # a (later) last_seen value.
+    later = seen_at + timedelta(hours=2)
+    coordinator._process_zha_device_update(
+        "00:11", {"last_seen": later, "metrics": {}}, is_push=False
+    )
+    assert record["metrics"]["last_seen"] == seen_at.isoformat()
+
+    # A push does advance it.
+    coordinator._process_zha_device_update(
+        "00:11", {"last_seen": later, "metrics": {}}, is_push=True
+    )
+    assert record["metrics"]["last_seen"] == later.isoformat()
+
+
+def test_zha_last_seen_seeded_once_at_discovery(mock_hass: MagicMock) -> None:
+    """A brand new device's last_seen is seeded from the discovery snapshot.
+
+    Without this, a freshly discovered device would have no last_seen at
+    all until its first live push -- which may not happen for a long time
+    on an idle device.
+    """
+    coordinator = ZigSightCoordinator(mock_hass, enable_zha=True)
+    seen_at = NOW
+
+    # A poll/snapshot discovery (is_push=False) still seeds last_seen the
+    # first time the device is seen.
+    is_new = coordinator._process_zha_device_update(
+        "00:11",
+        {"friendly_name": "Plug", "last_seen": seen_at, "metrics": {}},
+        is_push=False,
+    )
+    assert is_new
+    record = coordinator.get_device("00:11")
+    assert record is not None
+    assert record["metrics"]["last_seen"] == seen_at.isoformat()
+
+    # But a later snapshot for the SAME (now existing) device must not
+    # advance it -- only the initial seed is exempt.
+    later = seen_at + timedelta(hours=3)
+    is_new = coordinator._process_zha_device_update(
+        "00:11", {"last_seen": later, "metrics": {}}, is_push=False
+    )
+    assert not is_new
+    assert record["metrics"]["last_seen"] == seen_at.isoformat()
 
 
 async def test_zha_collector_errors_are_contained(mock_hass: MagicMock) -> None:

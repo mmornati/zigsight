@@ -28,6 +28,7 @@ from .z2m_replay import (
     load_fixture,
     session_messages,
 )
+from .zha_test_helpers import add_mock_zha_config_entry
 
 CLIMATE = "0x00158d0001a2b3c4"
 PLUG = "0x000d6ffffe1a2b3c"
@@ -89,6 +90,7 @@ async def test_migrate_zha_entry(
     hass: HomeAssistant, data: dict[str, object], expected_type: str
 ) -> None:
     """ZHA entries keep only ZHA relevant settings (no MQTT needed)."""
+    add_mock_zha_config_entry(hass)
     entry = MockConfigEntry(domain=DOMAIN, version=1, minor_version=1, data=data)
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -124,6 +126,7 @@ async def test_future_major_version_is_rejected(hass: HomeAssistant) -> None:
 
 async def test_future_minor_version_loads(hass: HomeAssistant) -> None:
     """A newer minor version of the same major version still loads."""
+    add_mock_zha_config_entry(hass)
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=1,

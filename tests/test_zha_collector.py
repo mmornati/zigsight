@@ -1,263 +1,352 @@
-"""Test ZHA collector."""
+"""Tests for zha_collector.py against the real device/entity registries."""
 
-from datetime import datetime
-from unittest.mock import MagicMock, Mock, patch
+from __future__ import annotations
 
-import pytest
+from datetime import datetime, timedelta
 
-from custom_components.zigsight.zha_collector import ZHACollector
+from freezegun.api import FrozenDateTimeFactory
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
+from custom_components.zigsight.zha_collector import (
+    ZHACollector,
+    async_count_disabled_diagnostic_entities,
+    async_discover_devices,
+    async_enable_diagnostic_entities,
+    async_get_zha_config_entries,
+)
 
-@pytest.fixture
-def mock_hass() -> MagicMock:
-    """Create a mock Home Assistant instance."""
-    hass = MagicMock()
-    hass.data = {}
-    return hass
+from .zha_test_helpers import add_mock_zha_config_entry, add_mock_zha_device
 
-
-@pytest.fixture
-def mock_zha_device() -> Mock:
-    """Create a mock ZHA device."""
-    device = Mock()
-    device.name = "Test Device"
-    device.last_seen = datetime.now()
-    device.lqi = 200
-    device.rssi = -50
-    device.device_info = {"power_source": "battery"}
-    return device
+IEEE = "00:11:22:33:44:55:66:77"
+OTHER_IEEE = "00:11:22:33:44:55:66:99"
 
 
-@pytest.mark.asyncio
-async def test_zha_collector_construction(mock_hass: MagicMock) -> None:
-    """Test that ZHA collector can be constructed."""
-    collector = ZHACollector(mock_hass)
-    assert collector is not None
-    assert collector.hass == mock_hass
-
-
-@pytest.mark.asyncio
-async def test_is_available_no_zha(mock_hass: MagicMock) -> None:
-    """Test is_available returns False when ZHA not present."""
-    collector = ZHACollector(mock_hass)
+async def test_no_zha_entries(hass: HomeAssistant) -> None:
+    """Without a loaded ZHA entry, nothing is discovered/available."""
+    assert async_get_zha_config_entries(hass) == []
+    assert async_discover_devices(hass) == {}
+    collector = ZHACollector(hass)
     assert collector.is_available() is False
+    assert await collector.collect_devices() == {}
 
 
-@pytest.mark.asyncio
-async def test_is_available_with_zha(mock_hass: MagicMock) -> None:
-    """Test is_available returns True when ZHA is present."""
-    mock_hass.data["zha"] = {"gateway": MagicMock()}
-    collector = ZHACollector(mock_hass)
+async def test_discover_device_with_disabled_diagnostics(hass: HomeAssistant) -> None:
+    """LQI/RSSI (disabled by default) and battery are found for a device."""
+    zha_entry = add_mock_zha_config_entry(hass)
+    device = add_mock_zha_device(hass, zha_entry, IEEE, name="Living room plug")
+
+    devices = async_discover_devices(hass)
+    assert list(devices) == [IEEE]
+    info = devices[IEEE]
+    assert info.ha_device_id == device.id
+    assert info.name == "Living room plug"
+    assert info.entities.lqi is not None
+    assert info.entities.rssi is not None
+    assert info.entities.battery is not None
+    # Not derivable from the registries (see zha_collector docstring).
+    assert info.device_type == "unknown"
+
+
+async def test_collect_devices_reads_enabled_entity_states(hass: HomeAssistant) -> None:
+    """Values are read from hass.states for enabled tracked entities."""
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(
+        hass,
+        zha_entry,
+        IEEE,
+        lqi_disabled_by=None,
+        rssi_disabled_by=None,
+        lqi_state="200",
+        rssi_state="-40",
+        battery_state="77",
+    )
+
+    collector = ZHACollector(hass)
     assert collector.is_available() is True
-
-
-@pytest.mark.asyncio
-async def test_collect_devices_no_zha(mock_hass: MagicMock) -> None:
-    """Test collect_devices returns empty dict when ZHA not available."""
-    collector = ZHACollector(mock_hass)
     devices = await collector.collect_devices()
-    assert devices == {}
+    assert list(devices) == [IEEE]
+    data = devices[IEEE]
+    assert data["metrics"]["link_quality"] == 200
+    assert data["metrics"]["rssi"] == -40
+    assert data["metrics"]["battery"] == 77
+    assert data["available"] is True
 
 
-@pytest.mark.asyncio
-async def test_collect_devices_no_gateway(mock_hass: MagicMock) -> None:
-    """Test collect_devices returns empty dict when gateway not found."""
-    mock_hass.data["zha"] = {}
-    collector = ZHACollector(mock_hass)
-    devices = await collector.collect_devices()
-    assert devices == {}
-
-
-@pytest.mark.asyncio
-async def test_collect_devices_with_devices(
-    mock_hass: MagicMock, mock_zha_device: Mock
+async def test_collect_devices_disabled_entities_have_no_state(
+    hass: HomeAssistant,
 ) -> None:
-    """Test collect_devices returns device data."""
-    # Setup mock gateway with devices
-    mock_gateway = MagicMock()
-    ieee = "00:11:22:33:44:55:66:77"
-    mock_gateway.devices = {ieee: mock_zha_device}
-    mock_hass.data["zha"] = {"gateway": mock_gateway}
+    """Disabled (default) LQI/RSSI entities have no state to read."""
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(hass, zha_entry, IEEE)  # LQI/RSSI disabled by default
 
-    # Mock the device and entity registries
-    with (
-        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
-        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
-    ):
-        mock_device_registry = MagicMock()
-        mock_device_registry.async_get_device.return_value = None
-        mock_dr_get.return_value = mock_device_registry
-
-        mock_entity_registry = MagicMock()
-        mock_er_get.return_value = mock_entity_registry
-
-        collector = ZHACollector(mock_hass)
-        devices = await collector.collect_devices()
-
-        assert len(devices) == 1
-        assert ieee in devices
-        device_data = devices[ieee]
-        assert device_data["device_id"] == ieee
-        assert device_data["friendly_name"] == "Test Device"
-        assert "metrics" in device_data
-        assert device_data["metrics"]["link_quality"] == 200
-        assert device_data["metrics"]["rssi"] == -50
-
-
-@pytest.mark.asyncio
-async def test_collect_device_metrics(
-    mock_hass: MagicMock, mock_zha_device: Mock
-) -> None:
-    """Test _collect_device_metrics extracts correct metrics."""
-    with (
-        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
-        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
-    ):
-        mock_dr_get.return_value = MagicMock()
-        mock_er_get.return_value = MagicMock()
-
-        collector = ZHACollector(mock_hass)
-        metrics = await collector._collect_device_metrics(mock_zha_device)
-
-        assert "link_quality" in metrics
-        assert metrics["link_quality"] == 200
-        assert "rssi" in metrics
-        assert metrics["rssi"] == -50
-        assert "last_seen" in metrics
-        assert "power_source" in metrics
-        assert metrics["power_source"] == "battery"
-
-
-@pytest.mark.asyncio
-async def test_collect_device_metrics_minimal(mock_hass: MagicMock) -> None:
-    """Test _collect_device_metrics with minimal device attributes."""
-    device = Mock()
-    device.name = "Minimal Device"
-    device.last_seen = None
-    device.lqi = None
-    device.rssi = None
-    device.device_info = None
-
-    with (
-        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
-        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
-    ):
-        mock_dr_get.return_value = MagicMock()
-        mock_er_get.return_value = MagicMock()
-
-        collector = ZHACollector(mock_hass)
-        metrics = await collector._collect_device_metrics(device)
-
-        assert "last_seen" in metrics
-        assert "link_quality" not in metrics
-        assert "rssi" not in metrics
-
-
-@pytest.mark.asyncio
-async def test_collect_entity_metrics_no_device(mock_hass: MagicMock) -> None:
-    """Test _collect_entity_metrics returns empty when device not found."""
-    with (
-        patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get,
-        patch("custom_components.zigsight.zha_collector.er.async_get") as mock_er_get,
-    ):
-        mock_device_registry = MagicMock()
-        mock_device_registry.async_get_device.return_value = None
-        mock_dr_get.return_value = mock_device_registry
-        mock_er_get.return_value = MagicMock()
-
-        collector = ZHACollector(mock_hass)
-        metrics = await collector._collect_entity_metrics("unknown_ieee")
-
-        assert metrics == {}
-
-
-@pytest.mark.asyncio
-async def test_collect_entity_metrics_with_entities(mock_hass: MagicMock) -> None:
-    """Test _collect_entity_metrics reads diagnostic entities."""
-    ieee = "00:11:22:33:44:55:66:77"
-
-    # Mock device registry
-    mock_device = MagicMock()
-    mock_device.id = "device_1"
-    mock_device.identifiers = {("zha", ieee)}
-
-    with patch("custom_components.zigsight.zha_collector.dr.async_get") as mock_dr_get:
-        mock_registry = MagicMock()
-        mock_registry.devices = {"device_1": mock_device}
-        mock_dr_get.return_value = mock_registry
-
-        # Mock entity registry
-        mock_entity_rssi = MagicMock()
-        mock_entity_rssi.entity_id = "sensor.test_device_rssi"
-        mock_entity_rssi.domain = "sensor"
-
-        mock_entity_lqi = MagicMock()
-        mock_entity_lqi.entity_id = "sensor.test_device_lqi"
-        mock_entity_lqi.domain = "sensor"
-
-        mock_entity_battery = MagicMock()
-        mock_entity_battery.entity_id = "sensor.test_device_battery"
-        mock_entity_battery.domain = "sensor"
-
-        with (
-            patch(
-                "custom_components.zigsight.zha_collector.er.async_get"
-            ) as mock_er_get,
-            patch(
-                "custom_components.zigsight.zha_collector.er.async_entries_for_device"
-            ) as mock_entries,
-        ):
-            mock_er_get.return_value = MagicMock()
-            mock_entries.return_value = [
-                mock_entity_rssi,
-                mock_entity_lqi,
-                mock_entity_battery,
-            ]
-
-            # Mock entity states
-            mock_state_rssi = MagicMock()
-            mock_state_rssi.state = "-45"
-
-            mock_state_lqi = MagicMock()
-            mock_state_lqi.state = "180"
-
-            mock_state_battery = MagicMock()
-            mock_state_battery.state = "85.5"
-
-            mock_hass.states.get.side_effect = lambda entity_id: {
-                "sensor.test_device_rssi": mock_state_rssi,
-                "sensor.test_device_lqi": mock_state_lqi,
-                "sensor.test_device_battery": mock_state_battery,
-            }.get(entity_id)
-
-            collector = ZHACollector(mock_hass)
-            collector._device_registry = mock_registry
-            metrics = await collector._collect_entity_metrics(ieee)
-
-            assert metrics["rssi"] == -45
-            assert metrics["link_quality"] == 180
-            assert metrics["battery"] == 85.5
-
-
-@pytest.mark.asyncio
-async def test_collect_devices_handles_errors(mock_hass: MagicMock) -> None:
-    """Test collect_devices handles device errors gracefully."""
-    from unittest.mock import PropertyMock
-
-    # Setup mock gateway with a device that raises an error
-    mock_gateway = MagicMock()
-    mock_device = MagicMock()
-    mock_device.name = "Error Device"
-    # Make accessing lqi raise an exception
-    type(mock_device).lqi = PropertyMock(side_effect=Exception("Test error"))
-
-    ieee = "00:11:22:33:44:55:66:77"
-    mock_gateway.devices = {ieee: mock_device}
-    mock_hass.data["zha"] = {"gateway": mock_gateway}
-
-    collector = ZHACollector(mock_hass)
+    collector = ZHACollector(hass)
     devices = await collector.collect_devices()
+    data = devices[IEEE]
+    assert "link_quality" not in data["metrics"]
+    assert "rssi" not in data["metrics"]
+    # Battery is enabled by default and has a state.
+    assert data["metrics"]["battery"] == 85
 
-    # Should still return empty or handle gracefully
-    # The exact behavior depends on error handling in _collect_device_data
-    assert isinstance(devices, dict)
+
+async def test_collect_devices_unavailable_entity(hass: HomeAssistant) -> None:
+    """An 'unavailable' tracked entity is reported as such."""
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(
+        hass,
+        zha_entry,
+        IEEE,
+        lqi_disabled_by=None,
+        rssi_disabled_by=None,
+        lqi_state="unavailable",
+        rssi_state="unavailable",
+        battery_state=None,
+        create_battery=False,
+    )
+
+    collector = ZHACollector(hass)
+    devices = await collector.collect_devices()
+    data = devices[IEEE]
+    assert data["available"] is False
+    assert data["metrics"] == {}
+
+
+async def test_async_setup_pushes_state_changes(hass: HomeAssistant) -> None:
+    """State changes of tracked entities push a live update through."""
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(
+        hass,
+        zha_entry,
+        IEEE,
+        lqi_disabled_by=None,
+        rssi_disabled_by=None,
+        lqi_state="100",
+    )
+    devices = async_discover_devices(hass)
+    lqi_entity_id = devices[IEEE].entities.lqi
+    assert lqi_entity_id is not None
+
+    updates: list[tuple[str, dict]] = []
+    collector = ZHACollector(hass)
+    collector.async_setup(lambda ieee, data: updates.append((ieee, data)))
+
+    hass.states.async_set(lqi_entity_id, "150")
+    await hass.async_block_till_done()
+
+    assert updates
+    ieee, data = updates[-1]
+    assert ieee == IEEE
+    assert data["metrics"]["link_quality"] == 150
+
+    collector.async_stop()
+    hass.states.async_set(lqi_entity_id, "160")
+    await hass.async_block_till_done()
+    # No further updates once stopped.
+    assert len(updates) == len(updates)  # still the same last entry
+    assert updates[-1][1]["metrics"]["link_quality"] == 150
+
+
+async def test_enable_diagnostic_entities_skips_user_disabled(
+    hass: HomeAssistant,
+) -> None:
+    """Only entities disabled by the integration default are enabled."""
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(
+        hass,
+        zha_entry,
+        IEEE,
+        lqi_disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+        rssi_disabled_by=er.RegistryEntryDisabler.USER,
+    )
+
+    assert async_count_disabled_diagnostic_entities(hass) == 1
+    enabled = async_enable_diagnostic_entities(hass)
+    assert len(enabled) == 1
+
+    ent_reg = er.async_get(hass)
+    devices = async_discover_devices(hass)
+    lqi_entry = ent_reg.async_get(devices[IEEE].entities.lqi)
+    rssi_entry = ent_reg.async_get(devices[IEEE].entities.rssi)
+    assert lqi_entry is not None and lqi_entry.disabled_by is None
+    assert rssi_entry is not None
+    assert rssi_entry.disabled_by is er.RegistryEntryDisabler.USER
+
+    # Idempotent: nothing left to enable.
+    assert async_count_disabled_diagnostic_entities(hass) == 0
+    assert async_enable_diagnostic_entities(hass) == []
+
+
+async def test_enable_diagnostic_entities_no_devices(hass: HomeAssistant) -> None:
+    """No ZHA devices -> nothing to enable."""
+    assert async_enable_diagnostic_entities(hass) == []
+    assert async_count_disabled_diagnostic_entities(hass) == 0
+
+
+async def test_collect_device_ignores_restored_unavailable_state(
+    hass: HomeAssistant,
+) -> None:
+    """A 'restored' unavailable stub (entity briefly unloaded) is ignored.
+
+    Home Assistant writes this stub state (``unavailable`` with attribute
+    ``restored: True``) when an entity is removed while HA keeps running --
+    e.g. while ZHA reloads its config entry after
+    ``zigsight.enable_zha_diagnostic_entities`` runs. It must not look like
+    the underlying Zigbee device actually went offline.
+    """
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(
+        hass,
+        zha_entry,
+        IEEE,
+        lqi_disabled_by=None,
+        lqi_state="100",
+        rssi_disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+        create_battery=False,
+    )
+    info = async_discover_devices(hass)[IEEE]
+    collector = ZHACollector(hass)
+
+    # Sanity check: a real unavailable state (no restored attribute) does
+    # mark the device unavailable.
+    hass.states.async_set(info.entities.lqi, "unavailable")
+    data = collector._collect_device(info)
+    assert data["available"] is False
+
+    # The "restored" stub is different: neither available nor unavailable.
+    hass.states.async_set(info.entities.lqi, "unavailable", {"restored": True})
+    data = collector._collect_device(info)
+    assert data["available"] is None
+    assert data["metrics"] == {}
+
+
+async def test_collect_device_last_seen_from_entity_state(hass: HomeAssistant) -> None:
+    """last_seen is derived from a tracked entity's own timestamp."""
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(
+        hass,
+        zha_entry,
+        IEEE,
+        lqi_disabled_by=None,
+        lqi_state="100",
+        create_battery=False,
+    )
+    info = async_discover_devices(hass)[IEEE]
+    collector = ZHACollector(hass)
+
+    data = collector._collect_device(info)
+    assert isinstance(data["last_seen"], datetime)
+
+    # No non-restored, non-unavailable tracked entity -> no last_seen.
+    for entity_id in info.entities.as_tuple():
+        hass.states.async_set(entity_id, "unavailable", {"restored": True})
+    data = collector._collect_device(info)
+    assert data["last_seen"] is None
+
+
+async def test_debounced_registry_event_tracks_new_device(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A device joining after setup is tracked ~2s after a registry event.
+
+    Discovery isn't only driven by the periodic (60s) refresh: device/
+    entity registry update events (e.g. a new ZHA device being created)
+    trigger a debounced re-discovery too, so new devices are tracked
+    quickly instead of waiting up to a full refresh interval.
+    """
+    freezer.move_to("2026-09-24T08:20:00+00:00")
+    zha_entry = add_mock_zha_config_entry(hass)
+
+    updates: list[tuple[str, dict]] = []
+    collector = ZHACollector(hass)
+    collector.async_setup(lambda ieee, data: updates.append((ieee, data)))
+    assert async_discover_devices(hass) == {}
+
+    # The device (and its entities) is added after the collector started --
+    # this fires the device/entity registry update events.
+    add_mock_zha_device(hass, zha_entry, IEEE, lqi_disabled_by=None, lqi_state="120")
+    await hass.async_block_till_done()
+    lqi_entity_id = async_discover_devices(hass)[IEEE].entities.lqi
+    assert lqi_entity_id is not None
+
+    # Not tracked yet: the debounce timer hasn't fired.
+    hass.states.async_set(lqi_entity_id, "130")
+    await hass.async_block_till_done()
+    assert updates == []
+
+    freezer.tick(timedelta(seconds=2.5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    # Now tracked: a state change is pushed through.
+    hass.states.async_set(lqi_entity_id, "140")
+    await hass.async_block_till_done()
+    assert updates
+    assert updates[-1][0] == IEEE
+    assert updates[-1][1]["metrics"]["link_quality"] == 140
+
+    collector.async_stop()
+
+
+async def test_async_stop_cancels_pending_debounce(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Stopping the collector cancels a pending debounce timer."""
+    freezer.move_to("2026-09-24T08:20:00+00:00")
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(hass, zha_entry, IEEE, lqi_disabled_by=None, lqi_state="100")
+
+    collector = ZHACollector(hass)
+    collector.async_setup(lambda ieee, data: None)
+    assert collector._unsub_debounce is None
+
+    # A second device joining arms the debounce timer.
+    add_mock_zha_device(
+        hass, zha_entry, OTHER_IEEE, lqi_disabled_by=None, lqi_state="50"
+    )
+    await hass.async_block_till_done()
+    assert collector._unsub_debounce is not None
+
+    collector.async_stop()
+    assert collector._unsub_debounce is None
+
+    # Advancing time must not resurrect the cancelled timer / raise.
+    freezer.tick(timedelta(seconds=5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+
+async def test_debounced_refresh_skips_when_zha_unavailable(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A registry event landing while ZHA is unloaded doesn't drop tracking.
+
+    Rediscovering while no ZHA config entry is loaded would find nothing
+    and tear down the existing entity-state tracking, leaving push updates
+    unhandled until the next periodic refresh (up to 60s) once ZHA is back.
+    """
+    freezer.move_to("2026-09-24T08:20:00+00:00")
+    zha_entry = add_mock_zha_config_entry(hass)
+    add_mock_zha_device(hass, zha_entry, IEEE, lqi_disabled_by=None, lqi_state="100")
+
+    collector = ZHACollector(hass)
+    collector.async_setup(lambda ieee, data: None)
+    lqi_entity_id = async_discover_devices(hass)[IEEE].entities.lqi
+    assert lqi_entity_id in collector._tracked_entity_ids
+
+    # ZHA goes away, and a registry event lands while it's not loaded.
+    zha_entry.mock_state(hass, ConfigEntryState.NOT_LOADED)
+    add_mock_zha_device(
+        hass, zha_entry, OTHER_IEEE, lqi_disabled_by=None, lqi_state="50"
+    )
+    await hass.async_block_till_done()
+
+    freezer.tick(timedelta(seconds=2.5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    # Tracking of the original entity was kept, not dropped.
+    assert lqi_entity_id in collector._tracked_entity_ids
+
+    collector.async_stop()

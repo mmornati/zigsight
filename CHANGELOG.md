@@ -35,6 +35,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Device diagnostics accept the `DeviceEntry` Home Assistant passes.
 - MQTT subscriptions are released when setup fails after subscribing.
 
+### Fixed (ZHA)
+- ZHA device collection no longer reaches into `hass.data["zha"]` (an
+  undocumented, unstable structure that changed shape across ZHA releases
+  and made every poll fail with an `AttributeError`). Devices and their LQI
+  / RSSI / battery diagnostic sensors are now discovered from Home
+  Assistant's device and entity registries instead, matching the same
+  IEEE-keyed device-record / entity model Zigbee2MQTT uses (same platforms,
+  same analytics).
+- Values are pushed live (`async_track_state_change_event` on the tracked
+  diagnostic entities) instead of being polled every 60 seconds; the
+  periodic refresh now only re-discovers devices/entities (to pick up
+  devices ZHA adds later).
+- Reconnects are counted on availability transitions (unavailable ->
+  available across a device's tracked entities), never once per
+  poll/update, mirroring the Zigbee2MQTT availability based reconnect
+  counting.
+- `zha` moved to `after_dependencies`; setup is retried
+  (`ConfigEntryNotReady`) until a ZHA config entry is loaded, and the config
+  flow aborts with a clear message when ZHA isn't configured yet.
+
+### Added (ZHA)
+- New service `zigsight.enable_zha_diagnostic_entities`: enables every LQI
+  and RSSI sensor still disabled by its ZHA default across all ZHA devices
+  in one call (never re-enables an entity a user disabled themselves).
+  Returns the number and ids of the entities it enabled; Home Assistant
+  reloads the ZHA config entry afterwards to create them.
+- A repair issue is raised while any LQI/RSSI sensor is still disabled by
+  default in ZHA mode, pointing at the new service, and clears once every
+  such sensor is enabled.
+
 ### Changed
 - Zigbee2MQTT messages are received only through Home Assistant's MQTT
   integration; setup is retried (`ConfigEntryNotReady`) until MQTT is

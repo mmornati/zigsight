@@ -22,6 +22,8 @@ from custom_components.zigsight.const import (
     INTEGRATION_TYPE_ZIGBEE2MQTT,
 )
 
+from .zha_test_helpers import add_mock_zha_config_entry
+
 
 @pytest.mark.asyncio
 async def test_zigbee2mqtt_full_flow(hass: HomeAssistant, mqtt_mock: MagicMock) -> None:
@@ -104,6 +106,7 @@ async def test_zha_full_flow(hass: HomeAssistant) -> None:
     ``test_zigbee2mqtt_full_flow`` -- this test only cares about the flow
     steps, not about actually setting up the resulting entry.
     """
+    add_mock_zha_config_entry(hass)
     with patch(
         "custom_components.zigsight.async_setup_entry", return_value=True
     ) as mock_setup_entry:
@@ -127,6 +130,20 @@ async def test_zha_full_flow(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
         mock_setup_entry.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_zha_not_configured_aborts(hass: HomeAssistant) -> None:
+    """Selecting ZHA with no ZHA config entry set up aborts with a clear reason."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZHA},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "zha_not_available"
 
 
 @pytest.mark.asyncio

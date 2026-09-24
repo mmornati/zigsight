@@ -3,14 +3,23 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import voluptuous as vol
 from homeassistant.components import mqtt
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.config_entries import RELOAD_AFTER_UPDATE_DELAY, ConfigEntry
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+    callback,
+)
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceEntry
+from homeassistant.util.json import JsonValueType
 
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
@@ -29,11 +38,16 @@ from .const import (
     DOMAIN,
     INTEGRATION_TYPE_ZHA,
     INTEGRATION_TYPE_ZIGBEE2MQTT,
+    ISSUE_ZHA_DIAGNOSTICS_DISABLED,
     LEGACY_MQTT_KEYS,
 )
 from .coordinator import ZigSightCoordinator
 from .recommender import recommend_zigbee_channel
 from .wifi_scanner import create_scanner
+from .zha_collector import (
+    async_enable_diagnostic_entities,
+    async_get_zha_config_entries,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,6 +106,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryNotReady(
             "The MQTT integration is not set up or not available; ZigSight "
             "needs it to receive Zigbee2MQTT messages"
+        )
+
+    if integration_type == INTEGRATION_TYPE_ZHA and not async_get_zha_config_entries(
+        hass
+    ):
+        # Retried by Home Assistant with backoff until ZHA is loaded (e.g.
+        # ZHA config entry set up after ZigSight, or still starting up).
+        raise ConfigEntryNotReady(
+            "The ZHA integration is not set up or not loaded yet; ZigSight "
+            "needs it to collect Zigbee device diagnostics"
         )
 
     # Analytics thresholds can be tuned later via the options flow; options
@@ -167,6 +191,25 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
+        # hass.data[DOMAIN] is not a reliable "any entry left?" signal: the
+        # recommend_channel service stashes a "last_recommendation" key
+        # there that outlives every config entry, so the dict is never
+        # actually empty. single_config_entry means at most one entry can
+        # be loaded anyway; async_loaded_entries reflects that (excluding
+        # this entry, whose own state hasn't flipped to NOT_LOADED yet at
+        # this point in config_entries.async_unload).
+        other_loaded_entries = [
+            other
+            for other in hass.config_entries.async_loaded_entries(DOMAIN)
+            if other.entry_id != entry.entry_id
+        ]
+        if not other_loaded_entries:
+            # Last entry gone: drop the services (PR series follow-up may
+            # generalise this cleanup; kept minimal/self-contained here).
+            for service in ("recommend_channel", "enable_zha_diagnostic_entities"):
+                if hass.services.has_service(DOMAIN, service):
+                    hass.services.async_remove(DOMAIN, service)
+            ir.async_delete_issue(hass, DOMAIN, ISSUE_ZHA_DIAGNOSTICS_DISABLED)
 
     return unload_ok
 
@@ -191,9 +234,12 @@ async def async_remove_config_entry_device(
 
 
 async def _async_setup_services(hass: HomeAssistant) -> None:
-    """Set up ZigSight services."""
+    """Set up ZigSight services (each registered once)."""
+    await _async_setup_recommend_channel_service(hass)
+    _async_setup_enable_zha_diagnostics_service(hass)
 
-    # Only register services once
+
+async def _async_setup_recommend_channel_service(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, "recommend_channel"):
         return
 
@@ -243,6 +289,52 @@ async def _async_setup_services(hass: HomeAssistant) -> None:
         "recommend_channel",
         async_recommend_channel,
         schema=recommend_channel_schema,
+    )
+
+
+@callback
+def _async_setup_enable_zha_diagnostics_service(hass: HomeAssistant) -> None:
+    if hass.services.has_service(DOMAIN, "enable_zha_diagnostic_entities"):
+        return
+
+    async def async_enable_zha_diagnostics(call: ServiceCall) -> ServiceResponse:
+        """Enable ZHA LQI/RSSI sensors ZigSight/ZHA left disabled by default."""
+        zha_mode_loaded = any(
+            loaded_entry.data.get(CONF_INTEGRATION_TYPE) == INTEGRATION_TYPE_ZHA
+            for loaded_entry in hass.config_entries.async_loaded_entries(DOMAIN)
+        )
+        if not zha_mode_loaded:
+            _LOGGER.warning(
+                "zigsight.enable_zha_diagnostic_entities called without a "
+                "loaded ZHA-mode ZigSight config entry; nothing to do"
+            )
+            return {
+                "enabled_count": 0,
+                "entity_ids": cast(list[JsonValueType], []),
+                "error": "No ZHA-mode ZigSight config entry is loaded",
+            }
+
+        enabled = async_enable_diagnostic_entities(hass)
+        if enabled:
+            ir.async_delete_issue(hass, DOMAIN, ISSUE_ZHA_DIAGNOSTICS_DISABLED)
+            _LOGGER.info(
+                "Enabled %d ZHA diagnostic entities: %s; Home Assistant will "
+                "reload the ZHA config entry ~%s seconds afterwards to "
+                "create them",
+                len(enabled),
+                ", ".join(enabled),
+                RELOAD_AFTER_UPDATE_DELAY,
+            )
+        return {
+            "enabled_count": len(enabled),
+            "entity_ids": cast(list[JsonValueType], enabled),
+        }
+
+    hass.services.async_register(
+        DOMAIN,
+        "enable_zha_diagnostic_entities",
+        async_enable_zha_diagnostics,
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
 

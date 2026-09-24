@@ -36,6 +36,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -59,6 +60,7 @@ from .const import (
     HISTORY_MAX_ENTRIES,
     HISTORY_MIN_INTERVAL,
     HISTORY_MIN_INTERVAL_ON_BATTERY_CHANGE,
+    ISSUE_ZHA_DIAGNOSTICS_DISABLED,
     RECONNECT_EVENTS_MAX,
     SIGNAL_DEVICE_REMOVED,
     SIGNAL_DEVICE_UPDATE,
@@ -244,6 +246,12 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         if self._enable_zha:
             self.logger.debug("Starting ZigSight coordinator in ZHA mode")
+            if self._zha_collector is not None:
+                # Live (push) updates for devices/entities already known;
+                # the periodic refresh (_collect_zha_devices) additionally
+                # re-discovers devices ZHA adds later.
+                self._zha_collector.async_setup(self._handle_zha_push_update)
+                await self._collect_zha_devices()
             return
 
         self.logger.debug(
@@ -258,10 +266,12 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._unsub_mqtt.append(unsub)
 
     async def async_shutdown(self) -> None:
-        """Unsubscribe from MQTT and stop the periodic refresh."""
+        """Unsubscribe from MQTT/ZHA and stop the periodic refresh."""
         for unsub in self._unsub_mqtt:
             unsub()
         self._unsub_mqtt.clear()
+        if self._zha_collector is not None:
+            self._zha_collector.async_stop()
         if self._unsub_keepalive is not None:
             self._unsub_keepalive()
             self._unsub_keepalive = None
@@ -896,8 +906,25 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ZHA
     # ------------------------------------------------------------------
     async def _collect_zha_devices(self) -> None:
-        """Collect devices from ZHA integration."""
-        if not self._zha_collector or not self._zha_collector.is_available():
+        """Collect devices from ZHA (registry discovery + entity states).
+
+        Called at start-up and by the periodic refresh: re-discovering
+        devices/entities from the registries is cheap (the collector only
+        resubscribes if the tracked entity set actually changed) and is a
+        safety net for ZHA devices added/removed between registry update
+        events. Values in between are pushed live by the collector's
+        state-change tracking (see ``_handle_zha_push_update``), not polled
+        here -- in particular, ``last_seen`` is only ever advanced from a
+        push update (see ``_process_zha_device_update``).
+
+        While no ZHA config entry is loaded (e.g. it hasn't started yet, or
+        was removed), ZHA devices' availability is marked unknown instead
+        of being polled -- see ``_mark_zha_devices_unknown``.
+        """
+        if not self._zha_collector:
+            return
+        if not self._zha_collector.is_available():
+            self._mark_zha_devices_unknown()
             return
 
         try:
@@ -916,33 +943,91 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
             for ieee in new:
                 async_dispatcher_send(self.hass, self.signal_new_device, ieee)
-        self.logger.debug("Collected %d ZHA devices", len(zha_devices))
 
-    @staticmethod
-    def _normalize_zha_last_seen(value: Any, now: datetime) -> str:
-        """Return an aware ISO timestamp for a ZHA last_seen value."""
-        parsed: datetime | None = None
-        if isinstance(value, datetime):
-            parsed = value
-        elif isinstance(value, int | float) and not isinstance(value, bool):
-            parsed = dt_util.utc_from_timestamp(value)
-        elif isinstance(value, str) and value:
-            try:
-                parsed = dt_util.utc_from_timestamp(float(value))
-            except ValueError:
-                try:
-                    parsed = dt_util.parse_datetime(value)
-                except ValueError:
-                    parsed = None
-        if parsed is None:
-            return now.isoformat()
-        # Naive values come from datetime.now(), i.e. local time.
-        return dt_util.as_utc(parsed).isoformat()
+        # A ZHA device no longer in the snapshot was removed/unpaired: drop
+        # it (and let it be deleted from the UI -- see
+        # async_remove_config_entry_device in __init__.py).
+        removed = [
+            ieee
+            for ieee, record in self._devices.items()
+            if record["source"] == DEVICE_SOURCE_ZHA and ieee not in zha_devices
+        ]
+        for ieee in removed:
+            self._remove_device(ieee)
+
+        self.logger.debug("Collected %d ZHA devices", len(zha_devices))
+        self._update_zha_diagnostics_issue()
+
+    @callback
+    def _mark_zha_devices_unknown(self) -> None:
+        """Mark ZHA devices' availability unknown while ZHA isn't loaded.
+
+        Mirrors ``_handle_bridge_state`` for Zigbee2MQTT going offline:
+        while no ZHA config entry is loaded nobody is tracking device
+        availability, so a later "available" reading (once ZHA reloads)
+        must not look like a reconnect.
+        """
+        now = dt_util.utcnow()
+        for ieee, record in self._devices.items():
+            if record["source"] != DEVICE_SOURCE_ZHA or record.get("available") is None:
+                continue
+            record["available"] = None
+            self._maybe_update_analytics(ieee, now, force=True)
+            async_dispatcher_send(self.hass, self.device_signal(ieee))
+        if self.config_entry is not None:
+            # Nothing can be said about disabled diagnostics without a
+            # loaded ZHA entry to inspect; don't leave a stale issue.
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ZHA_DIAGNOSTICS_DISABLED)
+
+    @callback
+    def _update_zha_diagnostics_issue(self) -> None:
+        """Create/clear the repair issue for disabled ZHA LQI/RSSI sensors."""
+        if self.config_entry is None or self._zha_collector is None:
+            return
+        # Reuses the device map the collector just (re-)discovered instead
+        # of walking the entity registry again.
+        disabled_count = self._zha_collector.count_disabled_diagnostics()
+        if disabled_count:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                ISSUE_ZHA_DIAGNOSTICS_DISABLED,
+                is_fixable=False,
+                is_persistent=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_ZHA_DIAGNOSTICS_DISABLED,
+                translation_placeholders={"count": str(disabled_count)},
+            )
+        else:
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ZHA_DIAGNOSTICS_DISABLED)
+
+    @callback
+    def _handle_zha_push_update(self, ieee: str, device_data: dict[str, Any]) -> None:
+        """Handle a live state-change pushed by the ZHA collector."""
+        is_new = self._process_zha_device_update(ieee, device_data, is_push=True)
+        if is_new:
+            self._migrate_legacy_registry_entries(
+                [ieee] if ieee not in self._migrated else []
+            )
+            async_dispatcher_send(self.hass, self.signal_new_device, ieee)
 
     def _process_zha_device_update(
-        self, device_id: str, device_data: dict[str, Any]
+        self, device_id: str, device_data: dict[str, Any], *, is_push: bool = False
     ) -> bool:
-        """Store one polled ZHA device; return True if it is new."""
+        """Store one ZHA device update; return True if the device is new.
+
+        ``is_push`` distinguishes a live state-change push from a periodic
+        registry re-discovery snapshot: only a push may advance an
+        *existing* device's ``last_seen`` (to the entity's own
+        ``last_reported``/``last_updated``). A snapshot must never bump it
+        to "now" -- doing so previously masked devices going silent
+        (analytics falls back to ``last_seen`` for the connectivity
+        warning whenever ``available`` is unknown, which it is for any
+        device whose LQI/RSSI/battery entities are all still disabled) and
+        would defeat the purpose of that warning entirely. A brand new
+        device's ``last_seen`` is still seeded once, from whatever the
+        discovery snapshot that found it observed -- see below.
+        """
         now = dt_util.utcnow()
         record = self._devices.get(device_id)
         is_new = record is None
@@ -953,28 +1038,69 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 device_data.get("friendly_name", device_id),
                 now,
             )
-            # The power source is not known up front for ZHA: create the
-            # battery entities too (the collector never reports voltage).
+            # The power source is not known for ZHA devices (see
+            # zha_collector docstring): create the battery entities too.
             record["battery_powered"] = True
             self._devices[device_id] = record
         record["friendly_name"] = device_data.get(
             "friendly_name", record["friendly_name"]
         )
-
-        metrics = dict(device_data.get("metrics") or {})
-        metrics["last_seen"] = self._normalize_zha_last_seen(
-            metrics.get("last_seen"), now
+        record["manufacturer"] = device_data.get("manufacturer") or record.get(
+            "manufacturer"
         )
+        record["model"] = device_data.get("model") or record.get("model")
+
+        device_metrics = device_data.get("metrics") or {}
+        record["metrics"].update(device_metrics)
+        # Only link_quality/battery/voltage are "tracked" for history and
+        # the zigsight_device_update event; rssi is kept in the record
+        # (API/diagnostics) but isn't one of them.
         metrics_update = {
-            key: metrics[key]
-            for key in _TRACKED_METRICS
-            if isinstance(metrics.get(key), int | float)
+            key: value
+            for key, value in device_metrics.items()
+            if key in _TRACKED_METRICS and isinstance(value, int | float)
         }
-        record["metrics"].update(metrics)
+
+        if is_new:
+            # Seed last_seen once, from whatever the discovery snapshot
+            # itself observed (a tracked entity's own last_reported /
+            # last_updated, only for a non-unavailable, non-restored
+            # state -- see zha_collector._collect_device). A freshly
+            # discovered device would otherwise have no last_seen at all
+            # until its first live push, which may not happen for a long
+            # time on an idle device.
+            seed_last_seen = device_data.get("last_seen")
+            if isinstance(seed_last_seen, datetime):
+                record["metrics"]["last_seen"] = seed_last_seen.isoformat()
+
+        if is_push:
+            pushed_last_seen = device_data.get("last_seen")
+            if isinstance(pushed_last_seen, datetime):
+                previous_last_seen = as_datetime(record["metrics"].get("last_seen"))
+                if previous_last_seen is None or pushed_last_seen >= previous_last_seen:
+                    record["metrics"]["last_seen"] = pushed_last_seen.isoformat()
+
         record["last_update"] = now.isoformat()
 
+        # Availability transitions drive reconnect counting, exactly like
+        # Zigbee2MQTT's <name>/availability handling: never once per
+        # poll/event, only on False -> True.
+        available = device_data.get("available")
+        previous_available = record.get("available")
+        availability_changed = False
+        if available is not None and available != previous_available:
+            availability_changed = True
+            record["available"] = available
+            if previous_available is False and available:
+                record["reconnect_count"] += 1
+                record["last_reconnect"] = now.isoformat()
+                self._reconnect_events.setdefault(
+                    device_id, deque(maxlen=RECONNECT_EVENTS_MAX)
+                ).append(now)
+
         self._record_history(device_id, now, metrics_update)
-        self._maybe_fire_event(device_id, now)
+        self._maybe_update_analytics(device_id, now, force=availability_changed)
+        self._maybe_fire_event(device_id, now, force=availability_changed)
         async_dispatcher_send(self.hass, self.device_signal(device_id))
         return is_new
 

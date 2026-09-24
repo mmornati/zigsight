@@ -1,12 +1,14 @@
 {
   "domain": "zigsight",
   "name": "ZigSight",
+  "after_dependencies": ["mqtt"],
   "codeowners": ["@mmornati"],
   "config_flow": true,
-  "dependencies": ["mqtt", "http"],
+  "dependencies": ["http"],
   "documentation": "https://github.com/mmornati/zigsight",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/mmornati/zigsight/issues",
-  "requirements": ["aiomqtt>=2.0.0"],
+  "requirements": [],
+  "single_config_entry": true,
   "version": "1.1.0"
 }

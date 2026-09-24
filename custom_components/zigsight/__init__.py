@@ -3,34 +3,33 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import voluptuous as vol
+from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.device_registry import DeviceEntry
 
 from .const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
     CONF_ENABLE_ZHA,
     CONF_INTEGRATION_TYPE,
-    CONF_MQTT_BROKER,
-    CONF_MQTT_PASSWORD,
-    CONF_MQTT_PORT,
     CONF_MQTT_TOPIC_PREFIX,
-    CONF_MQTT_USERNAME,
     CONF_RECONNECT_RATE_THRESHOLD,
     CONF_RECONNECT_RATE_WINDOW_HOURS,
+    CONFIG_ENTRY_MINOR_VERSION,
+    CONFIG_ENTRY_VERSION,
     DEFAULT_BATTERY_DRAIN_THRESHOLD,
-    DEFAULT_ENABLE_ZHA,
     DEFAULT_INTEGRATION_TYPE,
-    DEFAULT_MQTT_BROKER,
-    DEFAULT_MQTT_PORT,
     DEFAULT_MQTT_TOPIC_PREFIX,
     DEFAULT_RECONNECT_RATE_THRESHOLD,
     DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
     DOMAIN,
     INTEGRATION_TYPE_ZHA,
+    INTEGRATION_TYPE_ZIGBEE2MQTT,
+    LEGACY_MQTT_KEYS,
 )
 from .coordinator import ZigSightCoordinator
 from .recommender import recommend_zigbee_channel
@@ -41,47 +40,59 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[str] = ["sensor", "binary_sensor"]
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate old config entries.
+
+    1.1 -> 1.2: drop the direct-MQTT connection settings (the integration now
+    always uses Home Assistant's MQTT integration) and the legacy
+    ``enable_zha`` flag (replaced by ``integration_type``).
+    """
+    if entry.version > CONFIG_ENTRY_VERSION:
+        # Downgrade from a future major version: not supported.
+        return False
+
+    if entry.version == 1 and entry.minor_version < 2:
+        data = dict(entry.data)
+        if CONF_INTEGRATION_TYPE not in data:
+            data[CONF_INTEGRATION_TYPE] = (
+                INTEGRATION_TYPE_ZHA
+                if data.get(CONF_ENABLE_ZHA)
+                else DEFAULT_INTEGRATION_TYPE
+            )
+        data.pop(CONF_ENABLE_ZHA, None)
+        for key in LEGACY_MQTT_KEYS:
+            data.pop(key, None)
+        if data[CONF_INTEGRATION_TYPE] == INTEGRATION_TYPE_ZHA:
+            data.pop(CONF_MQTT_TOPIC_PREFIX, None)
+        else:
+            data.setdefault(CONF_MQTT_TOPIC_PREFIX, DEFAULT_MQTT_TOPIC_PREFIX)
+        hass.config_entries.async_update_entry(
+            entry,
+            data=data,
+            version=CONFIG_ENTRY_VERSION,
+            minor_version=CONFIG_ENTRY_MINOR_VERSION,
+        )
+        _LOGGER.info(
+            "Migrated ZigSight config entry to version %s.%s",
+            CONFIG_ENTRY_VERSION,
+            CONFIG_ENTRY_MINOR_VERSION,
+        )
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up ZigSight from a config entry."""
-    # Determine integration type and enable_zha (backward compatibility)
     integration_type = entry.data.get(CONF_INTEGRATION_TYPE, DEFAULT_INTEGRATION_TYPE)
-    # For backward compatibility, check CONF_ENABLE_ZHA first
-    if CONF_ENABLE_ZHA in entry.data:
-        enable_zha = entry.data.get(CONF_ENABLE_ZHA, DEFAULT_ENABLE_ZHA)
-    else:
-        # New config flow: derive from integration_type
-        enable_zha = integration_type == INTEGRATION_TYPE_ZHA
+    enable_zha = integration_type == INTEGRATION_TYPE_ZHA
 
-    # Only use MQTT parameters if not using ZHA
-    if enable_zha:
-        # ZHA mode: don't use MQTT at all
-        mqtt_prefix = DEFAULT_MQTT_TOPIC_PREFIX
-        mqtt_broker = None
-        mqtt_port = None
-        mqtt_username = None
-        mqtt_password = None
-    else:
-        # Zigbee2MQTT mode: use MQTT parameters
-        mqtt_prefix = entry.data.get(CONF_MQTT_TOPIC_PREFIX, DEFAULT_MQTT_TOPIC_PREFIX)
-        mqtt_broker_raw = entry.data.get(CONF_MQTT_BROKER, DEFAULT_MQTT_BROKER)
-        mqtt_port_raw = entry.data.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT)
-        mqtt_username_raw = entry.data.get(CONF_MQTT_USERNAME, "")
-        mqtt_password_raw = entry.data.get(CONF_MQTT_PASSWORD, "")
-
-        # Only pass non-default values to avoid triggering direct MQTT connection
-        # when using Home Assistant's MQTT integration
-        mqtt_broker = (
-            mqtt_broker_raw
-            if mqtt_broker_raw and mqtt_broker_raw != DEFAULT_MQTT_BROKER
-            else None
+    if integration_type == INTEGRATION_TYPE_ZIGBEE2MQTT and not (
+        await mqtt.async_wait_for_mqtt_client(hass)
+    ):
+        # Retried by Home Assistant with backoff until MQTT is available.
+        raise ConfigEntryNotReady(
+            "The MQTT integration is not set up or not available; ZigSight "
+            "needs it to receive Zigbee2MQTT messages"
         )
-        mqtt_port = (
-            mqtt_port_raw
-            if mqtt_port_raw and mqtt_port_raw != DEFAULT_MQTT_PORT
-            else None
-        )
-        mqtt_username = mqtt_username_raw if mqtt_username_raw else None
-        mqtt_password = mqtt_password_raw if mqtt_password_raw else None
 
     # Analytics thresholds can be tuned later via the options flow; options
     # (when set) take precedence over the original config-entry data.
@@ -100,13 +111,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ),
     )
 
+    # The coordinator registers its own async_shutdown with
+    # entry.async_on_unload, so MQTT subscriptions are released on unload
+    # and also when any later setup step fails.
     coordinator = ZigSightCoordinator(
         hass,
-        mqtt_prefix=mqtt_prefix,
-        mqtt_broker=mqtt_broker,
-        mqtt_port=mqtt_port,
-        mqtt_username=mqtt_username,
-        mqtt_password=mqtt_password,
+        mqtt_prefix=entry.data.get(CONF_MQTT_TOPIC_PREFIX, DEFAULT_MQTT_TOPIC_PREFIX),
         battery_drain_threshold=battery_drain_threshold,
         reconnect_rate_threshold=reconnect_rate_threshold,
         reconnect_rate_window_hours=reconnect_rate_window_hours,
@@ -114,15 +124,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         config_entry=entry,
     )
 
-    # Start coordinator (sets up MQTT subscriptions)
-    await coordinator.async_start()
+    # The bridge device must exist before entities reference it as via_device.
+    coordinator.async_setup_bridge_device()
 
-    # Request first data update
-    await coordinator.async_config_entry_first_refresh()
-
+    # Store the coordinator before subscribing: retained messages may be
+    # delivered (and new devices announced to the platforms) right away.
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    try:
+        await coordinator.async_start()
+        await coordinator.async_config_entry_first_refresh()
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    except BaseException:
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        raise
 
     # Register services
     await _async_setup_services(hass)
@@ -145,13 +159,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
+    """Unload a config entry.
+
+    The coordinator's async_shutdown (MQTT unsubscribe) runs through the
+    entry's on-unload callbacks.
+    """
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        coordinator: ZigSightCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
-        await coordinator.async_shutdown()
+        hass.data[DOMAIN].pop(entry.entry_id, None)
 
     return unload_ok
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: DeviceEntry
+) -> bool:
+    """Allow removing stale devices (no longer known to Zigbee2MQTT/ZHA)."""
+    coordinator: ZigSightCoordinator | None = hass.data.get(DOMAIN, {}).get(
+        entry.entry_id
+    )
+    if coordinator is None:
+        return True
+    for domain, identifier in device_entry.identifiers:
+        if domain != DOMAIN:
+            continue
+        if identifier == coordinator.bridge_identifier[1]:
+            return False
+        if coordinator.get_device(identifier) is not None:
+            return False
+    return True
 
 
 async def _async_setup_services(hass: HomeAssistant) -> None:

@@ -307,3 +307,39 @@ def test_build_topology_with_source() -> None:
     unknown_node = next((n for n in topology["nodes"] if n["id"] == "device3"), None)
     assert unknown_node is not None
     assert unknown_node["source"] == "unknown"
+
+
+def test_build_topology_from_z2m_records_and_network_map() -> None:
+    """Real device types and raw network map links (IEEE based ids)."""
+    devices = {
+        "0xrouter": {
+            "friendly_name": "Plug",
+            "type": "Router",
+            "metrics": {"link_quality": 200},
+            "analytics_metrics": {},
+            "source": "zigbee2mqtt",
+        },
+        "0xend": {
+            "friendly_name": "Sensor",
+            "type": "EndDevice",
+            "metrics": {"link_quality": 80},
+            "analytics_metrics": {},
+        },
+    }
+    links = [
+        {"source": "0xrouter", "target": "0xcoord", "lqi": 200, "relationship": 1},
+        {"source": "0xend", "target": "0xrouter", "lqi": 80, "depth": 2},
+        {"source": None, "target": "0xrouter"},
+    ]
+    topology = build_topology(devices, links=links, coordinator_id="0xcoord")
+
+    assert topology["nodes"][0]["id"] == "0xcoord"
+    assert topology["router_count"] == 1
+    assert topology["end_device_count"] == 1
+    assert {(e["from"], e["to"], e["link_quality"]) for e in topology["edges"]} == {
+        ("0xcoord", "0xrouter", 200),
+        ("0xrouter", "0xend", 80),
+    }
+    # Node ids and edge endpoints use the same (IEEE) identifiers
+    node_ids = {node["id"] for node in topology["nodes"]}
+    assert all(e["from"] in node_ids and e["to"] in node_ids for e in topology["edges"])

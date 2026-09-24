@@ -1,0 +1,79 @@
+{
+  "data": {
+    "routes": false,
+    "type": "raw",
+    "value": {
+      "links": [
+        {
+          "depth": 1,
+          "linkquality": 156,
+          "lqi": 156,
+          "relationship": 1,
+          "routes": [],
+          "source": {"ieeeAddr": "0x0017880104e45517", "networkAddress": 29159},
+          "sourceIeeeAddr": "0x0017880104e45517",
+          "sourceNwkAddr": 29159,
+          "target": {"ieeeAddr": "0x00124b0024c1a2b3", "networkAddress": 0},
+          "targetIeeeAddr": "0x00124b0024c1a2b3"
+        },
+        {
+          "depth": 1,
+          "linkquality": 201,
+          "lqi": 201,
+          "relationship": 1,
+          "routes": [],
+          "source": {"ieeeAddr": "0x000d6ffffe1a2b3c", "networkAddress": 4412},
+          "sourceIeeeAddr": "0x000d6ffffe1a2b3c",
+          "sourceNwkAddr": 4412,
+          "target": {"ieeeAddr": "0x00124b0024c1a2b3", "networkAddress": 0},
+          "targetIeeeAddr": "0x00124b0024c1a2b3"
+        },
+        {
+          "depth": 2,
+          "linkquality": 180,
+          "lqi": 180,
+          "relationship": 2,
+          "routes": [],
+          "source": {"ieeeAddr": "0x000d6ffffe1a2b3c", "networkAddress": 4412},
+          "sourceIeeeAddr": "0x000d6ffffe1a2b3c",
+          "sourceNwkAddr": 4412,
+          "target": {"ieeeAddr": "0x0017880104e45517", "networkAddress": 29159},
+          "targetIeeeAddr": "0x0017880104e45517"
+        },
+        {
+          "depth": 2,
+          "linkquality": 72,
+          "lqi": 72,
+          "relationship": 1,
+          "routes": [],
+          "source": {"ieeeAddr": "0x00158d0001a2b3c4", "networkAddress": 51234},
+          "sourceIeeeAddr": "0x00158d0001a2b3c4",
+          "sourceNwkAddr": 51234,
+          "target": {"ieeeAddr": "0x0017880104e45517", "networkAddress": 29159},
+          "targetIeeeAddr": "0x0017880104e45517"
+        },
+        {
+          "depth": 2,
+          "linkquality": 110,
+          "lqi": 110,
+          "relationship": 1,
+          "routes": [],
+          "source": {"ieeeAddr": "0x001788010b2c3d4e", "networkAddress": 60321},
+          "sourceIeeeAddr": "0x001788010b2c3d4e",
+          "sourceNwkAddr": 60321,
+          "target": {"ieeeAddr": "0x000d6ffffe1a2b3c", "networkAddress": 4412},
+          "targetIeeeAddr": "0x000d6ffffe1a2b3c"
+        }
+      ],
+      "nodes": [
+        {"definition": null, "failed": [], "friendlyName": "Coordinator", "ieeeAddr": "0x00124b0024c1a2b3", "lastSeen": null, "networkAddress": 0, "type": "Coordinator"},
+        {"definition": {"description": "Hue white and color ambiance E26/E27", "model": "9290022166", "supports": "light (state, brightness, color_temp), linkquality", "vendor": "Philips"}, "failed": [], "friendlyName": "Living Room Lamp", "ieeeAddr": "0x0017880104e45517", "lastSeen": 1790237580000, "manufacturerName": "Signify Netherlands B.V.", "modelID": "LCT015", "networkAddress": 29159, "type": "Router"},
+        {"definition": {"description": "Control outlet", "model": "E1603/E1702/E1708", "supports": "switch (state), linkquality", "vendor": "IKEA"}, "failed": [], "friendlyName": "Kitchen", "ieeeAddr": "0x000d6ffffe1a2b3c", "lastSeen": 1790237520000, "manufacturerName": "IKEA of Sweden", "modelID": "TRADFRI control outlet", "networkAddress": 4412, "type": "Router"},
+        {"definition": {"description": "Temperature, humidity and pressure sensor", "model": "WSDCGQ11LM", "supports": "battery, temperature, humidity, pressure, voltage, linkquality", "vendor": "Aqara"}, "failed": [], "friendlyName": "Bedroom Climate", "ieeeAddr": "0x00158d0001a2b3c4", "lastSeen": 1790237732000, "manufacturerName": "LUMI", "modelID": "lumi.weather", "networkAddress": 51234, "type": "EndDevice"},
+        {"definition": {"description": "Hue motion sensor", "model": "9290012607", "supports": "occupancy, battery, illuminance, temperature, linkquality", "vendor": "Philips"}, "failed": [], "friendlyName": "Kitchen/Motion Sensor", "ieeeAddr": "0x001788010b2c3d4e", "lastSeen": 1790237640000, "manufacturerName": "Signify Netherlands B.V.", "modelID": "SML001", "networkAddress": 60321, "type": "EndDevice"}
+      ]
+    }
+  },
+  "status": "ok",
+  "transaction": "k2j4a-1"
+}

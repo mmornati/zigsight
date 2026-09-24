@@ -20,7 +20,10 @@ This document provides information for developers contributing to the ZigSight p
 │       ├── manifest.json       # Home Assistant manifest
 │       ├── config_flow.py      # Configuration flow handler
 │       ├── options_flow.py     # Options flow handler
-│       ├── coordinator.py      # Data update coordinator
+│       ├── coordinator.py      # Device tracking (Z2M push / ZHA poll), analytics scheduling
+│       ├── z2m.py              # Zigbee2MQTT topic/payload parsing (no HA state)
+│       ├── entity.py           # Base entity + dynamic per-device platform setup
+│       ├── diagnostics.py      # Config entry / device diagnostics
 │       ├── analytics.py        # Analytics engine for metrics computation
 │       ├── const.py            # Constants
 │       ├── services.yaml       # Service definitions
@@ -35,9 +38,13 @@ This document provides information for developers contributing to the ZigSight p
 │   ├── automations.md          # Automation blueprints guide
 │   └── DEVELOPER_README.md     # This file
 ├── tests/
-│   ├── test_manifest.py        # Manifest validation tests
-│   ├── test_coordinator.py     # Coordinator tests
-│   └── test_sensor.py          # Sensor entity tests
+│   ├── fixtures/z2m/           # Recorded-style Zigbee2MQTT session (see session.json)
+│   ├── z2m_replay.py           # Fixture loader / replay helper (no HA import needed)
+│   ├── test_z2m.py             # Zigbee2MQTT parser unit tests
+│   ├── test_z2m_integration.py # End-to-end: fixtures -> MQTT -> devices/entities
+│   ├── test_migration.py       # Config entry + entity registry migrations
+│   ├── test_coordinator.py     # Coordinator unit tests
+│   └── test_sensor.py          # Entity builder tests
 ├── pyproject.toml              # Project configuration
 ├── requirements-dev.txt        # Development dependencies
 └── README.md                   # Project README
@@ -132,6 +139,33 @@ The CI workflow will automatically use this token if present.
 
 The analytics engine (`analytics.py`) provides metrics computation for device health monitoring.
 
+### Data flow
+
+- **Zigbee2MQTT**: `ZigSightCoordinator` subscribes to `<base_topic>/#` through
+  Home Assistant's MQTT integration and classifies each topic with
+  `z2m.classify_topic()`:
+  - `bridge/devices` (retained) is the authoritative device list. Devices are
+    keyed by IEEE address; the friendly name -> IEEE map resolves device
+    topics (friendly names may contain `/`, the longest known name wins).
+    Devices missing from a new list are purged (memory, device registry,
+    entities); renames update the device registry name only.
+  - `<name>` state payloads are merged into the device's last state (partial
+    updates keep previous values); `<name>/availability` (JSON or legacy plain
+    text) sets availability and counts offline -> online transitions as
+    reconnects; `/set`, `/get`, groups and unknown topics are ignored.
+  - `bridge/info`, `bridge/state` and `bridge/response/networkmap` (type
+    `raw`, requested on demand with `async_request_network_map()`) are stored
+    for the topology/channel features.
+- **ZHA**: the periodic refresh polls `ZHACollector`.
+- **Entities** are created when the coordinator sends the
+  `signal_new_device` dispatcher signal (`entity.async_setup_device_platform`).
+  Zigbee2MQTT devices only get entities once interviewed; the entity set comes
+  from `ZigSightCoordinator.entity_keys()` and is tracked per unique id, so
+  entities for newly gained capabilities are added later
+  and write their state on the per-device `device_signal(ieee)`; the global
+  coordinator listeners only run on the 60 s periodic refresh, which also
+  recomputes time based analytics.
+
 ### Function Signatures
 
 #### `DeviceAnalytics.__init__()`
@@ -140,56 +174,41 @@ The analytics engine (`analytics.py`) provides metrics computation for device he
 def __init__(
     reconnect_rate_window_hours: int = 24,
     battery_drain_threshold: float = 10.0,
-    min_battery_for_trend: int = 20,
+    silent_timeout: timedelta = SILENT_DEVICE_TIMEOUT,  # 25 hours
 ) -> None
 ```
 
-Initializes the analytics engine with configurable thresholds.
-
-**Parameters**:
-- `reconnect_rate_window_hours`: Time window in hours for reconnect rate calculation (default: 24)
-- `battery_drain_threshold`: Minimum drain rate (%/hour) to trigger warning (default: 10.0)
-- `min_battery_for_trend`: Minimum battery % to compute trend (default: 20)
+All timestamps are timezone aware (UTC, `homeassistant.util.dt`).
 
 #### `compute_reconnect_rate()`
 
 ```python
 def compute_reconnect_rate(
-    device_history: list[dict[str, Any]],
+    reconnect_events: Iterable[datetime | str],
     window_hours: int | None = None,
+    now: datetime | None = None,
 ) -> float
 ```
 
-**Algorithm**:
-1. Filter history entries within time window
-2. Sort entries by timestamp
-3. Detect gaps > 5 minutes between consecutive entries (reconnection events)
-4. Count reconnection events within window
-5. Calculate rate as events/hour
-
-**Returns**: Reconnect rate (events/hour) or 0.0 if insufficient data
-
-**Time Complexity**: O(n log n) where n = number of history entries (due to sorting)
+Counts the recorded reconnect events (Zigbee2MQTT availability transitions
+offline -> online) inside the window and divides by the window length.
 
 #### `compute_battery_trend()`
 
 ```python
 def compute_battery_trend(
-    device_history: list[dict[str, Any]],
+    history: Iterable[Mapping[str, Any]],
     window_hours: int = 24,
+    now: datetime | None = None,
 ) -> float | None
 ```
 
 **Algorithm**:
-1. Extract battery readings from history within time window
-2. Filter readings with battery ≥ `min_battery_for_trend` (20% default)
-3. Sort by timestamp
-4. Compute linear regression slope using least squares method
-5. Return percentage change per hour (negative = draining)
-
-**Returns**: Battery trend (%/hour) or None if insufficient data
-
-**Time Complexity**: O(n) where n = number of history entries
+1. Extract battery readings from history within the time window (all values,
+   including batteries below 20%)
+2. Require at least two readings spanning at least one hour
+3. Compute the least squares linear regression slope
+4. Return percentage change per hour (negative = draining)
 
 **Linear Regression Formula**:
 ```
@@ -204,87 +223,75 @@ where:
 
 ```python
 def compute_health_score(
-    device_data: dict[str, Any],
-    device_history: list[dict[str, Any]],
+    device: Mapping[str, Any],
+    reconnect_rate: float = 0.0,
+    now: datetime | None = None,
 ) -> float
 ```
 
-**Algorithm**:
-1. Extract current metrics: link_quality, battery, last_seen
-2. Normalize each component to 0-100 scale:
-   - **Link Quality**: Normalize 0-255 → 0-100 (higher is better)
-   - **Battery**: Use as-is 0-100% (higher is better)
-   - **Reconnect Rate**: Invert (0/hour = 100, 10+/hour = 0)
-   - **Connectivity**: Based on last_seen recency (< 5 min = 100, > 1 hour = 0, linear decay)
-3. Apply weighted average using configured weights (default: link_quality 30%, battery 20%, reconnect_rate 30%, connectivity 20%)
-4. Return score 0-100 where 100 is excellent
-
-**Returns**: Health score (0-100) where 100 is excellent
-
-**Time Complexity**: O(1) for score calculation, O(n) for reconnect rate computation
-
-**Score Interpretation**:
-- 90-100: Excellent
-- 70-89: Good
-- 50-69: Fair
-- 0-49: Poor
+Weighted average (link quality 30%, battery 20%, reconnect rate 30%,
+connectivity 20%). The battery component is skipped (weights re-normalised)
+when the device reports no battery. Connectivity is 100/0 when Zigbee2MQTT
+availability is known, otherwise it decays linearly over the device type
+dependent timeout (`compute_connectivity_score()`).
 
 #### `check_battery_drain_warning()`
 
 ```python
 def check_battery_drain_warning(
-    device_history: list[dict[str, Any]],
+    battery_trend: float | None,
     threshold: float | None = None,
 ) -> bool
 ```
 
-**Algorithm**:
-1. Compute battery trend using `compute_battery_trend()`
-2. Compare trend against threshold (default: 10%/hour)
-3. Return True if trend < -threshold (negative = draining)
-
-**Returns**: True if battery drain warning should be triggered
+True if `battery_trend < -threshold`.
 
 #### `check_connectivity_warning()`
 
 ```python
 def check_connectivity_warning(
-    device_data: dict[str, Any],
+    device: Mapping[str, Any],
+    reconnect_rate: float = 0.0,
     reconnect_rate_threshold: float = 5.0,
+    now: datetime | None = None,
 ) -> bool
 ```
 
-**Algorithm**:
-1. Extract device history from device_data
-2. Compute reconnect rate using `compute_reconnect_rate()`
-3. Check if reconnect_rate ≥ threshold
-4. OR check if last_seen > 1 hour ago
-5. Return True if either condition is met
-
-**Returns**: True if connectivity warning should be triggered
+True if the reconnect rate reaches the threshold, if Zigbee2MQTT reports the
+device offline or, when availability is unknown, if the device has been
+silent for longer than the silent device timeout (25 hours for every device
+type, or Zigbee2MQTT's configured passive availability timeout). ZigSight
+doesn't ping devices, so a short router timeout would flag idle routers.
 
 ### Data Retention Policy
 
-- **Maximum History**: 1000 entries per device (last entries kept, FIFO, in-memory only)
-- **Memory Usage**: Approximately 10-50 KB per device depending on history size
+Everything is in memory and bounded:
 
-History is stored in-memory in the coordinator. For persistent storage, use Home Assistant's built-in history features.
+- History: numeric metrics only (`link_quality`, `battery`, `voltage`,
+  timestamp), one sample at most every 5 minutes (1 minute when the battery
+  changed), at most 400 samples per device (`collections.deque(maxlen=...)`).
+- Reconnect events: at most 200 timestamps per device.
+- Devices removed from Zigbee2MQTT's `bridge/devices` are purged.
+- Analytics are recomputed at most every 30 seconds per device on incoming
+  messages, plus once per device on each periodic refresh (60 s).
 
-### Performance Considerations
+For persistent storage, use Home Assistant's built-in history features.
 
-- **Reconnect Rate Calculation**: O(n log n) due to sorting. Consider caching if called frequently.
-- **Battery Trend Calculation**: O(n). Optimized by filtering entries outside window early.
-- **Health Score Calculation**: O(1) after component extraction. Reconnect rate computation may be O(n log n).
-- **Memory Usage**: Linear with number of devices and history size. Monitor memory usage in production.
+### Testing
 
-### Testing Analytics Functions
+- `tests/test_analytics.py`: analytics functions
+- `tests/test_z2m.py`: Zigbee2MQTT parsing
+- `tests/test_z2m_integration.py`: end-to-end replay of `tests/fixtures/z2m`
+  with `async_fire_mqtt_message` against a real `hass`
 
-See `tests/test_analytics.py` for comprehensive test coverage:
+To capture new fixtures from a production broker without touching it
+(read-only subscription):
 
-- Test reconnect rate with various history patterns
-- Test battery trend with different drain scenarios
-- Test health score computation with different metrics
-- Test warning conditions with threshold variations
+```bash
+mosquitto_sub -h <broker> -u <user> -P <password> -v -t 'zigbee2mqtt/#'
+```
+
+Anonymise names/IEEE addresses before committing them.
 
 ## Wi-Fi Scanner Adapters
 

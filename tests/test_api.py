@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import web
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 
 from custom_components.zigsight.api import (
     ZigSightAnalyticsExportView,
@@ -75,6 +76,8 @@ def mock_coordinator():
         }
     ]
     coordinator.get_device.return_value = coordinator.get_all_devices()["device1"]
+    coordinator.get_network_links.return_value = []
+    coordinator.coordinator_ieee = None
     return coordinator
 
 
@@ -127,6 +130,30 @@ class TestZigSightAnalyticsTrendsView:
         response = await view.get(request)
 
         assert response.status == 200
+
+    async def test_get_trends_filters_aware_timestamps(
+        self, mock_hass, mock_coordinator
+    ):
+        """History timestamps are timezone aware and filtered by window."""
+        now = dt_util.utcnow()
+        mock_coordinator.get_device_history.return_value = [
+            {
+                "timestamp": (now - timedelta(hours=48)).isoformat(),
+                "metrics": {"battery": 90},
+            },
+            {
+                "timestamp": (now - timedelta(hours=2)).isoformat(),
+                "metrics": {"battery": 85},
+            },
+            {"timestamp": "garbage", "metrics": {"battery": 1}},
+        ]
+        view = ZigSightAnalyticsTrendsView(mock_hass)
+        request = MagicMock(spec=web.Request)
+        request.query = {"device_id": "device1", "metric": "battery", "hours": "24"}
+        response = await view.get(request)
+        assert response.status == 200
+        body = json.loads(response.body)
+        assert [point["value"] for point in body["data"]] == [85]
 
     async def test_get_trends_network_wide(self, mock_hass):
         """Test trends request for network-wide data."""
@@ -223,6 +250,27 @@ class TestZigSightTopologyView:
 
             assert response.status == 200
             mock_build_topology.assert_called_once()
+
+    async def test_get_topology_uses_network_map(self, mock_hass, mock_coordinator):
+        """Links and the coordinator IEEE from the network map are used."""
+        mock_coordinator.get_network_links.return_value = [
+            {"source": "device1", "target": "0xcoord", "lqi": 120}
+        ]
+        mock_coordinator.coordinator_ieee = "0xcoord"
+        view = ZigSightTopologyView(mock_hass)
+        response = await view.get(MagicMock(spec=web.Request))
+        assert response.status == 200
+        body = json.loads(response.body)
+        assert body["nodes"][0]["id"] == "0xcoord"
+        assert body["edges"] == [
+            {
+                "from": "0xcoord",
+                "to": "device1",
+                "link_quality": 120,
+                "relationship": None,
+                "depth": None,
+            }
+        ]
 
     async def test_get_topology_no_coordinator(self):
         """Test topology request with no coordinator."""

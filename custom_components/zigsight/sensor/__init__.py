@@ -4,48 +4,18 @@ from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from ..const import DOMAIN
-from ..coordinator import ZigSightCoordinator
-from .sensor import (
-    ZigbeeDeviceSensor,
-    ZigSightBatterySensor,
-    ZigSightBatteryTrendSensor,
-    ZigSightHealthScoreSensor,
-    ZigSightLinkQualitySensor,
-    ZigSightReconnectRateSensor,
-    ZigSightVoltageSensor,
-)
+from ..entity import async_setup_device_platform
+from .sensor import build_sensors
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up ZigSight sensor platform."""
-    coordinator: ZigSightCoordinator = hass.data[DOMAIN][entry.entry_id]
-
-    # Get devices from coordinator data
-    data = coordinator.data
-    devices = data.get("devices", {}) if data else {}
-
-    entities: list[ZigbeeDeviceSensor] = []
-    for device_id in devices:
-        # Skip bridge device
-        if device_id == "bridge":
-            continue
-
-        # Create sensors for each device
-        entities.append(ZigSightLinkQualitySensor(coordinator, device_id))
-        entities.append(ZigSightBatterySensor(coordinator, device_id))
-        entities.append(ZigSightVoltageSensor(coordinator, device_id))
-        entities.append(ZigSightReconnectRateSensor(coordinator, device_id))
-        entities.append(ZigSightBatteryTrendSensor(coordinator, device_id))
-        entities.append(ZigSightHealthScoreSensor(coordinator, device_id))
-
-    async_add_entities(entities)
-
-    # Note: Dynamic sensor creation will be handled via platform discovery
-    # when new devices are detected through MQTT messages
+    """Set up ZigSight sensors (now and whenever a new device appears)."""
+    async_setup_device_platform(
+        hass, entry, async_add_entities, build_sensors, "sensor"
+    )

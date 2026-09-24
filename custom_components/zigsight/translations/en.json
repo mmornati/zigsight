@@ -10,13 +10,12 @@
       },
       "zigbee2mqtt": {
         "title": "Zigbee2MQTT Configuration",
-        "description": "Configure Zigbee2MQTT MQTT connection parameters",
+        "description": "ZigSight receives Zigbee2MQTT messages through Home Assistant's MQTT integration, so no broker settings are needed here. Enter the Zigbee2MQTT base topic (`mqtt.base_topic` in the Zigbee2MQTT configuration).",
         "data": {
-          "mqtt_broker": "MQTT Broker",
-          "mqtt_port": "MQTT Port",
-          "mqtt_username": "MQTT Username (optional)",
-          "mqtt_password": "MQTT Password (optional)",
-          "mqtt_topic_prefix": "MQTT Topic Prefix"
+          "mqtt_topic_prefix": "Zigbee2MQTT base topic"
+        },
+        "data_description": {
+          "mqtt_topic_prefix": "Usually `zigbee2mqtt`."
         }
       },
       "common": {
@@ -27,31 +26,14 @@
           "reconnect_rate_threshold": "Reconnect Rate Threshold (events/hour)",
           "reconnect_rate_window_hours": "Reconnect Rate Window (hours)"
         }
-      },
-      "zha": {
-        "title": "ZHA Configuration",
-        "description": "Configure ZHA integration",
-        "data": {}
-      },
-      "deconz": {
-        "title": "deCONZ Configuration",
-        "description": "Configure deCONZ connection",
-        "data": {
-          "host": "deCONZ Host",
-          "port": "deCONZ Port",
-          "api_key": "API Key"
-        }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect",
-      "invalid_auth": "Invalid authentication",
-      "unknown": "Unexpected error occurred"
+      "invalid_topic_prefix": "Invalid base topic. Use a plain MQTT topic without wildcards, e.g. `zigbee2mqtt`."
     },
     "abort": {
-      "already_configured": "ZigSight is already configured",
       "single_instance_allowed": "Only a single instance of ZigSight is allowed",
-      "mqtt_not_available": "MQTT is not available. Please configure MQTT integration first.",
+      "mqtt_not_available": "The MQTT integration is not set up. Set up Home Assistant's MQTT integration (connected to the broker Zigbee2MQTT uses) first, then add ZigSight again.",
       "invalid_integration_type": "Invalid integration type selected"
     }
   },
@@ -65,6 +47,36 @@
           "reconnect_rate_threshold": "Reconnect Rate Threshold (events/hour)",
           "reconnect_rate_window_hours": "Reconnect Rate Window (hours)"
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "link_quality": {
+        "name": "Link quality"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "voltage": {
+        "name": "Voltage"
+      },
+      "reconnect_rate": {
+        "name": "Reconnect rate"
+      },
+      "battery_trend": {
+        "name": "Battery trend"
+      },
+      "health_score": {
+        "name": "Health score"
+      }
+    },
+    "binary_sensor": {
+      "battery_drain_warning": {
+        "name": "Battery drain warning"
+      },
+      "connectivity_warning": {
+        "name": "Connectivity warning"
       }
     }
   },

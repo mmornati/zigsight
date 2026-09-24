@@ -2,218 +2,136 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
+    SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.const import PERCENTAGE, UnitOfElectricPotential
+from homeassistant.helpers.typing import StateType
 
-from ..const import DOMAIN
 from ..coordinator import ZigSightCoordinator
+from ..entity import ZigSightDeviceEntity
 
 
-class ZigbeeDeviceSensor(CoordinatorEntity, SensorEntity):
-    """Base class for ZigSight sensor entities."""
+def _metric(key: str) -> Callable[[ZigSightCoordinator, str], StateType]:
+    def _value(coordinator: ZigSightCoordinator, ieee: str) -> StateType:
+        metrics = coordinator.get_device_metrics(ieee) or {}
+        value = metrics.get(key)
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            return None
+        return value
+
+    return _value
+
+
+@dataclass(frozen=True, kw_only=True)
+class ZigSightSensorEntityDescription(SensorEntityDescription):
+    """Describes a ZigSight sensor."""
+
+    value_fn: Callable[[ZigSightCoordinator, str], StateType]
+
+
+LINK_QUALITY = ZigSightSensorEntityDescription(
+    key="link_quality",
+    translation_key="link_quality",
+    state_class=SensorStateClass.MEASUREMENT,
+    value_fn=_metric("link_quality"),
+)
+BATTERY = ZigSightSensorEntityDescription(
+    key="battery",
+    translation_key="battery",
+    device_class=SensorDeviceClass.BATTERY,
+    native_unit_of_measurement=PERCENTAGE,
+    state_class=SensorStateClass.MEASUREMENT,
+    value_fn=_metric("battery"),
+)
+VOLTAGE = ZigSightSensorEntityDescription(
+    key="voltage",
+    translation_key="voltage",
+    device_class=SensorDeviceClass.VOLTAGE,
+    # Zigbee2MQTT reports battery voltage in mV; the actual unit comes from
+    # the device definition (see ZigSightVoltageSensor).
+    native_unit_of_measurement=UnitOfElectricPotential.MILLIVOLT,
+    state_class=SensorStateClass.MEASUREMENT,
+    value_fn=_metric("voltage"),
+)
+RECONNECT_RATE = ZigSightSensorEntityDescription(
+    key="reconnect_rate",
+    translation_key="reconnect_rate",
+    native_unit_of_measurement="events/h",
+    state_class=SensorStateClass.MEASUREMENT,
+    value_fn=lambda coordinator, ieee: coordinator.get_device_reconnect_rate(ieee),
+)
+BATTERY_TREND = ZigSightSensorEntityDescription(
+    key="battery_trend",
+    translation_key="battery_trend",
+    native_unit_of_measurement="%/h",
+    state_class=SensorStateClass.MEASUREMENT,
+    value_fn=lambda coordinator, ieee: coordinator.get_device_battery_trend(ieee),
+)
+HEALTH_SCORE = ZigSightSensorEntityDescription(
+    key="health_score",
+    translation_key="health_score",
+    state_class=SensorStateClass.MEASUREMENT,
+    value_fn=lambda coordinator, ieee: coordinator.get_device_health_score(ieee),
+)
+
+SENSOR_DESCRIPTIONS: tuple[ZigSightSensorEntityDescription, ...] = (
+    LINK_QUALITY,
+    BATTERY,
+    VOLTAGE,
+    RECONNECT_RATE,
+    BATTERY_TREND,
+    HEALTH_SCORE,
+)
+
+
+class ZigSightSensor(ZigSightDeviceEntity, SensorEntity):
+    """A ZigSight per-device sensor."""
+
+    entity_description: ZigSightSensorEntityDescription
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the sensor value."""
+        return self.entity_description.value_fn(self.coordinator, self.ieee)
+
+
+class ZigSightVoltageSensor(ZigSightSensor):
+    """Voltage sensor using the unit declared by the device definition."""
 
     def __init__(
         self,
         coordinator: ZigSightCoordinator,
-        device_id: str,
-        sensor_type: str,
+        ieee: str,
+        description: ZigSightSensorEntityDescription,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator)
-        self._coordinator: ZigSightCoordinator = coordinator
-        self._device_id = device_id
-        self._sensor_type = sensor_type
-        self._attr_name = f"{device_id} {sensor_type}"
-        self._attr_unique_id = f"{DOMAIN}_{device_id}_{sensor_type}"
-
-        device_data = coordinator.get_device(device_id) or {}
-        friendly_name = device_data.get("friendly_name", device_id)
-
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device_id)},
-            name=friendly_name,
-            manufacturer="ZigSight",
-            via_device=(DOMAIN, device_id),
-        )
-
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        device = self._coordinator.get_device(self._device_id)
-        return device is not None
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return extra state attributes."""
-        attrs: dict[str, Any] = {}
-        device = self._coordinator.get_device(self._device_id)
-        if device:
-            attrs["device_id"] = self._device_id
-            attrs["friendly_name"] = device.get("friendly_name", self._device_id)
-            attrs["last_update"] = device.get("last_update")
-            # Include analytics metrics in attributes
-            analytics = device.get("analytics_metrics", {})
-            if analytics:
-                attrs.update(
-                    {
-                        "reconnect_rate": analytics.get("reconnect_rate"),
-                        "battery_trend": analytics.get("battery_trend"),
-                        "health_score": analytics.get("health_score"),
-                        "battery_drain_warning": analytics.get("battery_drain_warning"),
-                        "connectivity_warning": analytics.get("connectivity_warning"),
-                    }
-                )
-        return attrs
+        super().__init__(coordinator, ieee, description)
+        record = coordinator.get_device(ieee) or {}
+        if record.get("voltage_unit") == UnitOfElectricPotential.VOLT:
+            self._attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
 
 
-class ZigSightLinkQualitySensor(ZigbeeDeviceSensor):
-    """Sensor for device link quality."""
+def build_sensors(
+    coordinator: ZigSightCoordinator, ieee: str
+) -> Iterable[SensorEntity]:
+    """Return the sensors to create for one device.
 
-    def __init__(
-        self,
-        coordinator: ZigSightCoordinator,
-        device_id: str,
-    ) -> None:
-        """Initialize the link quality sensor."""
-        super().__init__(coordinator, device_id, "link_quality")
-        self._attr_native_unit_of_measurement = None
-        self._attr_icon = "mdi:signal"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-    @property
-    def native_value(self) -> int | None:
-        """Return the link quality value."""
-        metrics = self._coordinator.get_device_metrics(self._device_id)
-        if metrics:
-            link_quality = metrics.get("link_quality")
-            if link_quality is not None:
-                try:
-                    return int(link_quality)
-                except (ValueError, TypeError):
-                    pass
-        return None
-
-
-class ZigSightBatterySensor(ZigbeeDeviceSensor):
-    """Sensor for device battery level."""
-
-    def __init__(
-        self,
-        coordinator: ZigSightCoordinator,
-        device_id: str,
-    ) -> None:
-        """Initialize the battery sensor."""
-        super().__init__(coordinator, device_id, "battery")
-        self._attr_native_unit_of_measurement = "%"
-        self._attr_device_class = SensorDeviceClass.BATTERY
-        self._attr_icon = "mdi:battery"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-    @property
-    def native_value(self) -> int | None:
-        """Return the battery level."""
-        metrics = self._coordinator.get_device_metrics(self._device_id)
-        if metrics:
-            battery = metrics.get("battery")
-            if battery is not None:
-                try:
-                    return int(battery)
-                except (ValueError, TypeError):
-                    pass
-        return None
-
-
-class ZigSightVoltageSensor(ZigbeeDeviceSensor):
-    """Sensor for device voltage."""
-
-    def __init__(
-        self,
-        coordinator: ZigSightCoordinator,
-        device_id: str,
-    ) -> None:
-        """Initialize the voltage sensor."""
-        super().__init__(coordinator, device_id, "voltage")
-        self._attr_native_unit_of_measurement = "V"
-        self._attr_device_class = SensorDeviceClass.VOLTAGE
-        self._attr_icon = "mdi:lightning-bolt"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the voltage value."""
-        metrics = self._coordinator.get_device_metrics(self._device_id)
-        if metrics:
-            voltage = metrics.get("voltage")
-            if voltage is not None:
-                try:
-                    return float(voltage)
-                except (ValueError, TypeError):
-                    pass
-        return None
-
-
-class ZigSightReconnectRateSensor(ZigbeeDeviceSensor):
-    """Sensor for device reconnect rate."""
-
-    def __init__(
-        self,
-        coordinator: ZigSightCoordinator,
-        device_id: str,
-    ) -> None:
-        """Initialize the reconnect rate sensor."""
-        super().__init__(coordinator, device_id, "reconnect_rate")
-        self._attr_native_unit_of_measurement = "events/hour"
-        self._attr_icon = "mdi:connection"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the reconnect rate."""
-        return self._coordinator.get_device_reconnect_rate(self._device_id)
-
-
-class ZigSightBatteryTrendSensor(ZigbeeDeviceSensor):
-    """Sensor for device battery trend."""
-
-    def __init__(
-        self,
-        coordinator: ZigSightCoordinator,
-        device_id: str,
-    ) -> None:
-        """Initialize the battery trend sensor."""
-        super().__init__(coordinator, device_id, "battery_trend")
-        self._attr_native_unit_of_measurement = "%/hour"
-        self._attr_icon = "mdi:trending-down"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the battery trend."""
-        return self._coordinator.get_device_battery_trend(self._device_id)
-
-
-class ZigSightHealthScoreSensor(ZigbeeDeviceSensor):
-    """Sensor for device health score."""
-
-    def __init__(
-        self,
-        coordinator: ZigSightCoordinator,
-        device_id: str,
-    ) -> None:
-        """Initialize the health score sensor."""
-        super().__init__(coordinator, device_id, "health_score")
-        self._attr_native_unit_of_measurement = None
-        self._attr_icon = "mdi:heart-pulse"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the health score."""
-        return self._coordinator.get_device_health_score(self._device_id)
+    The entity set comes from ``coordinator.entity_keys()``: battery related
+    sensors only for battery powered devices, voltage only for devices
+    exposing a voltage.
+    """
+    keys = coordinator.entity_keys(ieee)
+    entities: list[SensorEntity] = []
+    for description in SENSOR_DESCRIPTIONS:
+        if description.key not in keys:
+            continue
+        cls = ZigSightVoltageSensor if description is VOLTAGE else ZigSightSensor
+        entities.append(cls(coordinator, ieee, description))
+    return entities

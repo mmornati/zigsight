@@ -3,18 +3,47 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .const import DEVICE_SOURCE_UNKNOWN
 
 _LOGGER = logging.getLogger(__name__)
 
+_NODE_TYPES = {
+    "Router": "router",
+    "Coordinator": "coordinator",
+    "EndDevice": "end_device",
+}
 
-def build_topology(devices: dict[str, Any]) -> dict[str, Any]:
+
+def _node_type(device_data: Mapping[str, Any]) -> str:
+    """Return the topology node type of a device record.
+
+    Zigbee2MQTT records carry the real device type from bridge/devices; the
+    ``last_message.type`` fallback keeps older record shapes working.
+    """
+    raw_type = device_data.get("type")
+    if not raw_type:
+        metrics = device_data.get("metrics") or {}
+        raw_type = (metrics.get("last_message") or {}).get("type")
+    return _NODE_TYPES.get(str(raw_type), "end_device")
+
+
+def build_topology(
+    devices: dict[str, Any],
+    links: Iterable[Mapping[str, Any]] | None = None,
+    coordinator_id: str | None = None,
+) -> dict[str, Any]:
     """Build network topology from device data.
 
     Args:
         devices: Dictionary of device_id -> device_data from coordinator
+        links: Optional links from a Zigbee2MQTT raw network map
+            (``{"source", "target", "lqi", "depth", "relationship"}``, as
+            returned by ``ZigSightCoordinator.get_network_links``). The
+            ``target`` is the device whose neighbour table listed ``source``.
+        coordinator_id: IEEE address of the Zigbee coordinator, if known
 
     Returns:
         Dictionary containing nodes and edges for topology visualization
@@ -22,28 +51,16 @@ def build_topology(devices: dict[str, Any]) -> dict[str, Any]:
     nodes = []
     edges = []
 
-    # Process each device to build nodes and edges
     for device_id, device_data in devices.items():
-        # Skip bridge device - it's handled separately as coordinator
+        # Skip legacy bridge pseudo-device
         if device_id == "bridge":
             continue
 
-        # Extract device information
         metrics = device_data.get("metrics", {})
         analytics_metrics = device_data.get("analytics_metrics", {})
         last_message = metrics.get("last_message", {})
+        node_type = _node_type(device_data)
 
-        # Determine node type based on device data
-        # Check if device is a router (can route for other devices)
-        node_type = last_message.get("type", "end_device")
-        if node_type == "Router":
-            node_type = "router"
-        elif node_type == "Coordinator":
-            node_type = "coordinator"
-        else:
-            node_type = "end_device"
-
-        # Build node data
         node = {
             "id": device_id,
             "label": device_data.get("friendly_name", device_id),
@@ -62,11 +79,9 @@ def build_topology(devices: dict[str, Any]) -> dict[str, Any]:
         }
         nodes.append(node)
 
-        # Extract parent relationship for building edges
-        # Zigbee2MQTT provides routing information in device messages
+        # Legacy parent relationship (only present in older record shapes)
         parent_ieee = last_message.get("parent_ieee")
-        if parent_ieee:
-            # Create edge from parent to this device
+        if parent_ieee and links is None:
             edges.append(
                 {
                     "from": parent_ieee,
@@ -75,14 +90,28 @@ def build_topology(devices: dict[str, Any]) -> dict[str, Any]:
                 }
             )
 
+    for link in links or []:
+        source = link.get("source")
+        target = link.get("target")
+        if not source or not target:
+            continue
+        edges.append(
+            {
+                "from": target,
+                "to": source,
+                "link_quality": link.get("lqi"),
+                "relationship": link.get("relationship"),
+                "depth": link.get("depth"),
+            }
+        )
+
     # Add coordinator node if not already present
     coordinator_found = any(node["type"] == "coordinator" for node in nodes)
     if not coordinator_found:
-        # Add coordinator as root node
         nodes.insert(
             0,
             {
-                "id": "coordinator",
+                "id": coordinator_id or "coordinator",
                 "label": "Coordinator",
                 "type": "coordinator",
                 "link_quality": 255,
@@ -93,7 +122,6 @@ def build_topology(devices: dict[str, Any]) -> dict[str, Any]:
             },
         )
 
-    # Build topology structure
     topology = {
         "nodes": nodes,
         "edges": edges,

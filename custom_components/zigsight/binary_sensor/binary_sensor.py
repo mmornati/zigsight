@@ -2,107 +2,81 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
+    BinarySensorEntityDescription,
 )
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from ..const import DOMAIN
 from ..coordinator import ZigSightCoordinator
+from ..entity import ZigSightDeviceEntity
 
 
-class ZigSightBinarySensor(CoordinatorEntity, BinarySensorEntity):
-    """Base class for ZigSight binary sensor entities."""
+@dataclass(frozen=True, kw_only=True)
+class ZigSightBinarySensorEntityDescription(BinarySensorEntityDescription):
+    """Describes a ZigSight binary sensor."""
 
-    def __init__(
-        self,
-        coordinator: ZigSightCoordinator,
-        device_id: str,
-        sensor_type: str,
-    ) -> None:
-        """Initialize the binary sensor."""
-        super().__init__(coordinator)
-        self._coordinator: ZigSightCoordinator = coordinator
-        self._device_id = device_id
-        self._sensor_type = sensor_type
-        self._attr_name = f"{device_id} {sensor_type}"
-        self._attr_unique_id = f"{DOMAIN}_{device_id}_{sensor_type}"
-
-        device_data = coordinator.get_device(device_id) or {}
-        friendly_name = device_data.get("friendly_name", device_id)
-
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device_id)},
-            name=friendly_name,
-            manufacturer="ZigSight",
-            via_device=(DOMAIN, device_id),
-        )
-
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        device = self._coordinator.get_device(self._device_id)
-        return device is not None
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return extra state attributes."""
-        attrs: dict[str, Any] = {}
-        device = self._coordinator.get_device(self._device_id)
-        if device:
-            attrs["device_id"] = self._device_id
-            attrs["friendly_name"] = device.get("friendly_name", self._device_id)
-            attrs["last_update"] = device.get("last_update")
-            # Include analytics metrics in attributes
-            analytics = device.get("analytics_metrics", {})
-            if analytics:
-                attrs.update(
-                    {
-                        "reconnect_rate": analytics.get("reconnect_rate"),
-                        "battery_trend": analytics.get("battery_trend"),
-                        "health_score": analytics.get("health_score"),
-                    }
-                )
-        return attrs
+    value_fn: Callable[[ZigSightCoordinator, str], bool]
 
 
-class ZigSightBatteryDrainWarningBinarySensor(ZigSightBinarySensor):
-    """Binary sensor for device battery drain warning."""
+BATTERY_DRAIN_WARNING = ZigSightBinarySensorEntityDescription(
+    key="battery_drain_warning",
+    translation_key="battery_drain_warning",
+    device_class=BinarySensorDeviceClass.PROBLEM,
+    value_fn=lambda coordinator, ieee: coordinator.get_device_battery_drain_warning(
+        ieee
+    ),
+)
+# This is a *warning*: "on" means there is a connectivity problem, hence the
+# PROBLEM device class (CONNECTIVITY would render "on" as "Connected").
+CONNECTIVITY_WARNING = ZigSightBinarySensorEntityDescription(
+    key="connectivity_warning",
+    translation_key="connectivity_warning",
+    device_class=BinarySensorDeviceClass.PROBLEM,
+    value_fn=lambda coordinator, ieee: coordinator.get_device_connectivity_warning(
+        ieee
+    ),
+)
 
-    def __init__(
-        self,
-        coordinator: ZigSightCoordinator,
-        device_id: str,
-    ) -> None:
-        """Initialize the battery drain warning binary sensor."""
-        super().__init__(coordinator, device_id, "battery_drain_warning")
-        self._attr_icon = "mdi:battery-alert"
-        self._attr_device_class = BinarySensorDeviceClass.PROBLEM
+BINARY_SENSOR_DESCRIPTIONS: tuple[ZigSightBinarySensorEntityDescription, ...] = (
+    BATTERY_DRAIN_WARNING,
+    CONNECTIVITY_WARNING,
+)
+
+
+class ZigSightBinarySensor(ZigSightDeviceEntity, BinarySensorEntity):
+    """A ZigSight per-device binary sensor."""
+
+    entity_description: ZigSightBinarySensorEntityDescription
 
     @property
     def is_on(self) -> bool:
-        """Return if battery drain warning is active."""
-        return self._coordinator.get_device_battery_drain_warning(self._device_id)
-
-
-class ZigSightConnectivityWarningBinarySensor(ZigSightBinarySensor):
-    """Binary sensor for device connectivity warning."""
-
-    def __init__(
-        self,
-        coordinator: ZigSightCoordinator,
-        device_id: str,
-    ) -> None:
-        """Initialize the connectivity warning binary sensor."""
-        super().__init__(coordinator, device_id, "connectivity_warning")
-        self._attr_icon = "mdi:connection"
-        self._attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+        """Return True if the warning is active."""
+        return self.entity_description.value_fn(self.coordinator, self.ieee)
 
     @property
-    def is_on(self) -> bool:
-        """Return if connectivity warning is active."""
-        return self._coordinator.get_device_connectivity_warning(self._device_id)
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return slow changing context for the connectivity warning."""
+        if self.entity_description.key != CONNECTIVITY_WARNING.key:
+            return None
+        device = self.coordinator.get_device(self.ieee) or {}
+        return {
+            "available": device.get("available"),
+            "reconnect_count": device.get("reconnect_count", 0),
+        }
+
+
+def build_binary_sensors(
+    coordinator: ZigSightCoordinator, ieee: str
+) -> Iterable[BinarySensorEntity]:
+    """Return the binary sensors to create for one device."""
+    keys = coordinator.entity_keys(ieee)
+    return [
+        ZigSightBinarySensor(coordinator, ieee, description)
+        for description in BINARY_SENSOR_DESCRIPTIONS
+        if description.key in keys
+    ]

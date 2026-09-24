@@ -453,13 +453,14 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for ieee in removed:
             self._remove_device(ieee)
 
-        # Registry migration only once a device is fully known (interviewed),
-        # so that its final entity set is known.
+        # Registry migration once a device is fully known (interviewed), so
+        # its final entity set is known. Disabled devices are migrated too:
+        # their entities (areas, names, user settings) must survive.
         self._migrate_legacy_registry_entries(
             [
                 ieee
                 for ieee in self._devices
-                if ieee not in self._migrated and self.wants_entities(ieee)
+                if ieee not in self._migrated and self.interview_complete(ieee)
             ]
         )
         if not self._registry_reconciled:
@@ -467,6 +468,7 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._remove_stale_registry_devices()
         for ieee in changed:
             self._update_registry_device(ieee)
+            self._remove_unprovided_entities(ieee)
             async_dispatcher_send(self.hass, self.device_signal(ieee))
         # Platforms de-duplicate per unique id; re-sending for known devices
         # lets them add entities for devices that finished their interview,
@@ -489,14 +491,38 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
         dev_reg = dr.async_get(self.hass)
         entry_id = self.config_entry.entry_id
+        # Legacy (friendly name based) identifiers of devices that are still
+        # known, but not migrated yet (e.g. interview in progress), are kept.
+        known = set(self._devices) | set(self._legacy_id_map(self._devices))
         for device in dr.async_entries_for_config_entry(dev_reg, entry_id):
             ids = {ident for domain, ident in device.identifiers if domain == DOMAIN}
             if not ids or self.bridge_identifier[1] in ids:
                 continue
-            if ids & self._devices.keys():
+            if ids & known:
                 continue
             self.logger.debug("Removing stale device %s", device.name)
             dev_reg.async_update_device(device.id, remove_config_entry_id=entry_id)
+
+    @callback
+    def _remove_unprovided_entities(self, ieee: str) -> None:
+        """Remove entities of capabilities a device no longer has.
+
+        E.g. a device re-interviewed as mains powered loses its battery
+        entities instead of keeping orphans.
+        """
+        if self.config_entry is None or not self.interview_complete(ieee):
+            return
+        ent_reg = er.async_get(self.hass)
+        keys = self.entity_keys(ieee)
+        for domain, key in LEGACY_ENTITY_KEYS:
+            if key in keys:
+                continue
+            entity_id = ent_reg.async_get_entity_id(domain, DOMAIN, f"{ieee}_{key}")
+            if entity_id is not None:
+                self.logger.debug(
+                    "Removing %s: capability no longer exposed", entity_id
+                )
+                ent_reg.async_remove(entity_id)
 
     @callback
     def _handle_device_state(
@@ -534,6 +560,11 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _handle_availability(
         self, ieee: str, payload: Any, received_at: datetime
     ) -> None:
+        if self.bridge_state == "offline":
+            # Retained availability is stale while Zigbee2MQTT is down (e.g.
+            # HA starting while Zigbee2MQTT is stopped); Zigbee2MQTT publishes
+            # fresh availability when it comes back.
+            return
         available = parse_availability(payload)
         record = self._devices.get(ieee)
         if available is None or record is None:
@@ -977,21 +1008,30 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Return the IEEE addresses of all tracked devices."""
         return list(self._devices)
 
-    def wants_entities(self, ieee: str) -> bool:
-        """Return True if entities should exist for this device.
+    def interview_complete(self, ieee: str) -> bool:
+        """Return True once a device's entity set is known.
 
-        Zigbee2MQTT devices need a completed interview (or a definition):
-        before that, their power source and exposes, which decide the entity
-        set, are unknown.
+        Zigbee2MQTT devices need a finished interview or a definition: before
+        that, their power source and exposes are unknown. A FAILED interview
+        is final too: such devices still report link quality, so they get the
+        entities their (possibly partial) information allows, at least the
+        base ones.
         """
         record = self._devices.get(ieee)
-        if record is None or record.get("disabled"):
+        if record is None:
             return False
         if record["source"] != DEVICE_SOURCE_ZIGBEE2MQTT:
             return True
-        return record.get("interview_state") == "SUCCESSFUL" or bool(
+        return record.get("interview_state") in ("SUCCESSFUL", "FAILED") or bool(
             record.get("has_definition")
         )
+
+    def wants_entities(self, ieee: str) -> bool:
+        """Return True if entities should exist for this device."""
+        record = self._devices.get(ieee)
+        if record is None or record.get("disabled"):
+            return False
+        return self.interview_complete(ieee)
 
     def entity_keys(self, ieee: str) -> set[str]:
         """Return the entity description keys to create for a device."""

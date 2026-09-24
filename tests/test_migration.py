@@ -22,7 +22,12 @@ from custom_components.zigsight.const import (
     INTEGRATION_TYPE_ZIGBEE2MQTT,
 )
 
-from .z2m_replay import async_fire_messages, session_messages
+from .z2m_replay import (
+    async_fire,
+    async_fire_messages,
+    load_fixture,
+    session_messages,
+)
 
 CLIMATE = "0x00158d0001a2b3c4"
 PLUG = "0x000d6ffffe1a2b3c"
@@ -266,6 +271,83 @@ async def test_legacy_entities_not_provided_anymore_are_removed(
     kept = ent_reg.async_get(climate_voltage.entity_id)
     assert kept is not None
     assert kept.unique_id == f"{CLIMATE}_voltage"
+
+
+async def test_disabled_and_interviewing_devices_keep_legacy_entries(
+    hass: HomeAssistant, mqtt_mock: MagicMock
+) -> None:
+    """Upgrading must not delete entities of disabled / interviewing devices.
+
+    The legacy device of a device disabled in Zigbee2MQTT is migrated (area,
+    custom names and user-disabled state kept); the legacy device of a
+    device still being interviewed survives the start-up stale cleanup.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN, version=1, minor_version=1, data=LEGACY_Z2M_DATA
+    )
+    entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+
+    door_device = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={(DOMAIN, "Old Door Sensor")}
+    )
+    dev_reg.async_update_device(door_device.id, area_id="hallway")
+    door_battery = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "zigsight_Old Door Sensor_battery",
+        config_entry=entry,
+        device_id=door_device.id,
+        suggested_object_id="old_door_sensor_battery",
+    )
+    ent_reg.async_update_entity(
+        door_battery.entity_id,
+        name="Front door battery",
+        disabled_by=er.RegistryEntryDisabler.USER,
+    )
+
+    office_device = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={(DOMAIN, "Office")}
+    )
+    office_entity = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "zigsight_Office_link_quality",
+        config_entry=entry,
+        device_id=office_device.id,
+    )
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    devices = load_fixture("bridge_devices.json")
+    devices.append(
+        {
+            "ieee_address": "0x00158d0000c0ffee",
+            "friendly_name": "Office",
+            "type": "EndDevice",
+            "definition": None,
+            "disabled": False,
+            "interview_state": "IN_PROGRESS",
+        }
+    )
+    async_fire(hass, "zigbee2mqtt", "bridge/devices", devices)
+    await hass.async_block_till_done()
+
+    door = "0x00158d000aabbccd"
+    migrated = ent_reg.async_get(door_battery.entity_id)
+    assert migrated is not None
+    assert migrated.unique_id == f"{door}_battery"
+    assert migrated.name == "Front door battery"
+    assert migrated.disabled_by is er.RegistryEntryDisabler.USER
+    device = dev_reg.async_get(door_device.id)
+    assert device is not None
+    assert device.identifiers == {(DOMAIN, door)}
+    assert device.area_id == "hallway"
+
+    # Interview in progress: not migrated yet, but not deleted either
+    assert dev_reg.async_get(office_device.id) is not None
+    assert ent_reg.async_get(office_entity.entity_id) is not None
 
 
 async def test_legacy_duplicate_is_removed(

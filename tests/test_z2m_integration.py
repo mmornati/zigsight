@@ -546,6 +546,114 @@ async def test_stale_registry_devices_removed_on_startup(
     assert bridge is not None
 
 
+async def test_failed_interview_gets_base_entities(
+    hass: HomeAssistant, entry: MockConfigEntry, coordinator: ZigSightCoordinator
+) -> None:
+    """A FAILED interview is final: base entities, since LQI is still reported."""
+    failed_ieee = "0x00158d000badf00d"
+    devices = load_fixture("bridge_devices.json")
+    devices.append(
+        {
+            "ieee_address": failed_ieee,
+            "friendly_name": failed_ieee,
+            "type": "EndDevice",
+            "definition": None,
+            "disabled": False,
+            "supported": False,
+            "interview_completed": False,
+            "interviewing": False,
+            "interview_state": "FAILED",
+        }
+    )
+    async_fire(hass, BASE, "bridge/devices", devices)
+    async_fire(hass, BASE, failed_ieee, {"linkquality": 40})
+    await hass.async_block_till_done()
+
+    unique_ids = {
+        e.unique_id
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+        if e.unique_id.startswith(failed_ieee)
+    }
+    assert unique_ids == {
+        f"{failed_ieee}_{key}"
+        for key in (
+            "link_quality",
+            "reconnect_rate",
+            "health_score",
+            "connectivity_warning",
+        )
+    }
+    assert _state(hass, "sensor", f"{failed_ieee}_link_quality").state == "40"
+
+
+async def test_lost_capability_removes_entities(
+    hass: HomeAssistant, coordinator: ZigSightCoordinator
+) -> None:
+    """A device re-interviewed without battery loses its battery entities."""
+    ent_reg = er.async_get(hass)
+    battery_id = _entity_id(hass, "sensor", f"{CLIMATE}_battery")
+    devices = load_fixture("bridge_devices.json")
+    climate = next(d for d in devices if d["ieee_address"] == CLIMATE)
+    original = copy.deepcopy(climate)
+    climate["power_source"] = "Mains (single phase)"
+    climate["definition"]["exposes"] = [
+        e
+        for e in climate["definition"]["exposes"]
+        if e["name"] not in ("battery", "voltage")
+    ]
+    async_fire(hass, BASE, "bridge/devices", devices)
+    await hass.async_block_till_done()
+
+    for domain, key in (
+        ("sensor", "battery"),
+        ("sensor", "battery_trend"),
+        ("sensor", "voltage"),
+        ("binary_sensor", "battery_drain_warning"),
+    ):
+        assert ent_reg.async_get_entity_id(domain, DOMAIN, f"{CLIMATE}_{key}") is None
+    assert hass.states.get(battery_id) is None
+    assert _entity_id(hass, "sensor", f"{CLIMATE}_link_quality")
+
+    # Regaining the capability brings the entities back
+    devices = [original if d["ieee_address"] == CLIMATE else d for d in devices]
+    async_fire(hass, BASE, "bridge/devices", devices)
+    await hass.async_block_till_done()
+    assert _state(hass, "sensor", f"{CLIMATE}_battery").state == "87"
+    assert _entity_id(hass, "binary_sensor", f"{CLIMATE}_battery_drain_warning")
+
+
+async def test_availability_ignored_while_bridge_offline(
+    hass: HomeAssistant,
+    mqtt_mock: MagicMock,
+    entry: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """HA starting while Zigbee2MQTT is down: retained availability is stale."""
+    coordinator = await _setup(hass, entry, freezer)
+    async_fire(hass, BASE, "bridge/state", {"state": "offline"}, retain=True)
+    async_fire(hass, BASE, "bridge/devices", load_fixture("bridge_devices.json"))
+    async_fire(hass, BASE, "Kitchen/availability", {"state": "online"}, retain=True)
+    async_fire(hass, BASE, "Bedroom Climate/availability", "offline", retain=True)
+    await hass.async_block_till_done()
+    for ieee in (PLUG, CLIMATE):
+        record = coordinator.get_device(ieee)
+        assert record is not None
+        assert record["available"] is None
+    assert (
+        _state(hass, "binary_sensor", f"{CLIMATE}_connectivity_warning").state
+        == STATE_OFF
+    )
+
+    # Zigbee2MQTT comes back and publishes fresh availability
+    async_fire(hass, BASE, "bridge/state", {"state": "online"})
+    async_fire(hass, BASE, "Kitchen/availability", {"state": "online"})
+    await hass.async_block_till_done()
+    record = coordinator.get_device(PLUG)
+    assert record is not None
+    assert record["available"] is True
+    assert record["reconnect_count"] == 0
+
+
 async def test_device_disabled_then_enabled(
     hass: HomeAssistant, coordinator: ZigSightCoordinator
 ) -> None:

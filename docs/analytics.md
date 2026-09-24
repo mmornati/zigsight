@@ -114,7 +114,7 @@ Health Score = (78.4 × 0.3) + (80 × 0.2) + (95 × 0.3) + (100 × 0.2) = 86.6
 
 Zigbee2MQTT uses a short 10 minute timeout for routers only because it actively pings them; ZigSight doesn't ping devices, and idle routers (bulbs, plugs) can legitimately stay silent for hours, so a short router timeout would only produce false warnings. The 25 hours mirror Zigbee2MQTT's "passive" availability default; when Zigbee2MQTT publishes its own `availability.passive.timeout` in `bridge/info`, that value is used. Enable availability in Zigbee2MQTT for timely offline detection: when it tracks a device, its online/offline state is used directly.
 
-When Zigbee2MQTT itself goes offline (`bridge/state`), every device's availability becomes unknown: the stale state doesn't raise warnings, and the "online" published after Zigbee2MQTT restarts is not counted as a reconnect.
+When Zigbee2MQTT itself is offline (`bridge/state`), every device's availability is unknown and availability messages are ignored (retained ones are stale, e.g. when Home Assistant starts while Zigbee2MQTT is stopped): the stale state doesn't raise warnings, and the "online" published after Zigbee2MQTT restarts is not counted as a reconnect.
 
 The entity has two attributes: `available` (Zigbee2MQTT availability, `null` when unknown) and `reconnect_count` (reconnects since Home Assistant started).
 

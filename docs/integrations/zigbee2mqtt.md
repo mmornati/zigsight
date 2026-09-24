@@ -70,7 +70,7 @@ Friendly names containing `/` (e.g. `Kitchen/Motion Sensor`) are supported. Comm
 ### Devices and entities
 
 - Every enabled, non-coordinator device from `bridge/devices` becomes a device in Home Assistant, identified by its **IEEE address**, named after its Zigbee2MQTT friendly name, with model and manufacturer from Zigbee2MQTT. All devices are linked to a "Zigbee2MQTT bridge" service device.
-- Devices paired later get their entities automatically once Zigbee2MQTT has finished interviewing them (before that their power source and features are unknown); if a device later gains a feature (e.g. a battery or voltage expose after a Zigbee2MQTT update), the missing entities are added.
+- Devices paired later get their entities automatically once Zigbee2MQTT has finished interviewing them (before that their power source and features are unknown). Devices whose interview FAILED still get the base entities (link quality, reconnect rate, health score, connectivity warning). If a device later gains a feature (e.g. a battery or voltage expose after a Zigbee2MQTT update), the missing entities are added; if it loses one (e.g. re-interviewed as mains powered), the corresponding entities are removed.
 - Devices removed from Zigbee2MQTT are removed from Home Assistant, including devices removed while Home Assistant was not running (checked against the first device list after start-up). A device list without any device (e.g. a stale retained `[]`) is ignored rather than deleting everything.
 - Renaming a device in Zigbee2MQTT renames the Home Assistant device (entity ids are kept).
 - Devices disabled in Zigbee2MQTT get no entities (existing ones become unavailable).

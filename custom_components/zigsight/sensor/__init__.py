@@ -16,4 +16,6 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up ZigSight sensors (now and whenever a new device appears)."""
-    async_setup_device_platform(hass, entry, async_add_entities, build_sensors)
+    async_setup_device_platform(
+        hass, entry, async_add_entities, build_sensors, "sensor"
+    )

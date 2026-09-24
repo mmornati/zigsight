@@ -24,8 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   availability, or, when availability doesn't track a device, a 25 hour
   silence timeout for every device type (or Zigbee2MQTT's passive
   availability timeout) instead of "not seen for 1 hour", which flagged every
-  sleepy battery device. When Zigbee2MQTT goes offline, device availability
-  becomes unknown (no stale warnings, no reconnects counted on its restart).
+  sleepy battery device. While Zigbee2MQTT is offline, device availability
+  is unknown and (stale, retained) availability messages are ignored: no
+  stale warnings, no reconnects counted on its restart.
 - Battery trend no longer ignores readings below 20% and needs readings
   spanning at least one hour.
 - Voltage sensors use the unit declared by the device (Zigbee2MQTT battery
@@ -49,10 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   history; devices removed from Zigbee2MQTT (also while Home Assistant was
   down) are removed from Home Assistant; an empty device list is ignored;
   stale devices can be deleted from the UI.
-- Entities are created once a device's interview is complete, and missing
-  entities are added when a device gains capabilities.
+- Entities are created once a device's interview is complete (base entities
+  for FAILED interviews); missing entities are added when a device gains
+  capabilities and removed when it loses them.
 - Legacy battery / voltage entities of devices that no longer get them (e.g.
-  mains powered devices) are removed during the migration.
+  mains powered devices) are removed during the migration. Devices disabled
+  in Zigbee2MQTT are migrated too (areas, names and user settings kept).
 - Battery / battery trend / battery drain warning entities are only created
   for battery powered devices, voltage only for devices exposing a voltage.
 - The connectivity warning uses the `problem` device class ("on" means there

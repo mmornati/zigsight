@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity, EntityDescription
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -68,6 +69,7 @@ def async_setup_device_platform(
     entry: ConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
     build_entities: Callable[[ZigSightCoordinator, str], Iterable[Entity]],
+    domain: str,
 ) -> None:
     """Add entities for known devices now and for new devices later.
 
@@ -78,6 +80,7 @@ def async_setup_device_platform(
     device forgets its entities so they are recreated if it re-joins.
     """
     coordinator: ZigSightCoordinator = hass.data[DOMAIN][entry.entry_id]
+    ent_reg = er.async_get(hass)
     added: set[str] = set()
 
     @callback
@@ -87,9 +90,16 @@ def async_setup_device_platform(
             if not coordinator.wants_entities(ieee):
                 continue
             for entity in build_entities(coordinator, ieee):
-                if entity.unique_id is None or entity.unique_id in added:
+                unique_id = entity.unique_id
+                if unique_id is None:
                     continue
-                added.add(entity.unique_id)
+                # Entities removed from the registry (capability lost, then
+                # regained) are created again.
+                if unique_id in added and ent_reg.async_get_entity_id(
+                    domain, DOMAIN, unique_id
+                ):
+                    continue
+                added.add(unique_id)
                 entities.append(entity)
         if entities:
             async_add_entities(entities)

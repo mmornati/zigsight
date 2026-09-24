@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components import mqtt
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -44,11 +45,13 @@ class ZigSightCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         reconnect_rate_threshold: float = DEFAULT_RECONNECT_RATE_THRESHOLD,
         reconnect_rate_window_hours: int = DEFAULT_RECONNECT_RATE_WINDOW_HOURS,
         enable_zha: bool = False,
+        config_entry: ConfigEntry | None = None,
     ) -> None:
         """Initialize coordinator."""
         super().__init__(
             hass,
             logger=_LOGGER,
+            config_entry=config_entry,
             name=DOMAIN,
             update_interval=timedelta(seconds=60),
         )

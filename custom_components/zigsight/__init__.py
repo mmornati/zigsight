@@ -104,6 +104,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         reconnect_rate_threshold=reconnect_rate_threshold,
         reconnect_rate_window_hours=reconnect_rate_window_hours,
         enable_zha=enable_zha,
+        config_entry=entry,
     )
 
     # Start coordinator (sets up MQTT subscriptions)

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import web
@@ -13,15 +14,20 @@ from custom_components.zigsight.api import (
     ZigSightAnalyticsExportView,
     ZigSightAnalyticsOverviewView,
     ZigSightAnalyticsTrendsView,
+    ZigSightChannelRecommendationView,
+    ZigSightDevicesView,
+    ZigSightRecommendationHistoryView,
     ZigSightTopologyView,
+    setup_api_views,
 )
 from custom_components.zigsight.const import DOMAIN
+from custom_components.zigsight.coordinator import ZigSightCoordinator
 
 
 @pytest.fixture
 def mock_coordinator():
     """Create a mock coordinator."""
-    coordinator = MagicMock()
+    coordinator = MagicMock(spec=ZigSightCoordinator)
     coordinator.get_all_devices.return_value = {
         "device1": {
             "device_id": "device1",
@@ -229,3 +235,139 @@ class TestZigSightTopologyView:
         response = await view.get(request)
 
         assert response.status == 404
+
+
+class TestZigSightDevicesView:
+    """Test the devices view."""
+
+    async def test_get_devices_skips_bridge(self, mock_hass, mock_coordinator):
+        """Test devices are returned as a list without the bridge entry."""
+        devices = dict(mock_coordinator.get_all_devices.return_value)
+        devices["bridge"] = {"device_id": "bridge"}
+        mock_coordinator.get_all_devices.return_value = devices
+
+        view = ZigSightDevicesView(mock_hass)
+        response = await view.get(MagicMock(spec=web.Request))
+
+        assert response.status == 200
+        body = json.loads(response.body)
+        ids = [device["device_id"] for device in body["devices"]]
+        assert ids == ["device1", "device2"]
+
+    async def test_get_devices_no_coordinator(self):
+        """Test devices request with no coordinator."""
+        hass = MagicMock(spec=HomeAssistant)
+        hass.data = {DOMAIN: {}}
+
+        view = ZigSightDevicesView(hass)
+        response = await view.get(MagicMock(spec=web.Request))
+
+        assert response.status == 404
+
+    async def test_get_devices_error(self, mock_hass, mock_coordinator):
+        """Test devices request when the coordinator raises."""
+        mock_coordinator.get_all_devices.side_effect = RuntimeError("boom")
+
+        view = ZigSightDevicesView(mock_hass)
+        response = await view.get(MagicMock(spec=web.Request))
+
+        assert response.status == 500
+
+    async def test_get_topology_error(self, mock_hass, mock_coordinator):
+        """Test topology request when the coordinator raises."""
+        mock_coordinator.get_all_devices.side_effect = RuntimeError("boom")
+
+        view = ZigSightTopologyView(mock_hass)
+        response = await view.get(MagicMock(spec=web.Request))
+
+        assert response.status == 500
+
+
+class TestZigSightChannelRecommendationView:
+    """Test the channel recommendation view."""
+
+    async def test_get_without_recommendation(self):
+        """Test GET before any recommendation was computed."""
+        hass = MagicMock(spec=HomeAssistant)
+        hass.data = {DOMAIN: {}}
+
+        view = ZigSightChannelRecommendationView(hass)
+        response = await view.get(MagicMock(spec=web.Request))
+
+        assert response.status == 200
+        assert json.loads(response.body)["has_recommendation"] is False
+
+    async def test_post_then_get(self):
+        """Test POST computes a recommendation that GET and history return."""
+        hass = MagicMock(spec=HomeAssistant)
+        hass.data = {DOMAIN: {}}
+
+        request = MagicMock(spec=web.Request)
+        request.json = AsyncMock(
+            return_value={
+                "mode": "manual",
+                "wifi_scan_data": [
+                    {"channel": 1, "rssi": -40},
+                    {"channel": 6, "rssi": -45},
+                    {"channel": 11, "rssi": -50},
+                ],
+            }
+        )
+
+        view = ZigSightChannelRecommendationView(hass)
+        response = await view.post(request)
+
+        assert response.status == 200
+        body = json.loads(response.body)
+        assert body["has_recommendation"] is True
+        assert body["recommended_channel"] in (11, 15, 20, 25)
+        assert len(body["wifi_aps"]) == 3
+
+        response = await view.get(MagicMock(spec=web.Request))
+        body = json.loads(response.body)
+        assert body["has_recommendation"] is True
+        assert body["current_channel"] is None
+
+        history_view = ZigSightRecommendationHistoryView(hass)
+        response = await history_view.get(MagicMock(spec=web.Request))
+        assert json.loads(response.body)["count"] == 1
+
+    async def test_post_history_is_capped(self):
+        """Test recommendation history keeps only the last 10 entries."""
+        hass = MagicMock(spec=HomeAssistant)
+        hass.data = {DOMAIN: {}}
+        request = MagicMock(spec=web.Request)
+        request.json = AsyncMock(
+            return_value={
+                "mode": "manual",
+                "wifi_scan_data": [{"channel": 6, "rssi": -50}],
+            }
+        )
+
+        view = ZigSightChannelRecommendationView(hass)
+        for _ in range(12):
+            await view.post(request)
+
+        assert len(hass.data[DOMAIN]["recommendation_history"]) == 10
+
+    async def test_post_invalid_mode(self):
+        """Test POST with an unknown scanner mode returns an error."""
+        hass = MagicMock(spec=HomeAssistant)
+        hass.data = {DOMAIN: {}}
+        request = MagicMock(spec=web.Request)
+        request.json = AsyncMock(return_value={"mode": "invalid"})
+
+        view = ZigSightChannelRecommendationView(hass)
+        response = await view.post(request)
+
+        assert response.status == 500
+
+
+def test_setup_api_views_registers_all_views():
+    """Test every API view is registered."""
+    hass = MagicMock(spec=HomeAssistant)
+    hass.http = MagicMock()
+
+    setup_api_views(hass)
+
+    assert hass.http.register_view.call_count == 7

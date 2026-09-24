@@ -1,0 +1,188 @@
+[
+  {
+    "definition": null,
+    "disabled": false,
+    "endpoints": {
+      "1": {
+        "bindings": [],
+        "clusters": {"input": [], "output": []},
+        "configured_reportings": [],
+        "scenes": []
+      }
+    },
+    "friendly_name": "Coordinator",
+    "ieee_address": "0x00124b0024c1a2b3",
+    "interview_completed": true,
+    "interview_state": "SUCCESSFUL",
+    "interviewing": false,
+    "network_address": 0,
+    "supported": true,
+    "type": "Coordinator"
+  },
+  {
+    "date_code": "20210331",
+    "definition": {
+      "description": "Hue white and color ambiance E26/E27",
+      "exposes": [
+        {
+          "features": [
+            {"access": 7, "description": "On/off state of this light", "label": "State", "name": "state", "property": "state", "type": "binary", "value_off": "OFF", "value_on": "ON", "value_toggle": "TOGGLE"},
+            {"access": 7, "description": "Brightness of this light", "label": "Brightness", "name": "brightness", "property": "brightness", "type": "numeric", "value_max": 254, "value_min": 0},
+            {"access": 7, "description": "Color temperature of this light", "label": "Color temp", "name": "color_temp", "property": "color_temp", "type": "numeric", "unit": "mired", "value_max": 500, "value_min": 153}
+          ],
+          "type": "light"
+        },
+        {"access": 1, "category": "diagnostic", "description": "Link quality (signal strength)", "label": "Linkquality", "name": "linkquality", "property": "linkquality", "type": "numeric", "unit": "lqi", "value_max": 255, "value_min": 0}
+      ],
+      "model": "9290022166",
+      "options": [],
+      "source": "native",
+      "supports_ota": true,
+      "vendor": "Philips"
+    },
+    "disabled": false,
+    "endpoints": {"11": {"bindings": [], "clusters": {"input": ["genBasic", "genIdentify", "genGroups", "genScenes", "genOnOff", "genLevelCtrl", "lightingColorCtrl"], "output": ["genOta"]}, "configured_reportings": [], "scenes": []}},
+    "friendly_name": "Living Room Lamp",
+    "ieee_address": "0x0017880104e45517",
+    "interview_completed": true,
+    "interview_state": "SUCCESSFUL",
+    "interviewing": false,
+    "manufacturer": "Signify Netherlands B.V.",
+    "model_id": "LCT015",
+    "network_address": 29159,
+    "power_source": "Mains (single phase)",
+    "software_build_id": "1.93.11",
+    "supported": true,
+    "type": "Router"
+  },
+  {
+    "date_code": "20200312",
+    "definition": {
+      "description": "Control outlet",
+      "exposes": [
+        {
+          "features": [
+            {"access": 7, "description": "On/off state of the switch", "label": "State", "name": "state", "property": "state", "type": "binary", "value_off": "OFF", "value_on": "ON", "value_toggle": "TOGGLE"}
+          ],
+          "type": "switch"
+        },
+        {"access": 1, "category": "diagnostic", "description": "Link quality (signal strength)", "label": "Linkquality", "name": "linkquality", "property": "linkquality", "type": "numeric", "unit": "lqi", "value_max": 255, "value_min": 0}
+      ],
+      "model": "E1603/E1702/E1708",
+      "options": [],
+      "source": "native",
+      "supports_ota": true,
+      "vendor": "IKEA"
+    },
+    "disabled": false,
+    "endpoints": {"1": {"bindings": [], "clusters": {"input": ["genBasic", "genIdentify", "genGroups", "genScenes", "genOnOff"], "output": ["genOta"]}, "configured_reportings": [], "scenes": []}},
+    "friendly_name": "Kitchen",
+    "ieee_address": "0x000d6ffffe1a2b3c",
+    "interview_completed": true,
+    "interview_state": "SUCCESSFUL",
+    "interviewing": false,
+    "manufacturer": "IKEA of Sweden",
+    "model_id": "TRADFRI control outlet",
+    "network_address": 4412,
+    "power_source": "Mains (single phase)",
+    "software_build_id": "2.0.024",
+    "supported": true,
+    "type": "Router"
+  },
+  {
+    "date_code": "20191205",
+    "definition": {
+      "description": "Temperature, humidity and pressure sensor",
+      "exposes": [
+        {"access": 1, "category": "diagnostic", "description": "Remaining battery in %", "label": "Battery", "name": "battery", "property": "battery", "type": "numeric", "unit": "%", "value_max": 100, "value_min": 0},
+        {"access": 1, "description": "Measured temperature value", "label": "Temperature", "name": "temperature", "property": "temperature", "type": "numeric", "unit": "°C"},
+        {"access": 1, "description": "Measured relative humidity", "label": "Humidity", "name": "humidity", "property": "humidity", "type": "numeric", "unit": "%"},
+        {"access": 1, "description": "The measured atmospheric pressure", "label": "Pressure", "name": "pressure", "property": "pressure", "type": "numeric", "unit": "hPa"},
+        {"access": 1, "category": "diagnostic", "description": "Voltage of the battery in millivolts", "label": "Voltage", "name": "voltage", "property": "voltage", "type": "numeric", "unit": "mV"},
+        {"access": 1, "category": "diagnostic", "description": "Link quality (signal strength)", "label": "Linkquality", "name": "linkquality", "property": "linkquality", "type": "numeric", "unit": "lqi", "value_max": 255, "value_min": 0}
+      ],
+      "model": "WSDCGQ11LM",
+      "options": [],
+      "source": "native",
+      "supports_ota": false,
+      "vendor": "Aqara"
+    },
+    "disabled": false,
+    "endpoints": {"1": {"bindings": [], "clusters": {"input": ["genBasic", "genIdentify", "msTemperatureMeasurement", "msPressureMeasurement", "msRelativeHumidity"], "output": []}, "configured_reportings": [], "scenes": []}},
+    "friendly_name": "Bedroom Climate",
+    "ieee_address": "0x00158d0001a2b3c4",
+    "interview_completed": true,
+    "interview_state": "SUCCESSFUL",
+    "interviewing": false,
+    "manufacturer": "LUMI",
+    "model_id": "lumi.weather",
+    "network_address": 51234,
+    "power_source": "Battery",
+    "software_build_id": "3000-0001",
+    "supported": true,
+    "type": "EndDevice"
+  },
+  {
+    "date_code": "20181130",
+    "definition": {
+      "description": "Hue motion sensor",
+      "exposes": [
+        {"access": 1, "description": "Indicates whether the device detected occupancy", "label": "Occupancy", "name": "occupancy", "property": "occupancy", "type": "binary", "value_off": false, "value_on": true},
+        {"access": 5, "category": "diagnostic", "description": "Remaining battery in %, can take up to 24 hours before reported", "label": "Battery", "name": "battery", "property": "battery", "type": "numeric", "unit": "%", "value_max": 100, "value_min": 0},
+        {"access": 5, "description": "Measured illuminance", "label": "Illuminance", "name": "illuminance", "property": "illuminance", "type": "numeric", "unit": "lx"},
+        {"access": 5, "description": "Measured temperature value", "label": "Temperature", "name": "temperature", "property": "temperature", "type": "numeric", "unit": "°C"},
+        {"access": 1, "category": "diagnostic", "description": "Link quality (signal strength)", "label": "Linkquality", "name": "linkquality", "property": "linkquality", "type": "numeric", "unit": "lqi", "value_max": 255, "value_min": 0}
+      ],
+      "model": "9290012607",
+      "options": [],
+      "source": "native",
+      "supports_ota": true,
+      "vendor": "Philips"
+    },
+    "disabled": false,
+    "endpoints": {"2": {"bindings": [], "clusters": {"input": ["genBasic", "genPowerCfg", "genIdentify", "msIlluminanceMeasurement", "msTemperatureMeasurement", "msOccupancySensing"], "output": ["genOta"]}, "configured_reportings": [], "scenes": []}},
+    "friendly_name": "Kitchen/Motion Sensor",
+    "ieee_address": "0x001788010b2c3d4e",
+    "interview_completed": true,
+    "interview_state": "SUCCESSFUL",
+    "interviewing": false,
+    "manufacturer": "Signify Netherlands B.V.",
+    "model_id": "SML001",
+    "network_address": 60321,
+    "power_source": "Battery",
+    "software_build_id": "6.1.1.27575",
+    "supported": true,
+    "type": "EndDevice"
+  },
+  {
+    "date_code": "20161128",
+    "definition": {
+      "description": "Door and window sensor",
+      "exposes": [
+        {"access": 1, "description": "Indicates if the contact is closed (= true) or open (= false)", "label": "Contact", "name": "contact", "property": "contact", "type": "binary", "value_off": true, "value_on": false},
+        {"access": 1, "category": "diagnostic", "description": "Remaining battery in %", "label": "Battery", "name": "battery", "property": "battery", "type": "numeric", "unit": "%", "value_max": 100, "value_min": 0},
+        {"access": 1, "category": "diagnostic", "description": "Voltage of the battery in millivolts", "label": "Voltage", "name": "voltage", "property": "voltage", "type": "numeric", "unit": "mV"},
+        {"access": 1, "category": "diagnostic", "description": "Link quality (signal strength)", "label": "Linkquality", "name": "linkquality", "property": "linkquality", "type": "numeric", "unit": "lqi", "value_max": 255, "value_min": 0}
+      ],
+      "model": "MCCGQ11LM",
+      "options": [],
+      "source": "native",
+      "supports_ota": false,
+      "vendor": "Aqara"
+    },
+    "disabled": true,
+    "endpoints": {"1": {"bindings": [], "clusters": {"input": ["genBasic", "genIdentify", "genOnOff"], "output": []}, "configured_reportings": [], "scenes": []}},
+    "friendly_name": "Old Door Sensor",
+    "ieee_address": "0x00158d000aabbccd",
+    "interview_completed": true,
+    "interview_state": "SUCCESSFUL",
+    "interviewing": false,
+    "manufacturer": "LUMI",
+    "model_id": "lumi.sensor_magnet.aq2",
+    "network_address": 17231,
+    "power_source": "Battery",
+    "software_build_id": "3000-0001",
+    "supported": true,
+    "type": "EndDevice"
+  }
+]

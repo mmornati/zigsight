@@ -7,12 +7,34 @@ from typing import Any
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntry
 
-from .const import CONF_MQTT_PASSWORD, DOMAIN
+from .const import DOMAIN, LEGACY_MQTT_KEYS
 from .coordinator import ZigSightCoordinator
 
-REDACT_CONFIG = {CONF_MQTT_PASSWORD}
-REDACT_DEVICE_DATA = {"last_message"}  # May contain sensitive device data
+# Legacy entries (before the 1.2 migration) may still carry broker
+# credentials; never include them. The network identifiers are not secret
+# but are redacted as they identify the user's Zigbee network.
+REDACT_CONFIG = set(LEGACY_MQTT_KEYS)
+REDACT_NETWORK = {"extended_pan_id", "pan_id"}
+
+
+def _device_diagnostics(
+    coordinator: ZigSightCoordinator, device_id: str, record: dict[str, Any]
+) -> dict[str, Any]:
+    history = coordinator.get_device_history(device_id)
+    return {
+        **{key: value for key, value in record.items() if key != "state"},
+        # Last merged Zigbee2MQTT state: only the keys, values may be private
+        # (e.g. occupancy, lock state).
+        "state_keys": sorted(record.get("state", {})),
+        "history": {
+            "entry_count": len(history),
+            "oldest_entry": history[0]["timestamp"] if history else None,
+            "newest_entry": history[-1]["timestamp"] if history else None,
+        },
+        "reconnect_events": coordinator.get_device_reconnect_events(device_id),
+    }
 
 
 async def async_get_config_entry_diagnostics(
@@ -20,82 +42,54 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
     coordinator: ZigSightCoordinator = hass.data[DOMAIN][entry.entry_id]
-
-    diagnostics_data = {
+    network = coordinator.get_network_info()
+    return {
         "config_entry": async_redact_data(entry.as_dict(), REDACT_CONFIG),
         "coordinator": {
-            "mqtt_prefix": coordinator._mqtt_prefix,
-            "mqtt_broker": coordinator._mqtt_broker,
-            "mqtt_port": coordinator._mqtt_port,
-            "use_direct_mqtt": coordinator._use_direct_mqtt,
-            "device_count": len(coordinator._devices),
+            "source": coordinator.source,
+            "mqtt_prefix": coordinator.mqtt_prefix,
+            "bridge_state": coordinator.bridge_state,
+            "network": async_redact_data(network, REDACT_NETWORK) if network else None,
+            "coordinator_ieee": coordinator.coordinator_ieee,
+            "device_count": len(coordinator.device_ids()),
+            "network_links": len(coordinator.get_network_links()),
+            "network_map_updated": (
+                coordinator.network_map_updated.isoformat()
+                if coordinator.network_map_updated
+                else None
+            ),
             "analytics_config": {
                 "reconnect_rate_window_hours": coordinator._analytics.reconnect_rate_window_hours,
                 "battery_drain_threshold": coordinator._analytics.battery_drain_threshold,
                 "reconnect_rate_threshold": coordinator._reconnect_rate_threshold,
+                "router_timeout_seconds": coordinator._analytics.router_timeout.total_seconds(),
+                "end_device_timeout_seconds": coordinator._analytics.end_device_timeout.total_seconds(),
             },
         },
-        "devices": {},
+        "devices": {
+            device_id: _device_diagnostics(
+                coordinator, device_id, coordinator.get_device(device_id) or {}
+            )
+            for device_id in coordinator.device_ids()
+        },
     }
-
-    # Include device data with analytics metrics
-    for device_id, device_data in coordinator._devices.items():
-        # Redact sensitive data
-        device_diagnostics = async_redact_data(device_data.copy(), REDACT_DEVICE_DATA)
-
-        # Add analytics metrics
-        if "analytics_metrics" not in device_diagnostics:
-            device_diagnostics["analytics_metrics"] = {}
-
-        # Add history summary
-        history = coordinator.get_device_history(device_id)
-        device_diagnostics["history"] = {
-            "entry_count": len(history),
-            "oldest_entry": history[0].get("timestamp") if history else None,
-            "newest_entry": history[-1].get("timestamp") if history else None,
-        }
-
-        diagnostics_data["devices"][device_id] = device_diagnostics
-
-    return diagnostics_data
 
 
 async def async_get_device_diagnostics(
-    hass: HomeAssistant, entry: ConfigEntry, device_id: str
+    hass: HomeAssistant, entry: ConfigEntry, device: DeviceEntry
 ) -> dict[str, Any]:
-    """Return diagnostics for a device."""
+    """Return diagnostics for one device."""
     coordinator: ZigSightCoordinator = hass.data[DOMAIN][entry.entry_id]
-
-    device = coordinator.get_device(device_id)
-    if not device:
-        return {"error": "Device not found"}
-
-    # Redact sensitive data
-    device_data = async_redact_data(device.copy(), REDACT_DEVICE_DATA)
-
-    # Add full history
-    history = coordinator.get_device_history(device_id)
-    device_data["history"] = history
-
-    # Add analytics metrics
-    if "analytics_metrics" not in device_data:
-        device_data["analytics_metrics"] = {}
-
-    # Compute additional metrics
-    device_data["analytics_metrics"]["reconnect_rate"] = (
-        coordinator.get_device_reconnect_rate(device_id)
+    ieee = next(
+        (
+            identifier
+            for domain, identifier in device.identifiers
+            if domain == DOMAIN and coordinator.get_device(identifier) is not None
+        ),
+        None,
     )
-    device_data["analytics_metrics"]["battery_trend"] = (
-        coordinator.get_device_battery_trend(device_id)
-    )
-    device_data["analytics_metrics"]["health_score"] = (
-        coordinator.get_device_health_score(device_id)
-    )
-    device_data["analytics_metrics"]["battery_drain_warning"] = (
-        coordinator.get_device_battery_drain_warning(device_id)
-    )
-    device_data["analytics_metrics"]["connectivity_warning"] = (
-        coordinator.get_device_connectivity_warning(device_id)
-    )
-
-    return device_data
+    if ieee is None:
+        return {"error": "Device not tracked by ZigSight"}
+    data = _device_diagnostics(coordinator, ieee, coordinator.get_device(ieee) or {})
+    data["history"]["entries"] = coordinator.get_device_history(ieee)
+    return data

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from homeassistant import config_entries
@@ -14,7 +14,6 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.zigsight.const import (
     CONF_BATTERY_DRAIN_THRESHOLD,
     CONF_INTEGRATION_TYPE,
-    CONF_MQTT_BROKER,
     CONF_MQTT_TOPIC_PREFIX,
     CONF_RECONNECT_RATE_THRESHOLD,
     CONF_RECONNECT_RATE_WINDOW_HOURS,
@@ -25,20 +24,13 @@ from custom_components.zigsight.const import (
 
 
 @pytest.mark.asyncio
-async def test_zigbee2mqtt_full_flow(hass: HomeAssistant) -> None:
-    """The Zigbee2MQTT path: user -> zigbee2mqtt -> common -> create entry.
+async def test_zigbee2mqtt_full_flow(hass: HomeAssistant, mqtt_mock: MagicMock) -> None:
+    """The Zigbee2MQTT path: user -> zigbee2mqtt (base topic) -> common.
 
-    ``async_setup_entry`` is patched out here: once the flow reaches
-    CREATE_ENTRY, Home Assistant's flow manager immediately adds *and sets
-    up* the resulting config entry for real. Since no `mqtt` config entry
-    (and no ``mqtt_mock``) exists in this test, the coordinator's MQTT
-    subscribe would fall back to the direct-``aiomqtt`` path, which isn't
-    installed in the test environment (it's only pulled in when the
-    integration actually needs it) and would fail with
-    ``ModuleNotFoundError`` -- silently, since a config-entry setup failure
-    only shows up as ``ConfigEntryState.SETUP_ERROR``, not a raised
-    exception here. This test only cares about the *flow* steps, so real
-    entry setup is stubbed out.
+    No broker settings are asked any more: Zigbee2MQTT messages are received
+    through Home Assistant's MQTT integration (``mqtt_mock`` sets it up).
+    ``async_setup_entry`` is patched out because this test only covers the
+    flow steps.
     """
     with patch(
         "custom_components.zigsight.async_setup_entry", return_value=True
@@ -55,14 +47,19 @@ async def test_zigbee2mqtt_full_flow(hass: HomeAssistant) -> None:
         )
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "zigbee2mqtt"
+        assert set(map(str, result["data_schema"].schema)) == {CONF_MQTT_TOPIC_PREFIX}
+
+        # Invalid base topics are rejected
+        for bad in ("", "zigbee2mqtt/#", "zigbee2mqtt/+/x", "/"):
+            result = await hass.config_entries.flow.async_configure(
+                result["flow_id"], {CONF_MQTT_TOPIC_PREFIX: bad}
+            )
+            assert result["type"] is FlowResultType.FORM
+            assert result["errors"] == {CONF_MQTT_TOPIC_PREFIX: "invalid_topic_prefix"}
 
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {
-                CONF_MQTT_BROKER: "core-mosquitto",
-                "mqtt_port": 1883,
-                CONF_MQTT_TOPIC_PREFIX: "zigbee2mqtt",
-            },
+            {CONF_MQTT_TOPIC_PREFIX: "zigbee2mqtt/"},
         )
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "common"
@@ -70,12 +67,33 @@ async def test_zigbee2mqtt_full_flow(hass: HomeAssistant) -> None:
         result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
         assert result["type"] is FlowResultType.CREATE_ENTRY
         assert result["title"] == "ZigSight"
-        assert result["data"][CONF_INTEGRATION_TYPE] == INTEGRATION_TYPE_ZIGBEE2MQTT
-        assert result["data"][CONF_MQTT_BROKER] == "core-mosquitto"
+        assert result["data"] == {
+            CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZIGBEE2MQTT,
+            CONF_MQTT_TOPIC_PREFIX: "zigbee2mqtt",
+            CONF_BATTERY_DRAIN_THRESHOLD: 10.0,
+            CONF_RECONNECT_RATE_THRESHOLD: 5.0,
+            CONF_RECONNECT_RATE_WINDOW_HOURS: 24,
+        }
+        assert result["result"].version == 1
+        assert result["result"].minor_version == 2
 
         await hass.async_block_till_done()
 
         mock_setup_entry.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_zigbee2mqtt_flow_aborts_without_mqtt(hass: HomeAssistant) -> None:
+    """Choosing Zigbee2MQTT without the MQTT integration aborts clearly."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZIGBEE2MQTT},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "mqtt_not_available"
 
 
 @pytest.mark.asyncio
@@ -183,7 +201,7 @@ async def test_options_flow_form_defaults_from_entry_data(
 
 @pytest.mark.asyncio
 async def test_options_flow_reloads_zigbee2mqtt_entry(
-    hass: HomeAssistant, mqtt_mock: None
+    hass: HomeAssistant, mqtt_mock: MagicMock
 ) -> None:
     """Changing options on a loaded Z2M entry should reload it.
 
@@ -191,6 +209,8 @@ async def test_options_flow_reloads_zigbee2mqtt_entry(
     """
     entry = MockConfigEntry(
         domain=DOMAIN,
+        version=1,
+        minor_version=2,
         data={
             CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_ZIGBEE2MQTT,
             CONF_MQTT_TOPIC_PREFIX: "zigbee2mqtt",

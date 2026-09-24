@@ -1,0 +1,49 @@
+{
+  "commit": "8e1a4a8",
+  "config": {
+    "advanced": {
+      "channel": 15,
+      "last_seen": "ISO_8601_local",
+      "log_level": "info",
+      "network_key": "HIDDEN",
+      "pan_id": 6754
+    },
+    "availability": {
+      "active": {"timeout": 10},
+      "enabled": true,
+      "passive": {"timeout": 1500}
+    },
+    "frontend": {"enabled": true, "port": 8099},
+    "homeassistant": {"enabled": true},
+    "mqtt": {
+      "base_topic": "zigbee2mqtt",
+      "password": "not-a-real-password",
+      "server": "mqtt://core-mosquitto:1883",
+      "user": "addons"
+    },
+    "serial": {"adapter": "zstack", "port": "/dev/ttyUSB0"}
+  },
+  "config_schema": {},
+  "coordinator": {
+    "ieee_address": "0x00124b0024c1a2b3",
+    "meta": {
+      "maintrel": 1,
+      "majorrel": 2,
+      "minorrel": 7,
+      "product": 1,
+      "revision": 20240710,
+      "transportrev": 2
+    },
+    "type": "zStack3x0"
+  },
+  "log_level": "info",
+  "network": {
+    "channel": 15,
+    "extended_pan_id": "0xdddddddddddddddd",
+    "pan_id": 6754
+  },
+  "permit_join": false,
+  "permit_join_end": null,
+  "restart_required": false,
+  "version": "2.1.3"
+}

@@ -1,0 +1,25 @@
+{
+  "description": "Recorded-style Zigbee2MQTT 2.x session (base topic 'zigbee2mqtt', advanced.last_seen = ISO_8601_local, availability enabled). Messages are listed in publish order; topics are relative to the base topic. 'payload' objects are published as JSON, strings verbatim; 'payload_file' refers to a file in this directory. Recorded around 2026-09-24T08:20:00Z.",
+  "base_topic": "zigbee2mqtt",
+  "recorded_at": "2026-09-24T08:20:00+00:00",
+  "messages": [
+    {"topic": "bridge/state", "payload": {"state": "online"}, "retain": true},
+    {"topic": "bridge/info", "payload_file": "bridge_info.json", "retain": true},
+    {"topic": "Living Room Lamp/availability", "payload": {"state": "online"}, "retain": true, "note": "retained availability delivered before bridge/devices"},
+    {"topic": "bridge/devices", "payload_file": "bridge_devices.json", "retain": true},
+    {"topic": "bridge/groups", "payload": [{"friendly_name": "Living Room Lights", "id": 1, "members": [{"endpoint": 11, "ieee_address": "0x0017880104e45517"}], "scenes": []}], "retain": true},
+    {"topic": "Kitchen/availability", "payload": {"state": "online"}, "retain": true},
+    {"topic": "Bedroom Climate/availability", "payload": "online", "retain": true, "note": "legacy plain-text availability payload"},
+    {"topic": "Kitchen/Motion Sensor/availability", "payload": {"state": "online"}, "retain": true},
+    {"topic": "Living Room Lamp", "payload": {"brightness": 254, "color_mode": "color_temp", "color_temp": 366, "last_seen": "2026-09-24T10:13:00+02:00", "linkquality": 156, "state": "ON", "update": {"installed_version": 16786688, "latest_version": 16786688, "state": "idle"}}},
+    {"topic": "Kitchen", "payload": {"last_seen": "2026-09-24T10:12:00+02:00", "linkquality": 201, "state": "OFF"}},
+    {"topic": "Bedroom Climate", "payload": {"battery": 87, "humidity": 55.12, "last_seen": "2026-09-24T10:05:10+02:00", "linkquality": 72, "power_outage_count": 12, "pressure": 1012.3, "temperature": 21.45, "voltage": 2985}},
+    {"topic": "Kitchen/Motion Sensor", "payload": {"battery": 64, "illuminance": 12, "last_seen": "2026-09-24T10:14:00+02:00", "linkquality": 110, "occupancy": false, "temperature": 20.8}},
+    {"topic": "Living Room Lamp/set", "payload": {"state": "OFF"}, "note": "command topic, must not be treated as state"},
+    {"topic": "Kitchen/set", "payload": "ON", "note": "plain-text command, must not be treated as state"},
+    {"topic": "Living Room Lights", "payload": {"brightness": 200, "state": "ON"}, "note": "group state, must be ignored"},
+    {"topic": "Bedroom Climate", "payload": {"last_seen": "2026-09-24T10:15:32+02:00", "linkquality": 69, "temperature": 21.5}, "note": "partial update: battery/voltage must keep their previous values"},
+    {"topic": "bridge/logging", "payload": {"level": "info", "message": "MQTT publish: topic 'zigbee2mqtt/Bedroom Climate'"}},
+    {"topic": "bridge/response/networkmap", "payload_file": "networkmap_raw.json"}
+  ]
+}

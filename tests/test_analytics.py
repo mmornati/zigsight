@@ -5,538 +5,276 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from custom_components.zigsight.analytics import DeviceAnalytics
+import pytest
+from homeassistant.util import dt as dt_util
+
+from custom_components.zigsight.analytics import (
+    DeviceAnalytics,
+    as_datetime,
+)
+from custom_components.zigsight.const import (
+    END_DEVICE_CONNECTIVITY_TIMEOUT,
+    ROUTER_CONNECTIVITY_TIMEOUT,
+)
+
+NOW = datetime(2026, 9, 24, 12, 0, tzinfo=dt_util.UTC)
 
 
-class TestDeviceAnalyticsInit:
-    """Test DeviceAnalytics initialization."""
+def _battery_history(readings: list[tuple[float, float]]) -> list[dict[str, Any]]:
+    """(hours ago, battery) -> history entries."""
+    return [
+        {"timestamp": NOW - timedelta(hours=hours), "battery": battery}
+        for hours, battery in readings
+    ]
 
-    def test_default_initialization(self) -> None:
-        """Test default initialization values."""
+
+class TestInit:
+    """DeviceAnalytics initialization."""
+
+    def test_defaults(self) -> None:
+        """Default thresholds."""
         analytics = DeviceAnalytics()
         assert analytics.reconnect_rate_window_hours == 24
         assert analytics.battery_drain_threshold == 10
-        assert analytics.min_battery_for_trend == 20
+        assert analytics.router_timeout == ROUTER_CONNECTIVITY_TIMEOUT
+        assert analytics.end_device_timeout == END_DEVICE_CONNECTIVITY_TIMEOUT
 
-    def test_custom_initialization(self) -> None:
-        """Test custom initialization values."""
+    def test_custom(self) -> None:
+        """Custom thresholds."""
         analytics = DeviceAnalytics(
             reconnect_rate_window_hours=12,
             battery_drain_threshold=5.0,
-            min_battery_for_trend=30,
+            router_timeout=timedelta(minutes=3),
+            end_device_timeout=timedelta(hours=2),
         )
         assert analytics.reconnect_rate_window_hours == 12
         assert analytics.battery_drain_threshold == 5.0
-        assert analytics.min_battery_for_trend == 30
+        assert analytics.connectivity_timeout({"type": "Router"}) == timedelta(
+            minutes=3
+        )
+        assert analytics.connectivity_timeout({"type": "EndDevice"}) == timedelta(
+            hours=2
+        )
+        assert analytics.connectivity_timeout({}) == timedelta(hours=2)
 
 
-class TestComputeReconnectRate:
-    """Test reconnect rate computation."""
+class TestAsDatetime:
+    """Timestamp normalisation."""
 
-    def test_no_history(self) -> None:
-        """Test reconnect rate with no history."""
-        analytics = DeviceAnalytics()
-        assert analytics.compute_reconnect_rate([]) == 0.0
+    def test_values(self) -> None:
+        """Strings, aware and naive datetimes are normalised to aware UTC."""
+        assert as_datetime(NOW) == NOW
+        assert as_datetime(NOW.isoformat()) == NOW
+        assert as_datetime("2026-09-24T14:00:00+02:00") == NOW
+        assert as_datetime("2026-09-24T12:00:00") == NOW
+        assert as_datetime("garbage") is None
+        assert as_datetime(None) is None
+        assert as_datetime(123) is None
+
+
+class TestReconnectRate:
+    """Reconnect rate from recorded offline -> online transitions."""
+
+    def test_no_events(self) -> None:
+        """No reconnects -> 0."""
+        assert DeviceAnalytics().compute_reconnect_rate([], now=NOW) == 0.0
+
+    def test_events_in_window(self) -> None:
+        """Only events inside the window count."""
+        events = [
+            NOW - timedelta(hours=1),
+            (NOW - timedelta(hours=2)).isoformat(),
+            NOW - timedelta(hours=30),
+            "garbage",
+        ]
+        assert DeviceAnalytics().compute_reconnect_rate(events, now=NOW) == round(
+            2 / 24, 3
+        )
+        assert DeviceAnalytics().compute_reconnect_rate(
+            events, window_hours=48, now=NOW
+        ) == round(3 / 48, 3)
+
+    def test_zero_window(self) -> None:
+        """A zero window never divides by zero."""
+        assert DeviceAnalytics().compute_reconnect_rate([NOW], window_hours=0) == 0.0
+
+    def test_regular_reporting_is_not_a_reconnect(self) -> None:
+        """Sleepy devices reporting every hour no longer look like reconnects."""
+        # The old implementation counted every >5 minute gap between messages
+        # as a reconnect; reconnects are now explicit availability events.
+        assert DeviceAnalytics().compute_reconnect_rate([], now=NOW) == 0.0
+
+
+class TestBatteryTrend:
+    """Battery trend (linear regression)."""
 
     def test_insufficient_data(self) -> None:
-        """Test reconnect rate with insufficient data."""
+        """Fewer than 2 readings -> None."""
         analytics = DeviceAnalytics()
-        history = [
-            {
-                "timestamp": datetime.now().isoformat(),
-                "metrics": {"battery": 100},
-            }
-        ]
-        assert analytics.compute_reconnect_rate(history) == 0.0
+        assert analytics.compute_battery_trend([], now=NOW) is None
+        assert (
+            analytics.compute_battery_trend(_battery_history([(1, 90)]), now=NOW)
+            is None
+        )
 
-    def test_with_reconnects(self) -> None:
-        """Test reconnect rate computation with reconnection events."""
-        analytics = DeviceAnalytics(reconnect_rate_window_hours=24)
-        now = datetime.now()
-
-        history = [
-            {
-                "timestamp": (now - timedelta(hours=23)).isoformat(),
-                "metrics": {"battery": 100},
-            },
-            {
-                "timestamp": (now - timedelta(hours=10)).isoformat(),
-                "metrics": {"battery": 90},
-            },
-            {
-                "timestamp": (now - timedelta(hours=2)).isoformat(),
-                "metrics": {"battery": 80},
-            },
-            {
-                "timestamp": (now - timedelta(minutes=30)).isoformat(),
-                "metrics": {"battery": 70},
-            },
-        ]
-
-        rate = analytics.compute_reconnect_rate(history)
-        assert rate >= 0.0
-
-    def test_custom_window_hours(self) -> None:
-        """Test reconnect rate with custom window hours."""
-        analytics = DeviceAnalytics(reconnect_rate_window_hours=24)
-        now = datetime.now()
-
-        history = [
-            {"timestamp": (now - timedelta(hours=1)).isoformat()},
-            {"timestamp": (now - timedelta(minutes=30)).isoformat()},
-        ]
-
-        rate = analytics.compute_reconnect_rate(history, window_hours=2)
-        assert rate >= 0.0
-
-    def test_missing_timestamp(self) -> None:
-        """Test reconnect rate handles missing timestamps."""
+    def test_minimum_span(self) -> None:
+        """Readings a few minutes apart don't extrapolate to a huge drain."""
         analytics = DeviceAnalytics()
-        now = datetime.now()
-        history = [
-            {"metrics": {"battery": 100}},  # Missing timestamp
-            {"timestamp": (now - timedelta(hours=2)).isoformat()},
-            {"timestamp": now.isoformat()},
-        ]
-        rate = analytics.compute_reconnect_rate(history)
-        assert rate >= 0.0
+        history = _battery_history([(0.1, 100), (0.05, 99)])
+        assert analytics.compute_battery_trend(history, now=NOW) is None
 
-    def test_invalid_timestamp_format(self) -> None:
-        """Test reconnect rate handles invalid timestamp format."""
-        analytics = DeviceAnalytics()
-        history = [
-            {"timestamp": "invalid-date"},
-            {"timestamp": datetime.now().isoformat()},
-        ]
-        rate = analytics.compute_reconnect_rate(history)
-        assert rate >= 0.0
+    def test_draining(self) -> None:
+        """A steady drain gives a negative slope in %/h."""
+        history = _battery_history([(4, 90), (3, 80), (2, 70), (1, 60)])
+        assert DeviceAnalytics().compute_battery_trend(history, now=NOW) == -10.0
 
-    def test_entries_outside_window(self) -> None:
-        """Test that entries outside window are ignored."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
+    def test_charging(self) -> None:
+        """A rising battery gives a positive slope."""
+        history = _battery_history([(3, 50), (2, 60), (1, 70)])
+        assert DeviceAnalytics().compute_battery_trend(history, now=NOW) == 10.0
 
-        history = [
-            {"timestamp": (now - timedelta(hours=48)).isoformat()},
-            {"timestamp": (now - timedelta(hours=47)).isoformat()},
-        ]
+    def test_low_battery_values_are_used(self) -> None:
+        """Values below 20% are no longer ignored."""
+        history = _battery_history([(3, 18), (2, 12), (1, 6)])
+        assert DeviceAnalytics().compute_battery_trend(history, now=NOW) == -6.0
 
-        rate = analytics.compute_reconnect_rate(history, window_hours=24)
-        assert rate == 0.0
-
-    def test_zero_window_hours(self) -> None:
-        """Test reconnect rate with zero window hours."""
-        analytics = DeviceAnalytics()
-        history = [
-            {"timestamp": datetime.now().isoformat()},
-            {"timestamp": datetime.now().isoformat()},
-        ]
-        rate = analytics.compute_reconnect_rate(history, window_hours=0)
-        assert rate == 0.0
-
-
-class TestComputeBatteryTrend:
-    """Test battery trend computation."""
-
-    def test_no_history(self) -> None:
-        """Test battery trend with no history."""
-        analytics = DeviceAnalytics()
-        assert analytics.compute_battery_trend([]) is None
-
-    def test_insufficient_data(self) -> None:
-        """Test battery trend with insufficient data."""
-        analytics = DeviceAnalytics()
-        history = [
-            {
-                "timestamp": datetime.now().isoformat(),
-                "metrics": {"battery": 100},
-            }
-        ]
-        assert analytics.compute_battery_trend(history) is None
-
-    def test_with_data_draining(self) -> None:
-        """Test battery trend computation showing drain."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
-
-        history = [
-            {
-                "timestamp": (now - timedelta(hours=23)).isoformat(),
-                "metrics": {"battery": 100},
-            },
-            {
-                "timestamp": (now - timedelta(hours=10)).isoformat(),
-                "metrics": {"battery": 90},
-            },
-            {
-                "timestamp": (now - timedelta(hours=2)).isoformat(),
-                "metrics": {"battery": 80},
-            },
-            {
-                "timestamp": (now - timedelta(minutes=30)).isoformat(),
-                "metrics": {"battery": 70},
-            },
-        ]
-
-        trend = analytics.compute_battery_trend(history)
-        assert trend is not None
-        assert trend < 0  # Battery is draining (negative trend)
-
-    def test_with_data_charging(self) -> None:
-        """Test battery trend computation showing charging."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
-
-        history = [
-            {
-                "timestamp": (now - timedelta(hours=4)).isoformat(),
-                "metrics": {"battery": 50},
-            },
-            {
-                "timestamp": (now - timedelta(hours=2)).isoformat(),
-                "metrics": {"battery": 75},
-            },
-            {
-                "timestamp": now.isoformat(),
-                "metrics": {"battery": 100},
-            },
-        ]
-
-        trend = analytics.compute_battery_trend(history)
-        assert trend is not None
-        assert trend > 0  # Battery is charging (positive trend)
-
-    def test_battery_percent_key(self) -> None:
-        """Test battery trend with battery_percent key."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
-
-        history = [
-            {
-                "timestamp": (now - timedelta(hours=2)).isoformat(),
-                "metrics": {"battery_percent": 100},
-            },
-            {
-                "timestamp": now.isoformat(),
-                "metrics": {"battery_percent": 90},
-            },
-        ]
-
-        trend = analytics.compute_battery_trend(history)
-        assert trend is not None
-
-    def test_low_battery_filtered_out(self) -> None:
-        """Test that low battery values are filtered out."""
-        analytics = DeviceAnalytics(min_battery_for_trend=50)
-        now = datetime.now()
-
-        history = [
-            {
-                "timestamp": (now - timedelta(hours=2)).isoformat(),
-                "metrics": {"battery": 30},  # Below threshold
-            },
-            {
-                "timestamp": now.isoformat(),
-                "metrics": {"battery": 20},  # Below threshold
-            },
-        ]
-
-        trend = analytics.compute_battery_trend(history)
-        assert trend is None
-
-    def test_invalid_battery_value(self) -> None:
-        """Test battery trend handles invalid battery values."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
-
-        history = [
-            {
-                "timestamp": (now - timedelta(hours=2)).isoformat(),
-                "metrics": {"battery": "invalid"},
-            },
-            {
-                "timestamp": now.isoformat(),
-                "metrics": {"battery": 80},
-            },
-        ]
-
-        trend = analytics.compute_battery_trend(history)
-        assert trend is None  # Only one valid reading
-
-    def test_entries_outside_window(self) -> None:
-        """Test that entries outside window are ignored."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
-
-        history = [
-            {
-                "timestamp": (now - timedelta(hours=48)).isoformat(),
-                "metrics": {"battery": 100},
-            },
-            {
-                "timestamp": (now - timedelta(hours=47)).isoformat(),
-                "metrics": {"battery": 90},
-            },
-        ]
-
-        trend = analytics.compute_battery_trend(history, window_hours=24)
-        assert trend is None
-
-
-class TestComputeHealthScore:
-    """Test health score computation."""
-
-    def test_no_device_data(self) -> None:
-        """Test health score with no device data."""
-        analytics = DeviceAnalytics()
-        device_data: dict[str, Any] = {}
-        history: list[dict[str, Any]] = []
-        score = analytics.compute_health_score(device_data, history)
-        assert 0 <= score <= 100
-
-    def test_with_excellent_metrics(self) -> None:
-        """Test health score with excellent metrics."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
-
-        device_data: dict[str, Any] = {
-            "metrics": {
-                "link_quality": 255,  # Excellent
-                "battery": 100,  # Full
-                "last_seen": now.isoformat(),  # Very recent
-            }
-        }
-
-        score = analytics.compute_health_score(device_data, [])
-        assert score > 80  # Should be excellent
-
-    def test_with_poor_metrics(self) -> None:
-        """Test health score with poor metrics."""
-        analytics = DeviceAnalytics()
-        old_time = datetime.now() - timedelta(hours=2)
-
-        device_data: dict[str, Any] = {
-            "metrics": {
-                "link_quality": 10,  # Poor
-                "battery": 5,  # Almost dead
-                "last_seen": old_time.isoformat(),  # Old
-            }
-        }
-
-        # Create history with many reconnects
-        now = datetime.now()
+    def test_ignores_invalid_and_old_entries(self) -> None:
+        """Invalid values, missing timestamps and old entries are skipped."""
         history: list[dict[str, Any]] = [
-            {"timestamp": (now - timedelta(hours=i)).isoformat()} for i in range(24)
+            *_battery_history([(30, 100), (3, 90), (1, 80)]),
+            {"timestamp": NOW, "battery": "bad"},
+            {"timestamp": NOW, "battery": True},
+            {"battery": 10},
+            {"timestamp": "garbage", "battery": 10},
+            {"timestamp": NOW, "battery": None},
         ]
+        assert DeviceAnalytics().compute_battery_trend(history, now=NOW) == -5.0
 
-        score = analytics.compute_health_score(device_data, history)
-        assert score < 50  # Should be poor
+    def test_string_timestamps(self) -> None:
+        """ISO string timestamps are accepted."""
+        history = [
+            {"timestamp": (NOW - timedelta(hours=2)).isoformat(), "battery": 50},
+            {"timestamp": NOW.isoformat(), "battery": 48},
+        ]
+        assert DeviceAnalytics().compute_battery_trend(history, now=NOW) == -1.0
 
-    def test_link_quality_normalization(self) -> None:
-        """Test link quality normalization from 0-255 to 0-100."""
+
+class TestConnectivity:
+    """Connectivity score and warning."""
+
+    def test_availability_is_authoritative(self) -> None:
+        """Z2M availability wins over last_seen."""
         analytics = DeviceAnalytics()
+        old = {"last_seen": (NOW - timedelta(days=3)).isoformat()}
+        assert (
+            analytics.compute_connectivity_score(
+                {"available": True, "metrics": old}, NOW
+            )
+            == 100.0
+        )
+        assert analytics.compute_connectivity_score({"available": False}, NOW) == 0.0
+        assert not analytics.check_connectivity_warning(
+            {"available": True, "metrics": old}, now=NOW
+        )
+        assert analytics.check_connectivity_warning({"available": False}, now=NOW)
 
-        # Test with max link quality
-        device_data_max = {"metrics": {"link_quality": 255}}
-        score_max = analytics.compute_health_score(device_data_max, [])
+    @pytest.mark.parametrize(
+        ("device_type", "silent_for", "warning"),
+        [
+            ("Router", timedelta(minutes=5), False),
+            ("Router", timedelta(minutes=11), True),
+            ("EndDevice", timedelta(hours=2), False),
+            ("EndDevice", timedelta(hours=24), False),
+            ("EndDevice", timedelta(hours=26), True),
+            (None, timedelta(hours=2), False),
+        ],
+    )
+    def test_type_dependent_timeouts(
+        self, device_type: str | None, silent_for: timedelta, warning: bool
+    ) -> None:
+        """Routers must be chatty, sleepy end devices may be silent for hours."""
+        device = {
+            "type": device_type,
+            "metrics": {"last_seen": (NOW - silent_for).isoformat()},
+        }
+        assert DeviceAnalytics().check_connectivity_warning(device, now=NOW) is warning
 
-        # Test with half link quality
-        device_data_half = {"metrics": {"link_quality": 127}}
-        score_half = analytics.compute_health_score(device_data_half, [])
-
-        assert score_max > score_half
-
-    def test_invalid_link_quality(self) -> None:
-        """Test health score with invalid link quality value."""
+    def test_no_last_seen(self) -> None:
+        """Unknown last_seen is neutral and not a warning."""
         analytics = DeviceAnalytics()
-        device_data = {"metrics": {"link_quality": "invalid"}}
-        score = analytics.compute_health_score(device_data, [])
+        assert analytics.compute_connectivity_score({"metrics": {}}, NOW) == 50.0
+        assert not analytics.check_connectivity_warning({"metrics": {}}, now=NOW)
+        assert not analytics.check_connectivity_warning(
+            {"metrics": {"last_seen": "garbage"}}, now=NOW
+        )
+
+    def test_linear_decay(self) -> None:
+        """The score decays with the time since last seen."""
+        analytics = DeviceAnalytics()
+        half = {
+            "type": "Router",
+            "metrics": {"last_seen": (NOW - timedelta(minutes=5)).isoformat()},
+        }
+        assert analytics.compute_connectivity_score(half, NOW) == pytest.approx(50.0)
+
+    def test_reconnect_rate_threshold(self) -> None:
+        """Flapping devices get a warning even when online."""
+        analytics = DeviceAnalytics()
+        device = {"available": True}
+        assert analytics.check_connectivity_warning(device, 6.0, 5.0, NOW)
+        assert not analytics.check_connectivity_warning(device, 1.0, 5.0, NOW)
+
+
+class TestHealthScore:
+    """Health score aggregation."""
+
+    def test_excellent(self) -> None:
+        """Great metrics -> high score."""
+        device = {
+            "available": True,
+            "metrics": {"link_quality": 255, "battery": 100},
+        }
+        assert DeviceAnalytics().compute_health_score(device, 0.0, NOW) == 100.0
+
+    def test_poor(self) -> None:
+        """Offline, weak, empty and flapping -> low score."""
+        device = {
+            "available": False,
+            "metrics": {"link_quality": 10, "battery": 5},
+        }
+        assert DeviceAnalytics().compute_health_score(device, 12.0, NOW) < 10
+
+    def test_mains_devices_are_not_penalised_for_missing_battery(self) -> None:
+        """No battery reading -> the battery component is left out."""
+        device = {"available": True, "metrics": {"link_quality": 255}}
+        assert DeviceAnalytics().compute_health_score(device, 0.0, NOW) == 100.0
+
+    def test_invalid_and_missing_values(self) -> None:
+        """Invalid values fall back to neutral scores."""
+        analytics = DeviceAnalytics()
+        score = analytics.compute_health_score(
+            {"metrics": {"link_quality": "bad", "battery": "bad"}}, 0.0, NOW
+        )
         assert 0 <= score <= 100
+        assert 0 <= analytics.compute_health_score({}) <= 100
 
-    def test_invalid_battery(self) -> None:
-        """Test health score with invalid battery value."""
+    def test_reconnect_rate_penalty(self) -> None:
+        """Higher reconnect rates lower the score."""
         analytics = DeviceAnalytics()
-        device_data = {"metrics": {"battery": "invalid"}}
-        score = analytics.compute_health_score(device_data, [])
-        assert 0 <= score <= 100
-
-    def test_connectivity_score_recent(self) -> None:
-        """Test connectivity score with recent last_seen."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
-        device_data = {"metrics": {"last_seen": now.isoformat()}}
-        score = analytics.compute_health_score(device_data, [])
-        assert score > 40  # Connectivity score should contribute positively
-
-    def test_connectivity_score_old(self) -> None:
-        """Test connectivity score with old last_seen."""
-        analytics = DeviceAnalytics()
-        old_time = datetime.now() - timedelta(hours=2)
-        device_data = {"metrics": {"last_seen": old_time.isoformat()}}
-        score = analytics.compute_health_score(device_data, [])
-        # Score should still be valid
-        assert 0 <= score <= 100
-
-    def test_invalid_last_seen(self) -> None:
-        """Test health score with invalid last_seen format."""
-        analytics = DeviceAnalytics()
-        device_data = {"metrics": {"last_seen": "invalid-date"}}
-        score = analytics.compute_health_score(device_data, [])
-        assert 0 <= score <= 100
-
-    def test_high_reconnect_rate_penalty(self) -> None:
-        """Test that high reconnect rate penalizes score."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
-
-        # Create history with many reconnects (gaps > 5 minutes)
-        history = []
-        for i in range(20):
-            history.append({"timestamp": (now - timedelta(hours=i)).isoformat()})
-
-        device_data: dict[str, Any] = {"metrics": {"link_quality": 200}}
-        score = analytics.compute_health_score(device_data, history)
-        # Score should be lower due to reconnects
-        assert 0 <= score <= 100
+        device = {"available": True, "metrics": {"link_quality": 200}}
+        assert analytics.compute_health_score(
+            device, 5.0, NOW
+        ) < analytics.compute_health_score(device, 0.0, NOW)
 
 
 class TestBatteryDrainWarning:
-    """Test battery drain warning detection."""
+    """Battery drain warning."""
 
-    def test_no_drain_warning(self) -> None:
-        """Test battery drain warning with no significant drain."""
+    def test_threshold(self) -> None:
+        """Warning when the drain is faster than the threshold."""
         analytics = DeviceAnalytics(battery_drain_threshold=10.0)
-        now = datetime.now()
-
-        history = [
-            {
-                "timestamp": (now - timedelta(hours=23)).isoformat(),
-                "metrics": {"battery": 100},
-            },
-            {
-                "timestamp": (now - timedelta(minutes=30)).isoformat(),
-                "metrics": {"battery": 99},
-            },
-        ]
-
-        assert analytics.check_battery_drain_warning(history) is False
-
-    def test_significant_drain_warning(self) -> None:
-        """Test battery drain warning triggers with significant drain."""
-        analytics = DeviceAnalytics(battery_drain_threshold=1.0)
-        now = datetime.now()
-
-        # Very rapid drain
-        history = [
-            {
-                "timestamp": (now - timedelta(hours=2)).isoformat(),
-                "metrics": {"battery": 100},
-            },
-            {
-                "timestamp": now.isoformat(),
-                "metrics": {"battery": 50},
-            },
-        ]
-
-        warning = analytics.check_battery_drain_warning(history)
-        assert warning is True
-
-    def test_custom_threshold(self) -> None:
-        """Test battery drain warning with custom threshold."""
-        analytics = DeviceAnalytics(battery_drain_threshold=5.0)
-        now = datetime.now()
-
-        history = [
-            {
-                "timestamp": (now - timedelta(hours=4)).isoformat(),
-                "metrics": {"battery": 100},
-            },
-            {
-                "timestamp": now.isoformat(),
-                "metrics": {"battery": 70},
-            },
-        ]
-
-        warning = analytics.check_battery_drain_warning(history, threshold=2.0)
-        assert isinstance(warning, bool)
-
-    def test_no_battery_data(self) -> None:
-        """Test battery drain warning with no battery data."""
-        analytics = DeviceAnalytics()
-        history: list[dict[str, Any]] = []
-        assert analytics.check_battery_drain_warning(history) is False
-
-
-class TestConnectivityWarning:
-    """Test connectivity warning detection."""
-
-    def test_no_warning_recent(self) -> None:
-        """Test connectivity warning with good connectivity."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
-
-        device_data = {
-            "metrics": {
-                "last_seen": now.isoformat(),
-            },
-            "history": [],
-        }
-
-        assert analytics.check_connectivity_warning(device_data, 5.0) is False
-
-    def test_warning_old_last_seen(self) -> None:
-        """Test connectivity warning with old last_seen."""
-        analytics = DeviceAnalytics()
-
-        device_data = {
-            "metrics": {
-                "last_seen": (datetime.now() - timedelta(hours=2)).isoformat(),
-            },
-            "history": [],
-        }
-
-        assert analytics.check_connectivity_warning(device_data, 5.0) is True
-
-    def test_warning_high_reconnect_rate(self) -> None:
-        """Test connectivity warning with high reconnect rate."""
-        analytics = DeviceAnalytics()
-        now = datetime.now()
-
-        # Create history with many reconnects
-        history = []
-        for i in range(50):  # Many reconnects
-            history.append({"timestamp": (now - timedelta(hours=i / 3)).isoformat()})
-
-        device_data = {
-            "metrics": {
-                "last_seen": now.isoformat(),
-            },
-            "history": history,
-        }
-
-        warning = analytics.check_connectivity_warning(device_data, 1.0)
-        assert isinstance(warning, bool)
-
-    def test_no_last_seen(self) -> None:
-        """Test connectivity warning with no last_seen."""
-        analytics = DeviceAnalytics()
-        device_data = {
-            "metrics": {},
-            "history": [],
-        }
-        # Should not crash, no warning since no reconnects and no last_seen check
-        warning = analytics.check_connectivity_warning(device_data, 5.0)
-        assert isinstance(warning, bool)
-
-    def test_invalid_last_seen_format(self) -> None:
-        """Test connectivity warning with invalid last_seen format."""
-        analytics = DeviceAnalytics()
-        device_data = {
-            "metrics": {
-                "last_seen": "invalid-date",
-            },
-            "history": [],
-        }
-        # Should not crash
-        warning = analytics.check_connectivity_warning(device_data, 5.0)
-        assert isinstance(warning, bool)
+        assert not analytics.check_battery_drain_warning(None)
+        assert not analytics.check_battery_drain_warning(-5.0)
+        assert analytics.check_battery_drain_warning(-11.0)
+        assert analytics.check_battery_drain_warning(-3.0, threshold=2.0)
+        assert not analytics.check_battery_drain_warning(5.0)

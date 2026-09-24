@@ -5,11 +5,12 @@ from __future__ import annotations
 import csv
 import io
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import ZigSightCoordinator
@@ -50,7 +51,11 @@ class ZigSightTopologyView(HomeAssistantView):
 
             # Build topology from coordinator devices
             devices = coordinator.get_all_devices()
-            topology = build_topology(devices)
+            topology = build_topology(
+                devices,
+                links=coordinator.get_network_links() or None,
+                coordinator_id=coordinator.coordinator_ieee,
+            )
 
             return self.json(topology)
 
@@ -278,13 +283,17 @@ class ZigSightAnalyticsTrendsView(HomeAssistantView):
                 device_history = coordinator.get_device_history(device_id)
 
                 # Filter history by time window
-                cutoff_time = datetime.now() - timedelta(hours=hours)
+                cutoff_time = dt_util.utcnow() - timedelta(hours=hours)
                 filtered_history = []
                 for entry in device_history:
                     try:
                         timestamp_str = entry.get("timestamp", "")
                         if timestamp_str:
-                            timestamp = datetime.fromisoformat(timestamp_str)
+                            timestamp = dt_util.parse_datetime(timestamp_str)
+                            if timestamp is None:
+                                continue
+                            if timestamp.tzinfo is None:
+                                timestamp = dt_util.as_utc(timestamp)
                             if timestamp > cutoff_time:
                                 filtered_history.append(entry)
                     except (ValueError, TypeError):
@@ -497,7 +506,7 @@ class ZigSightChannelRecommendationView(HomeAssistantView):
                 "current_channel": current_channel,
                 "scores": last_recommendation.get("scores", {}),
                 "explanation": last_recommendation.get("explanation", ""),
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": dt_util.utcnow().isoformat(),
             }
 
             return self.json(response_data)
@@ -552,7 +561,7 @@ class ZigSightChannelRecommendationView(HomeAssistantView):
 
             history_entry = {
                 **result,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": dt_util.utcnow().isoformat(),
                 "wifi_aps_count": len(wifi_aps),
             }
             self.hass.data[DOMAIN][history_key].append(history_entry)
